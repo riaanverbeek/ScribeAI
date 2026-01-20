@@ -3,14 +3,28 @@ import { queryClient } from "./lib/queryClient";
 import { QueryClientProvider } from "@tanstack/react-query";
 import { Toaster } from "@/components/ui/toaster";
 import { TooltipProvider } from "@/components/ui/tooltip";
+import { Layout } from "@/components/Layout";
 import NotFound from "@/pages/not-found";
+import Dashboard from "@/pages/Dashboard";
+import NewMeeting from "@/pages/NewMeeting";
+import MeetingDetail from "@/pages/MeetingDetail";
 
 function Router() {
   return (
     <Switch>
-      {/* Add pages below */}
-      {/* <Route path="/" component={Home}/> */}
-      {/* Fallback to 404 */}
+      <Route path="/">
+        <Layout>
+          <Dashboard />
+        </Layout>
+      </Route>
+      <Route path="/new">
+        <Layout>
+          <NewMeeting />
+        </Layout>
+      </Route>
+      {/* Meeting Detail doesn't use standard Layout for more immersive feel, has its own header */}
+      <Route path="/meeting/:id" component={MeetingDetail} />
+      
       <Route component={NotFound} />
     </Switch>
   );
