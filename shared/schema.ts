@@ -1,7 +1,7 @@
 import { pgTable, text, serial, integer, boolean, timestamp } from "drizzle-orm/pg-core";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod";
-import { relations } from "drizzle-orm";
+import { relations, sql } from "drizzle-orm";
 
 // === TABLE DEFINITIONS ===
 
@@ -45,6 +45,21 @@ export const meetingSummaries = pgTable("meeting_summaries", {
   createdAt: timestamp("created_at").defaultNow(),
 });
 
+// === CHAT TABLES FOR REPLIT INTEGRATIONS ===
+
+export const conversations = pgTable("conversations", {
+  id: serial("id").primaryKey(),
+  title: text("title").notNull(),
+  createdAt: timestamp("created_at").default(sql`CURRENT_TIMESTAMP`).notNull(),
+});
+
+export const messages = pgTable("messages", {
+  id: serial("id").primaryKey(),
+  conversationId: integer("conversation_id").notNull().references(() => conversations.id, { onDelete: "cascade" }),
+  role: text("role").notNull(),
+  content: text("content").notNull(),
+  createdAt: timestamp("created_at").default(sql`CURRENT_TIMESTAMP`).notNull(),
+});
 
 // === RELATIONS ===
 
@@ -97,6 +112,16 @@ export const insertActionItemSchema = createInsertSchema(actionItems).omit({ id:
 export const insertTopicSchema = createInsertSchema(topics).omit({ id: true });
 export const insertMeetingSummarySchema = createInsertSchema(meetingSummaries).omit({ id: true, createdAt: true });
 
+export const insertConversationSchema = createInsertSchema(conversations).omit({
+  id: true,
+  createdAt: true,
+});
+
+export const insertMessageSchema = createInsertSchema(messages).omit({
+  id: true,
+  createdAt: true,
+});
+
 // === EXPLICIT API CONTRACT TYPES ===
 
 export type Meeting = typeof meetings.$inferSelect;
@@ -113,6 +138,11 @@ export type InsertTopic = z.infer<typeof insertTopicSchema>;
 
 export type MeetingSummary = typeof meetingSummaries.$inferSelect;
 export type InsertMeetingSummary = z.infer<typeof insertMeetingSummarySchema>;
+
+export type Conversation = typeof conversations.$inferSelect;
+export type InsertConversation = z.infer<typeof insertConversationSchema>;
+export type Message = typeof messages.$inferSelect;
+export type InsertMessage = z.infer<typeof insertMessageSchema>;
 
 
 // Request types
