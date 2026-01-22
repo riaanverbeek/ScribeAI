@@ -106,7 +106,9 @@ export const meetingSummariesRelations = relations(meetingSummaries, ({ one }) =
 
 // === BASE SCHEMAS ===
 
-export const insertMeetingSchema = createInsertSchema(meetings).omit({ id: true, createdAt: true, status: true });
+export const insertMeetingSchema = createInsertSchema(meetings).extend({
+  date: z.string().transform((str) => new Date(str)),
+}).omit({ id: true, createdAt: true, status: true });
 export const insertTranscriptSchema = createInsertSchema(transcripts).omit({ id: true });
 export const insertActionItemSchema = createInsertSchema(actionItems).omit({ id: true });
 export const insertTopicSchema = createInsertSchema(topics).omit({ id: true });
