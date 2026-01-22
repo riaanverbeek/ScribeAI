@@ -136,7 +136,7 @@ export async function registerRoutes(
           `;
 
           const response = await openai.chat.completions.create({
-              model: "gpt-5", // the newest OpenAI model
+              model: "gpt-4o", // the newest OpenAI model
               messages: [
                   { role: "system", content: systemPrompt },
                   { role: "user", content: transcriptText }
