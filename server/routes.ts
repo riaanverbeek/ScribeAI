@@ -74,7 +74,7 @@ export async function registerRoutes(
   });
 
   // POST /api/meetings/:id/audio
-  app.post("/api/meetings/:id/audio", upload.single('file'), async (req, res) => {
+  app.post("/api/meetings/:id/audio", upload.single('audio'), async (req, res) => {
       const id = Number(req.params.id);
       if (!req.file) {
           return res.status(400).json({ message: "No file uploaded" });
@@ -115,10 +115,10 @@ export async function registerRoutes(
           await storage.createTranscript({
               meetingId: id,
               content: transcriptText,
-              language: "en" // Could detect language
+              language: "en" 
           });
 
-          // 2. Analyze with GPT-4o
+          // 2. Analyze with LLM
           const systemPrompt = `
             You are an expert meeting analyst. Analyze the following meeting transcript.
             
@@ -136,7 +136,7 @@ export async function registerRoutes(
           `;
 
           const response = await openai.chat.completions.create({
-              model: "gpt-5.1",
+              model: "gpt-5", // the newest OpenAI model
               messages: [
                   { role: "system", content: systemPrompt },
                   { role: "user", content: transcriptText }

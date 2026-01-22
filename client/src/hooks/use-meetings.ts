@@ -86,7 +86,7 @@ export function useUploadAudio() {
   const { toast } = useToast();
 
   return useMutation({
-    mutationFn: async ({ id, file }: { id: number; file: File }) => {
+    mutationFn: async ({ id, file }: { id: number; file: File | Blob }) => {
       const formData = new FormData();
       formData.append("audio", file);
 

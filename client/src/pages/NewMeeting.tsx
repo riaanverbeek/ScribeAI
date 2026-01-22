@@ -56,7 +56,7 @@ export default function NewMeeting() {
       }
 
       // 3. Trigger processing
-      processMutation.mutate(meeting.id);
+      await processMutation.mutateAsync(meeting.id);
 
       // 4. Redirect
       setLocation(`/meeting/${meeting.id}`);
