@@ -26,11 +26,7 @@ export default function Login() {
       try {
         const parsed = JSON.parse(msg.split(": ").slice(1).join(": "));
         description = parsed.message || description;
-      } catch {
-        if (msg.includes("403")) {
-          description = "Please verify your email before logging in.";
-        }
-      }
+      } catch {}
       toast({ title: "Login failed", description, variant: "destructive" });
     }
   }

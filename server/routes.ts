@@ -4,7 +4,6 @@ import { createServer, type Server } from "http";
 import session from "express-session";
 import connectPgSimple from "connect-pg-simple";
 import bcrypt from "bcryptjs";
-import crypto from "crypto";
 import { storage } from "./storage";
 import { api } from "@shared/routes";
 import { z } from "zod";
@@ -13,9 +12,8 @@ import { speechToText, convertWebmToWav } from "./replit_integrations/audio";
 import OpenAI from "openai";
 import fs from "fs";
 import path from "path";
-import { sendVerificationEmail } from "./email";
 import { generatePayfastSubscriptionUrl, validatePayfastSignature, cancelPayfastSubscription } from "./payfast";
-import { requireAuth, requireVerified, requireSubscription, sanitizeUser, getEffectiveSubscriptionStatus, hasFullAccess } from "./auth";
+import { requireAuth, requireSubscription, sanitizeUser, getEffectiveSubscriptionStatus, hasFullAccess } from "./auth";
 import type { User } from "@shared/schema";
 
 const upload = multer({ dest: "uploads/" });
@@ -74,8 +72,6 @@ export async function registerRoutes(
       }
 
       const passwordHash = await bcrypt.hash(password, 12);
-      const verificationToken = crypto.randomBytes(32).toString("hex");
-      const verificationTokenExpiry = new Date(Date.now() + 24 * 60 * 60 * 1000);
 
       const user = await storage.createUser({
         email,
@@ -84,25 +80,11 @@ export async function registerRoutes(
         lastName,
       });
 
-      await storage.updateUserSubscription(user.id, {
-        subscriptionStatus: "none",
-      });
+      await storage.verifyUser(user.id);
 
-      const { db } = await import("./db");
-      const { users } = await import("@shared/schema");
-      const { eq } = await import("drizzle-orm");
-      await db.update(users).set({
-        verificationToken,
-        verificationTokenExpiry,
-      }).where(eq(users.id, user.id));
-
-      try {
-        await sendVerificationEmail(email, firstName, verificationToken);
-      } catch (emailErr) {
-        console.error("Failed to send verification email:", emailErr);
-      }
-
-      res.status(201).json({ message: "Account created. Please check your email to verify your account." });
+      req.session.userId = user.id;
+      const freshUser = await storage.getUserById(user.id);
+      res.status(201).json({ user: sanitizeUser(freshUser!) });
     } catch (err) {
       if (err instanceof z.ZodError) {
         return res.status(400).json({ message: err.errors[0].message });
@@ -127,10 +109,6 @@ export async function registerRoutes(
       const valid = await bcrypt.compare(password, user.passwordHash);
       if (!valid) {
         return res.status(401).json({ message: "Invalid email or password" });
-      }
-
-      if (!user.isVerified) {
-        return res.status(403).json({ message: "Please verify your email before logging in. Check your inbox for the verification link.", code: "EMAIL_NOT_VERIFIED" });
       }
 
       // Check trial expiry and update status
@@ -175,55 +153,9 @@ export async function registerRoutes(
     res.json({ user: sanitizeUser(freshUser!) });
   });
 
-  app.get("/api/auth/verify", async (req, res) => {
-    const token = req.query.token as string;
-    if (!token) {
-      return res.status(400).json({ message: "Missing verification token" });
-    }
-
-    const user = await storage.getUserByVerificationToken(token);
-    if (!user) {
-      return res.status(400).json({ message: "Invalid or expired verification token" });
-    }
-
-    if (user.verificationTokenExpiry && new Date(user.verificationTokenExpiry) < new Date()) {
-      return res.status(400).json({ message: "Verification token has expired. Please register again." });
-    }
-
-    await storage.verifyUser(user.id);
-    res.json({ message: "Email verified successfully. Your 7-day free trial has started!" });
-  });
-
-  app.post("/api/auth/resend-verification", async (req, res) => {
-    const { email } = z.object({ email: z.string().email() }).parse(req.body);
-    const user = await storage.getUserByEmail(email);
-    if (!user || user.isVerified) {
-      return res.json({ message: "If that email exists and is unverified, a new link has been sent." });
-    }
-
-    const verificationToken = crypto.randomBytes(32).toString("hex");
-    const verificationTokenExpiry = new Date(Date.now() + 24 * 60 * 60 * 1000);
-
-    const { db } = await import("./db");
-    const { users } = await import("@shared/schema");
-    const { eq } = await import("drizzle-orm");
-    await db.update(users).set({
-      verificationToken,
-      verificationTokenExpiry,
-    }).where(eq(users.id, user.id));
-
-    try {
-      await sendVerificationEmail(email, user.firstName, verificationToken);
-    } catch (e) {
-      console.error("Resend verification email failed:", e);
-    }
-
-    res.json({ message: "If that email exists and is unverified, a new link has been sent." });
-  });
-
   // ========== PAYFAST ROUTES ==========
 
-  app.post("/api/payfast/checkout", requireAuth, requireVerified, async (req, res) => {
+  app.post("/api/payfast/checkout", requireAuth, async (req, res) => {
     const user = (req as any).user as User;
     const url = generatePayfastSubscriptionUrl({
       email: user.email,
@@ -286,7 +218,7 @@ export async function registerRoutes(
     }
   });
 
-  app.post("/api/payfast/cancel", requireAuth, requireVerified, async (req, res) => {
+  app.post("/api/payfast/cancel", requireAuth, async (req, res) => {
     const user = (req as any).user as User;
     if (!user.payfastToken) {
       return res.status(400).json({ message: "No active subscription to cancel" });
@@ -308,7 +240,7 @@ export async function registerRoutes(
     }
   });
 
-  app.get("/api/subscription/status", requireAuth, requireVerified, async (req, res) => {
+  app.get("/api/subscription/status", requireAuth, async (req, res) => {
     const user = (req as any).user as User;
     const effectiveStatus = getEffectiveSubscriptionStatus(user);
     res.json({
@@ -322,13 +254,13 @@ export async function registerRoutes(
 
   // ========== CLIENT ROUTES ==========
 
-  app.get(api.clients.list.path, requireAuth, requireVerified, requireSubscription, async (req, res) => {
+  app.get(api.clients.list.path, requireAuth, requireSubscription, async (req, res) => {
     const user = (req as any).user as User;
     const clientList = await storage.getClients(user.id);
     res.json(clientList);
   });
 
-  app.get(api.clients.get.path, requireAuth, requireVerified, requireSubscription, async (req, res) => {
+  app.get(api.clients.get.path, requireAuth, requireSubscription, async (req, res) => {
     const id = Number(req.params.id);
     const user = (req as any).user as User;
     const client = await storage.getClient(id);
@@ -339,7 +271,7 @@ export async function registerRoutes(
     res.json({ ...client, meetings: clientMeetings });
   });
 
-  app.post(api.clients.create.path, requireAuth, requireVerified, requireSubscription, async (req, res) => {
+  app.post(api.clients.create.path, requireAuth, requireSubscription, async (req, res) => {
     try {
       const user = (req as any).user as User;
       const input = api.clients.create.input.parse(req.body);
@@ -353,7 +285,7 @@ export async function registerRoutes(
     }
   });
 
-  app.delete(api.clients.delete.path, requireAuth, requireVerified, requireSubscription, async (req, res) => {
+  app.delete(api.clients.delete.path, requireAuth, requireSubscription, async (req, res) => {
     const id = Number(req.params.id);
     const user = (req as any).user as User;
     const client = await storage.getClient(id);
@@ -366,7 +298,7 @@ export async function registerRoutes(
 
   // ========== MEETING ROUTES ==========
 
-  app.get(api.meetings.list.path, requireAuth, requireVerified, async (req, res) => {
+  app.get(api.meetings.list.path, requireAuth, async (req, res) => {
     const user = (req as any).user as User;
     const clientId = req.query.clientId ? Number(req.query.clientId) : undefined;
     if (clientId) {
@@ -377,7 +309,7 @@ export async function registerRoutes(
     res.json(allMeetings);
   });
 
-  app.get(api.meetings.get.path, requireAuth, requireVerified, async (req, res) => {
+  app.get(api.meetings.get.path, requireAuth, async (req, res) => {
     const id = Number(req.params.id);
     const user = (req as any).user as User;
     const meeting = await storage.getMeeting(id);
@@ -401,7 +333,7 @@ export async function registerRoutes(
     });
   });
 
-  app.post(api.meetings.create.path, requireAuth, requireVerified, async (req, res) => {
+  app.post(api.meetings.create.path, requireAuth, async (req, res) => {
     try {
       const user = (req as any).user as User;
       const input = api.meetings.create.input.parse(req.body);
@@ -415,7 +347,7 @@ export async function registerRoutes(
     }
   });
 
-  app.post("/api/meetings/:id/audio", requireAuth, requireVerified, upload.single('audio'), async (req, res) => {
+  app.post("/api/meetings/:id/audio", requireAuth, upload.single('audio'), async (req, res) => {
       const id = Number(req.params.id);
       const user = (req as any).user as User;
       const existingMeeting = await storage.getMeeting(id);
@@ -444,7 +376,7 @@ export async function registerRoutes(
       res.json({ message: "Audio uploaded successfully" });
   });
 
-  app.post("/api/meetings/:id/process", requireAuth, requireVerified, requireSubscription, async (req, res) => {
+  app.post("/api/meetings/:id/process", requireAuth, requireSubscription, async (req, res) => {
       const id = Number(req.params.id);
       const user = (req as any).user as User;
       const meeting = await storage.getMeeting(id);
@@ -536,7 +468,7 @@ export async function registerRoutes(
       }
   });
 
-  app.patch(api.meetings.updateClient.path, requireAuth, requireVerified, requireSubscription, async (req, res) => {
+  app.patch(api.meetings.updateClient.path, requireAuth, requireSubscription, async (req, res) => {
     const id = Number(req.params.id);
     const user = (req as any).user as User;
     const meeting = await storage.getMeeting(id);
@@ -561,7 +493,7 @@ export async function registerRoutes(
     }
   });
 
-  app.delete(api.meetings.delete.path, requireAuth, requireVerified, async (req, res) => {
+  app.delete(api.meetings.delete.path, requireAuth, async (req, res) => {
     const id = Number(req.params.id);
     const user = (req as any).user as User;
     const meeting = await storage.getMeeting(id);

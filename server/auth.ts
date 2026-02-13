@@ -53,14 +53,6 @@ export async function requireAuth(req: Request, res: Response, next: NextFunctio
   next();
 }
 
-export async function requireVerified(req: Request, res: Response, next: NextFunction) {
-  const user = (req as any).user as User;
-  if (!user.isVerified) {
-    return res.status(403).json({ message: "Email not verified" });
-  }
-  next();
-}
-
 export async function requireSubscription(req: Request, res: Response, next: NextFunction) {
   const user = (req as any).user as User;
   if (!hasFullAccess(user)) {

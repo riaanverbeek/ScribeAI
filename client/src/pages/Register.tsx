@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Link } from "wouter";
+import { Link, useLocation } from "wouter";
 import { useRegister } from "@/hooks/use-auth";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -7,6 +7,7 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription, CardFooter }
 import { Label } from "@/components/ui/label";
 import { useToast } from "@/hooks/use-toast";
 import { UserPlus, Mail, Lock, User } from "lucide-react";
+import { queryClient } from "@/lib/queryClient";
 
 export default function Register() {
   const [firstName, setFirstName] = useState("");
@@ -14,7 +15,7 @@ export default function Register() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
-  const [success, setSuccess] = useState(false);
+  const [, setLocation] = useLocation();
   const register = useRegister();
   const { toast } = useToast();
 
@@ -25,8 +26,9 @@ export default function Register() {
       return;
     }
     try {
-      await register.mutateAsync({ email, password, firstName, lastName });
-      setSuccess(true);
+      const result = await register.mutateAsync({ email, password, firstName, lastName });
+      queryClient.setQueryData(["/api/auth/me"], result);
+      setLocation("/");
     } catch (err: any) {
       let description = "Registration failed. Please try again.";
       try {
@@ -35,26 +37,6 @@ export default function Register() {
       } catch {}
       toast({ title: "Registration failed", description, variant: "destructive" });
     }
-  }
-
-  if (success) {
-    return (
-      <div className="min-h-screen bg-background flex items-center justify-center p-4">
-        <Card className="w-full max-w-md">
-          <CardHeader>
-            <CardTitle data-testid="text-verify-prompt">Check your email</CardTitle>
-            <CardDescription>
-              We've sent a verification link to <strong>{email}</strong>. Please click the link to activate your account and start your 7-day free trial.
-            </CardDescription>
-          </CardHeader>
-          <CardFooter>
-            <Link href="/login" className="w-full">
-              <Button variant="outline" className="w-full" data-testid="link-back-to-login">Back to Sign In</Button>
-            </Link>
-          </CardFooter>
-        </Card>
-      </div>
-    );
   }
 
   return (

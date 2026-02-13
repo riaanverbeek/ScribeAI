@@ -14,7 +14,6 @@ import Clients from "@/pages/Clients";
 import ClientDetail from "@/pages/ClientDetail";
 import Login from "@/pages/Login";
 import Register from "@/pages/Register";
-import VerifyEmail from "@/pages/VerifyEmail";
 import Subscription from "@/pages/Subscription";
 import SubscriptionSuccess from "@/pages/SubscriptionSuccess";
 import SubscriptionCancel from "@/pages/SubscriptionCancel";
@@ -63,9 +62,6 @@ function Router() {
       </Route>
       <Route path="/register">
         <PublicOnlyRoute><Register /></PublicOnlyRoute>
-      </Route>
-      <Route path="/verify-email">
-        <VerifyEmail />
       </Route>
       <Route path="/subscription/success">
         <ProtectedRoute><SubscriptionSuccess /></ProtectedRoute>
