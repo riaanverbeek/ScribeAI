@@ -111,6 +111,16 @@ export const api = {
             404: errorSchemas.notFound
         }
     },
+    updateClient: {
+      method: 'PATCH' as const,
+      path: '/api/meetings/:id/client',
+      input: z.object({ clientId: z.number().nullable() }),
+      responses: {
+        200: z.custom<typeof meetings.$inferSelect>(),
+        404: errorSchemas.notFound,
+        400: errorSchemas.validation,
+      },
+    },
     delete: {
       method: 'DELETE' as const,
       path: '/api/meetings/:id',

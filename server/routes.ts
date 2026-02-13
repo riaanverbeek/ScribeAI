@@ -250,6 +250,31 @@ export async function registerRoutes(
       }
   });
 
+  // PATCH /api/meetings/:id/client
+  app.patch(api.meetings.updateClient.path, async (req, res) => {
+    const id = Number(req.params.id);
+    const meeting = await storage.getMeeting(id);
+    if (!meeting) {
+      return res.status(404).json({ message: "Meeting not found" });
+    }
+    try {
+      const { clientId } = api.meetings.updateClient.input.parse(req.body);
+      if (clientId !== null) {
+        const client = await storage.getClient(clientId);
+        if (!client) {
+          return res.status(400).json({ message: "Client not found" });
+        }
+      }
+      const updated = await storage.updateMeetingClient(id, clientId);
+      res.json(updated);
+    } catch (err) {
+      if (err instanceof z.ZodError) {
+        return res.status(400).json({ message: err.errors[0].message });
+      }
+      throw err;
+    }
+  });
+
   // DELETE /api/meetings/:id
   app.delete(api.meetings.delete.path, async (req, res) => {
     const id = Number(req.params.id);
