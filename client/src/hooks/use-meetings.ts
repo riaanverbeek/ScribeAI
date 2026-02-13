@@ -151,6 +151,43 @@ export function useProcessMeeting() {
   });
 }
 
+export function useUpdateMeetingClient() {
+  const queryClient = useQueryClient();
+  const { toast } = useToast();
+
+  return useMutation({
+    mutationFn: async ({ meetingId, clientId }: { meetingId: number; clientId: number | null }) => {
+      const url = buildUrl(api.meetings.updateClient.path, { id: meetingId });
+      const res = await fetch(url, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ clientId }),
+        credentials: "include",
+      });
+      if (!res.ok) {
+        const error = await res.json();
+        throw new Error(error.message || "Failed to update client");
+      }
+      return res.json();
+    },
+    onSuccess: (_, { meetingId }) => {
+      queryClient.invalidateQueries({ queryKey: [api.meetings.get.path, meetingId] });
+      queryClient.invalidateQueries({ queryKey: [api.meetings.list.path] });
+      toast({
+        title: "Client Updated",
+        description: "Meeting has been linked to the selected client.",
+      });
+    },
+    onError: (error) => {
+      toast({
+        title: "Error",
+        description: error.message,
+        variant: "destructive",
+      });
+    },
+  });
+}
+
 export function useDeleteMeeting() {
   const queryClient = useQueryClient();
   const { toast } = useToast();
