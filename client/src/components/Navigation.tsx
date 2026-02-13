@@ -1,9 +1,10 @@
 import { Link, useLocation } from "wouter";
-import { LayoutDashboard, PlusCircle, Settings, Mic } from "lucide-react";
+import { LayoutDashboard, PlusCircle, Settings, Mic, Users } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 const navItems = [
   { label: "Dashboard", icon: LayoutDashboard, href: "/" },
+  { label: "Clients", icon: Users, href: "/clients" },
   { label: "New Meeting", icon: PlusCircle, href: "/new" },
 ];
 
@@ -13,7 +14,6 @@ export function Navigation() {
   return (
     <nav className="fixed bottom-0 left-0 right-0 z-50 bg-white/90 backdrop-blur-lg border-t border-slate-200 md:static md:block md:w-64 md:border-r md:border-t-0 md:h-screen md:bg-slate-50">
       <div className="flex flex-col h-full">
-        {/* Logo Area - Hidden on mobile, visible on desktop */}
         <div className="hidden md:flex items-center gap-3 px-6 py-8">
           <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-primary to-slate-800 flex items-center justify-center shadow-lg shadow-primary/20">
             <Mic className="text-white w-6 h-6" />
@@ -23,7 +23,6 @@ export function Navigation() {
           </span>
         </div>
 
-        {/* Navigation Links */}
         <div className="flex md:flex-col justify-around md:justify-start md:px-4 md:gap-2 p-2 md:py-4">
           {navItems.map((item) => {
             const isActive = location === item.href;
@@ -37,6 +36,7 @@ export function Navigation() {
                     ? "bg-white text-primary shadow-sm md:shadow-md md:shadow-slate-200/50"
                     : "text-slate-500 hover:text-primary hover:bg-white/50"
                 )}
+                data-testid={`nav-${item.label.toLowerCase().replace(' ', '-')}`}
               >
                 <item.icon
                   className={cn(
@@ -51,7 +51,6 @@ export function Navigation() {
                   {item.label}
                 </span>
                 
-                {/* Mobile Active Indicator */}
                 {isActive && (
                   <div className="absolute bottom-0 left-0 right-0 h-1 bg-accent md:hidden rounded-t-full mx-6" />
                 )}
@@ -60,7 +59,6 @@ export function Navigation() {
           })}
         </div>
         
-        {/* Desktop Footer Info */}
         <div className="hidden md:flex mt-auto p-6 border-t border-slate-200/60">
           <div className="flex items-center gap-3">
             <div className="w-8 h-8 rounded-full bg-slate-200 flex items-center justify-center">

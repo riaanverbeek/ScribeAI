@@ -36,7 +36,8 @@ Preferred communication style: Simple, everyday language.
 - **Schema Location**: `shared/schema.ts` defines all tables
 - **Migrations**: Drizzle Kit with `db:push` command
 - **Core Tables**:
-  - `meetings` - Meeting metadata and status tracking
+  - `clients` - Client information (name, email, company)
+  - `meetings` - Meeting metadata, status tracking, and client association (clientId FK)
   - `transcripts` - Full transcription text
   - `action_items` - Extracted tasks with assignees
   - `topics` - Identified discussion topics with relevance scores

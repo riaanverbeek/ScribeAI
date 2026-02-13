@@ -5,7 +5,16 @@ import { relations, sql } from "drizzle-orm";
 
 // === TABLE DEFINITIONS ===
 
+export const clients = pgTable("clients", {
+  id: serial("id").primaryKey(),
+  name: text("name").notNull(),
+  email: text("email"),
+  company: text("company"),
+  createdAt: timestamp("created_at").defaultNow(),
+});
+
 export const meetings = pgTable("meetings", {
+  clientId: integer("client_id").references(() => clients.id, { onDelete: "set null" }),
   id: serial("id").primaryKey(),
   title: text("title").notNull(),
   date: timestamp("date").notNull().defaultNow(),
@@ -63,7 +72,15 @@ export const messages = pgTable("messages", {
 
 // === RELATIONS ===
 
+export const clientsRelations = relations(clients, ({ many }) => ({
+  meetings: many(meetings),
+}));
+
 export const meetingsRelations = relations(meetings, ({ one, many }) => ({
+  client: one(clients, {
+    fields: [meetings.clientId],
+    references: [clients.id],
+  }),
   transcript: one(transcripts, {
     fields: [meetings.id],
     references: [transcripts.meetingId],
@@ -106,6 +123,8 @@ export const meetingSummariesRelations = relations(meetingSummaries, ({ one }) =
 
 // === BASE SCHEMAS ===
 
+export const insertClientSchema = createInsertSchema(clients).omit({ id: true, createdAt: true });
+
 export const insertMeetingSchema = createInsertSchema(meetings).extend({
   date: z.string().transform((str) => new Date(str)),
 }).omit({ id: true, createdAt: true, status: true });
@@ -125,6 +144,9 @@ export const insertMessageSchema = createInsertSchema(messages).omit({
 });
 
 // === EXPLICIT API CONTRACT TYPES ===
+
+export type Client = typeof clients.$inferSelect;
+export type InsertClient = z.infer<typeof insertClientSchema>;
 
 export type Meeting = typeof meetings.$inferSelect;
 export type InsertMeeting = z.infer<typeof insertMeetingSchema>;

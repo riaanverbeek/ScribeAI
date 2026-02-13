@@ -1,14 +1,21 @@
 import { db } from "./db";
 import { 
-    meetings, transcripts, actionItems, topics, meetingSummaries,
-    type InsertMeeting, type InsertTranscript, type InsertActionItem, type InsertTopic, type InsertMeetingSummary,
-    type Meeting, type Transcript, type ActionItem, type Topic, type MeetingSummary
+    clients, meetings, transcripts, actionItems, topics, meetingSummaries,
+    type InsertClient, type InsertMeeting, type InsertTranscript, type InsertActionItem, type InsertTopic, type InsertMeetingSummary,
+    type Client, type Meeting, type Transcript, type ActionItem, type Topic, type MeetingSummary
 } from "@shared/schema";
 import { eq } from "drizzle-orm";
 
 export interface IStorage {
+    // Clients
+    getClients(): Promise<Client[]>;
+    getClient(id: number): Promise<Client | undefined>;
+    createClient(client: InsertClient): Promise<Client>;
+    deleteClient(id: number): Promise<void>;
+
     // Meetings
     getMeetings(): Promise<Meeting[]>;
+    getMeetingsByClient(clientId: number): Promise<Meeting[]>;
     getMeeting(id: number): Promise<Meeting | undefined>;
     createMeeting(meeting: InsertMeeting): Promise<Meeting>;
     updateMeetingStatus(id: number, status: "uploading" | "processing" | "completed" | "failed"): Promise<Meeting>;
@@ -33,9 +40,32 @@ export interface IStorage {
 }
 
 export class DatabaseStorage implements IStorage {
+    // Clients
+    async getClients(): Promise<Client[]> {
+        return await db.select().from(clients).orderBy(clients.name);
+    }
+
+    async getClient(id: number): Promise<Client | undefined> {
+        const [client] = await db.select().from(clients).where(eq(clients.id, id));
+        return client;
+    }
+
+    async createClient(insertClient: InsertClient): Promise<Client> {
+        const [client] = await db.insert(clients).values(insertClient).returning();
+        return client;
+    }
+
+    async deleteClient(id: number): Promise<void> {
+        await db.delete(clients).where(eq(clients.id, id));
+    }
+
     // Meetings
     async getMeetings(): Promise<Meeting[]> {
         return await db.select().from(meetings).orderBy(meetings.createdAt);
+    }
+
+    async getMeetingsByClient(clientId: number): Promise<Meeting[]> {
+        return await db.select().from(meetings).where(eq(meetings.clientId, clientId)).orderBy(meetings.createdAt);
     }
 
     async getMeeting(id: number): Promise<Meeting | undefined> {
@@ -58,7 +88,7 @@ export class DatabaseStorage implements IStorage {
 
     async updateMeetingAudioUrl(id: number, audioUrl: string): Promise<Meeting> {
         const [meeting] = await db.update(meetings)
-            .set({ audioUrl, status: "processing" }) // Auto-set to processing when audio uploaded
+            .set({ audioUrl, status: "processing" })
             .where(eq(meetings.id, id))
             .returning();
         return meeting;

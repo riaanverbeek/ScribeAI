@@ -1,12 +1,27 @@
 import { useState } from "react";
 import { useLocation } from "wouter";
 import { useCreateMeeting, useUploadAudio, useProcessMeeting } from "@/hooks/use-meetings";
+import { useClients, useCreateClient } from "@/hooks/use-clients";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Card, CardContent } from "@/components/ui/card";
-import { Mic, UploadCloud, ChevronLeft, Loader2 } from "lucide-react";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+} from "@/components/ui/dialog";
+import { Mic, UploadCloud, ChevronLeft, Loader2, Plus, Users } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { useVoiceRecorder } from "@/replit_integrations/audio";
 import { motion } from "framer-motion";
@@ -17,13 +32,39 @@ export default function NewMeeting() {
   
   const [title, setTitle] = useState("");
   const [file, setFile] = useState<File | null>(null);
+  const [selectedClientId, setSelectedClientId] = useState<string>("");
+  const [newClientName, setNewClientName] = useState("");
+  const [newClientEmail, setNewClientEmail] = useState("");
+  const [newClientCompany, setNewClientCompany] = useState("");
+  const [dialogOpen, setDialogOpen] = useState(false);
   
   const createMutation = useCreateMeeting();
   const uploadMutation = useUploadAudio();
   const processMutation = useProcessMeeting();
+  const { data: clients } = useClients();
+  const createClientMutation = useCreateClient();
   
-  // Replit Integration Recorder
   const recorder = useVoiceRecorder();
+
+  const handleCreateClient = async () => {
+    if (!newClientName.trim()) {
+      toast({ title: "Name Required", description: "Please enter a client name.", variant: "destructive" });
+      return;
+    }
+    try {
+      const client = await createClientMutation.mutateAsync({
+        name: newClientName.trim(),
+        email: newClientEmail.trim() || null,
+        company: newClientCompany.trim() || null,
+      });
+      setSelectedClientId(String(client.id));
+      setNewClientName("");
+      setNewClientEmail("");
+      setNewClientCompany("");
+      setDialogOpen(false);
+      toast({ title: "Client Created", description: `${client.name} has been added.` });
+    } catch (error) {}
+  };
 
   const handleCreate = async () => {
     if (!title.trim()) {
@@ -32,20 +73,19 @@ export default function NewMeeting() {
     }
 
     try {
-      // 1. Create meeting entry
-      const meeting = await createMutation.mutateAsync({ 
+      const meetingData: any = { 
         title,
-        date: new Date().toISOString()
-      });
+        date: new Date().toISOString(),
+      };
+      if (selectedClientId) {
+        meetingData.clientId = Number(selectedClientId);
+      }
 
-      // 2. Upload Audio
+      const meeting = await createMutation.mutateAsync(meetingData);
+
       let audioFile = file;
 
       if (recorder.state === "stopped") {
-         // This assumes useVoiceRecorder has a way to get the blob, 
-         // but the provided integration hook returns a promise from stopRecording.
-         // Since we handle stopRecording in the UI, we need to store the blob in state.
-         // Let's adjust the UI to handle this.
       } else if (!file) {
         toast({ title: "Audio Required", description: "Please record or upload audio.", variant: "destructive" });
         return;
@@ -55,15 +95,11 @@ export default function NewMeeting() {
         await uploadMutation.mutateAsync({ id: meeting.id, file: audioFile });
       }
 
-      // 3. Trigger processing
       await processMutation.mutateAsync(meeting.id);
 
-      // 4. Redirect
       setLocation(`/meeting/${meeting.id}`);
 
-    } catch (error) {
-      // Errors handled by mutation hooks
-    }
+    } catch (error) {}
   };
 
   const handleStopRecording = async () => {
@@ -81,6 +117,7 @@ export default function NewMeeting() {
         variant="ghost" 
         className="mb-6 pl-0 hover:bg-transparent hover:text-primary"
         onClick={() => setLocation("/")}
+        data-testid="button-back"
       >
         <ChevronLeft className="w-4 h-4 mr-2" />
         Back to Dashboard
@@ -92,7 +129,6 @@ export default function NewMeeting() {
       </div>
 
       <div className="grid gap-8">
-        {/* Title Input */}
         <div className="space-y-3">
           <Label htmlFor="title" className="text-base font-semibold text-slate-900">Meeting Title</Label>
           <Input 
@@ -101,10 +137,92 @@ export default function NewMeeting() {
             className="h-12 text-lg rounded-xl border-slate-200 focus:border-primary focus:ring-primary/10"
             value={title}
             onChange={(e) => setTitle(e.target.value)}
+            data-testid="input-title"
           />
         </div>
 
-        {/* Audio Input Tabs */}
+        <div className="space-y-3">
+          <Label className="text-base font-semibold text-slate-900">Client</Label>
+          <div className="flex items-center gap-3">
+            <Select value={selectedClientId} onValueChange={setSelectedClientId}>
+              <SelectTrigger className="h-12 rounded-xl border-slate-200 flex-1" data-testid="select-client">
+                <div className="flex items-center gap-2">
+                  <Users className="w-4 h-4 text-slate-400" />
+                  <SelectValue placeholder="Select a client (optional)" />
+                </div>
+              </SelectTrigger>
+              <SelectContent>
+                {clients?.map((client) => (
+                  <SelectItem key={client.id} value={String(client.id)} data-testid={`select-client-option-${client.id}`}>
+                    <div className="flex flex-col">
+                      <span>{client.name}</span>
+                      {client.company && <span className="text-xs text-slate-500">{client.company}</span>}
+                    </div>
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            
+            <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
+              <DialogTrigger asChild>
+                <Button variant="outline" size="icon" className="h-12 w-12 rounded-xl shrink-0" data-testid="button-new-client">
+                  <Plus className="w-5 h-5" />
+                </Button>
+              </DialogTrigger>
+              <DialogContent className="rounded-2xl">
+                <DialogHeader>
+                  <DialogTitle>Add New Client</DialogTitle>
+                </DialogHeader>
+                <div className="grid gap-4 py-4">
+                  <div className="space-y-2">
+                    <Label htmlFor="client-name">Name *</Label>
+                    <Input
+                      id="client-name"
+                      placeholder="e.g. John Smith"
+                      value={newClientName}
+                      onChange={(e) => setNewClientName(e.target.value)}
+                      data-testid="input-client-name"
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="client-email">Email</Label>
+                    <Input
+                      id="client-email"
+                      type="email"
+                      placeholder="e.g. john@example.com"
+                      value={newClientEmail}
+                      onChange={(e) => setNewClientEmail(e.target.value)}
+                      data-testid="input-client-email"
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="client-company">Company</Label>
+                    <Input
+                      id="client-company"
+                      placeholder="e.g. Acme Corp"
+                      value={newClientCompany}
+                      onChange={(e) => setNewClientCompany(e.target.value)}
+                      data-testid="input-client-company"
+                    />
+                  </div>
+                  <Button 
+                    onClick={handleCreateClient}
+                    disabled={createClientMutation.isPending}
+                    className="w-full"
+                    data-testid="button-save-client"
+                  >
+                    {createClientMutation.isPending ? (
+                      <><Loader2 className="mr-2 w-4 h-4 animate-spin" /> Creating...</>
+                    ) : (
+                      "Add Client"
+                    )}
+                  </Button>
+                </div>
+              </DialogContent>
+            </Dialog>
+          </div>
+        </div>
+
         <div className="space-y-3">
           <Label className="text-base font-semibold text-slate-900">Audio Source</Label>
           <Tabs defaultValue="record" className="w-full">
@@ -117,7 +235,6 @@ export default function NewMeeting() {
               </TabsTrigger>
             </TabsList>
 
-            {/* Record Tab */}
             <TabsContent value="record">
               <Card className="border-2 border-dashed border-slate-200 bg-slate-50/50 shadow-none rounded-xl">
                 <CardContent className="flex flex-col items-center justify-center py-12">
@@ -132,6 +249,7 @@ export default function NewMeeting() {
                           ? "bg-red-500 text-white shadow-lg shadow-red-500/30 scale-110" 
                           : "bg-primary text-white hover:bg-slate-800 shadow-xl shadow-slate-900/20"
                       }`}
+                      data-testid="button-record"
                     >
                       {recorder.state === "recording" ? (
                         <div className="w-8 h-8 bg-white rounded-md" />
@@ -159,7 +277,6 @@ export default function NewMeeting() {
               </Card>
             </TabsContent>
 
-            {/* Upload Tab */}
             <TabsContent value="upload">
               <Card className="border-2 border-dashed border-slate-200 bg-slate-50/50 shadow-none rounded-xl">
                 <CardContent className="flex flex-col items-center justify-center py-12">
@@ -171,6 +288,7 @@ export default function NewMeeting() {
                     onChange={(e) => {
                       if (e.target.files?.[0]) setFile(e.target.files[0]);
                     }}
+                    data-testid="input-audio-file"
                   />
                   <label 
                     htmlFor="audio-upload" 
@@ -199,6 +317,7 @@ export default function NewMeeting() {
           className="w-full h-14 text-lg rounded-xl bg-primary hover:bg-slate-800 shadow-xl shadow-slate-900/20"
           onClick={handleCreate}
           disabled={isPending || (!file && recorder.state !== "recording")}
+          data-testid="button-process"
         >
           {isPending ? (
             <>

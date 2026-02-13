@@ -31,10 +31,60 @@ export async function registerRoutes(
 
   app.use("/uploads", express.static(path.resolve("uploads")));
 
+  // === CLIENT ROUTES ===
+
+  app.get(api.clients.list.path, async (req, res) => {
+    const clients = await storage.getClients();
+    res.json(clients);
+  });
+
+  app.get(api.clients.get.path, async (req, res) => {
+    const id = Number(req.params.id);
+    const client = await storage.getClient(id);
+    if (!client) {
+      return res.status(404).json({ message: "Client not found" });
+    }
+    const clientMeetings = await storage.getMeetingsByClient(id);
+    res.json({ ...client, meetings: clientMeetings });
+  });
+
+  app.post(api.clients.create.path, async (req, res) => {
+    try {
+      const input = api.clients.create.input.parse(req.body);
+      const client = await storage.createClient(input);
+      res.status(201).json(client);
+    } catch (err) {
+      if (err instanceof z.ZodError) {
+        return res.status(400).json({
+          message: err.errors[0].message,
+          field: err.errors[0].path.join('.'),
+        });
+      }
+      throw err;
+    }
+  });
+
+  app.delete(api.clients.delete.path, async (req, res) => {
+    const id = Number(req.params.id);
+    const client = await storage.getClient(id);
+    if (!client) {
+      return res.status(404).json({ message: "Client not found" });
+    }
+    await storage.deleteClient(id);
+    res.status(204).send();
+  });
+
+  // === MEETING ROUTES ===
+
   // GET /api/meetings
   app.get(api.meetings.list.path, async (req, res) => {
-    const meetings = await storage.getMeetings();
-    res.json(meetings);
+    const clientId = req.query.clientId ? Number(req.query.clientId) : undefined;
+    if (clientId) {
+      const filtered = await storage.getMeetingsByClient(clientId);
+      return res.json(filtered);
+    }
+    const allMeetings = await storage.getMeetings();
+    res.json(allMeetings);
   });
 
   // GET /api/meetings/:id

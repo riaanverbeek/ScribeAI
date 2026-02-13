@@ -8,6 +8,8 @@ import NotFound from "@/pages/not-found";
 import Dashboard from "@/pages/Dashboard";
 import NewMeeting from "@/pages/NewMeeting";
 import MeetingDetail from "@/pages/MeetingDetail";
+import Clients from "@/pages/Clients";
+import ClientDetail from "@/pages/ClientDetail";
 
 function Router() {
   return (
@@ -22,7 +24,12 @@ function Router() {
           <NewMeeting />
         </Layout>
       </Route>
-      {/* Meeting Detail doesn't use standard Layout for more immersive feel, has its own header */}
+      <Route path="/clients">
+        <Layout>
+          <Clients />
+        </Layout>
+      </Route>
+      <Route path="/client/:id" component={ClientDetail} />
       <Route path="/meeting/:id" component={MeetingDetail} />
       
       <Route component={NotFound} />

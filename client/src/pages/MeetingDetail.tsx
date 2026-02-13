@@ -1,7 +1,9 @@
 import { useMeeting } from "@/hooks/use-meetings";
+import { useClients } from "@/hooks/use-clients";
 import { useRoute, Link } from "wouter";
-import { ChevronLeft, Calendar, User, LayoutList, FileText, CheckSquare, Sparkles } from "lucide-react";
+import { ChevronLeft, Calendar, User, LayoutList, FileText, CheckSquare, Sparkles, Users } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
 import { StatusBadge } from "@/components/StatusBadge";
 import { AudioPlayer } from "@/components/AudioPlayer";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -14,9 +16,12 @@ export default function MeetingDetail() {
   const [, params] = useRoute("/meeting/:id");
   const id = params ? parseInt(params.id) : null;
   const { data: meeting, isLoading, error } = useMeeting(id);
+  const { data: clients } = useClients();
 
   if (isLoading) return <div className="p-10 text-center text-slate-500">Loading details...</div>;
   if (error || !meeting) return <div className="p-10 text-center text-red-500">Meeting not found</div>;
+
+  const clientName = meeting.clientId && clients ? clients.find(c => c.id === meeting.clientId)?.name : null;
 
   const fadeIn = {
     initial: { opacity: 0, y: 10 },
@@ -39,12 +44,20 @@ export default function MeetingDetail() {
             </Link>
             <div>
               <h1 className="text-xl font-display font-bold text-slate-900">{meeting.title}</h1>
-              <div className="flex items-center gap-3 text-sm text-slate-500 mt-0.5">
+              <div className="flex items-center gap-3 text-sm text-slate-500 mt-0.5 flex-wrap">
                 <span className="flex items-center gap-1.5">
                   <Calendar className="w-3.5 h-3.5" />
                   {format(new Date(meeting.date), "MMMM d, yyyy")}
                 </span>
                 <StatusBadge status={meeting.status as any} />
+                {clientName && (
+                  <Link href={`/client/${meeting.clientId}`}>
+                    <Badge variant="outline" className="rounded-lg cursor-pointer">
+                      <Users className="w-3 h-3 mr-1" />
+                      {clientName}
+                    </Badge>
+                  </Link>
+                )}
               </div>
             </div>
           </div>

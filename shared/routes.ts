@@ -1,7 +1,9 @@
 import { z } from 'zod';
 import { 
-    insertMeetingSchema, 
+    insertMeetingSchema,
+    insertClientSchema,
     meetings, 
+    clients,
     actionItems, 
     topics, 
     meetingSummaries, 
@@ -28,6 +30,40 @@ export const errorSchemas = {
 // API CONTRACT
 // ============================================
 export const api = {
+  clients: {
+    list: {
+      method: 'GET' as const,
+      path: '/api/clients',
+      responses: {
+        200: z.array(z.custom<typeof clients.$inferSelect>()),
+      },
+    },
+    get: {
+      method: 'GET' as const,
+      path: '/api/clients/:id',
+      responses: {
+        200: z.custom<typeof clients.$inferSelect & { meetings: (typeof meetings.$inferSelect)[] }>(),
+        404: errorSchemas.notFound,
+      },
+    },
+    create: {
+      method: 'POST' as const,
+      path: '/api/clients',
+      input: insertClientSchema,
+      responses: {
+        201: z.custom<typeof clients.$inferSelect>(),
+        400: errorSchemas.validation,
+      },
+    },
+    delete: {
+      method: 'DELETE' as const,
+      path: '/api/clients/:id',
+      responses: {
+        204: z.void(),
+        404: errorSchemas.notFound,
+      },
+    },
+  },
   meetings: {
     list: {
       method: 'GET' as const,
@@ -61,14 +97,13 @@ export const api = {
     uploadAudio: {
         method: 'POST' as const,
         path: '/api/meetings/:id/audio',
-        // FormData not typed here directly, handled by multer/busboy on backend
         responses: {
             200: z.object({ message: z.string() }),
             400: errorSchemas.validation,
             404: errorSchemas.notFound
         }
     },
-    process: { // Triggers AI analysis
+    process: {
         method: 'POST' as const,
         path: '/api/meetings/:id/process',
         responses: {
@@ -86,6 +121,8 @@ export const api = {
     },
   },
 };
+
+export type CreateMeetingRequest = z.infer<typeof insertMeetingSchema>;
 
 // ============================================
 // REQUIRED: buildUrl helper
