@@ -1,9 +1,11 @@
 import { useState } from "react";
+import { useQuery } from "@tanstack/react-query";
 import { useMeeting, useUpdateMeetingClient } from "@/hooks/use-meetings";
 import { useClients, useCreateClient } from "@/hooks/use-clients";
 import { useSubscriptionStatus } from "@/hooks/use-auth";
 import { useRoute, Link } from "wouter";
-import { ChevronLeft, Calendar, User, LayoutList, FileText, CheckSquare, Sparkles, Users, Plus, Loader2, X, Pencil, Lock, CreditCard } from "lucide-react";
+import { ChevronLeft, Calendar, User, LayoutList, FileText, CheckSquare, Sparkles, Users, Plus, Loader2, X, Pencil, Lock, CreditCard, Paperclip, MessageSquareText } from "lucide-react";
+import type { Template } from "@shared/schema";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { StatusBadge } from "@/components/StatusBadge";
@@ -41,6 +43,15 @@ export default function MeetingDetail() {
   const { toast } = useToast();
   const { hasFullAccess } = useSubscriptionStatus();
 
+  const { data: templates } = useQuery<Template[]>({
+    queryKey: ["/api/templates"],
+    queryFn: async () => {
+      const res = await fetch("/api/templates", { credentials: "include" });
+      if (!res.ok) throw new Error("Failed to load templates");
+      return res.json();
+    },
+  });
+
   const [isEditingClient, setIsEditingClient] = useState(false);
   const [selectedClientId, setSelectedClientId] = useState<string>("");
   const [dialogOpen, setDialogOpen] = useState(false);
@@ -52,6 +63,7 @@ export default function MeetingDetail() {
   if (error || !meeting) return <div className="p-10 text-center text-red-500">Meeting not found</div>;
 
   const linkedClient = meeting.clientId && clients ? clients.find(c => c.id === meeting.clientId) : null;
+  const linkedTemplate = meeting.templateId && templates ? templates.find(t => t.id === meeting.templateId) : null;
 
   const handleLinkClient = async (clientIdStr: string) => {
     if (!id) return;
@@ -264,6 +276,48 @@ export default function MeetingDetail() {
                 </CardContent>
               </Card>
             </motion.section>
+
+            {(linkedTemplate || meeting.contextText || meeting.contextFileName) && (
+              <motion.section {...fadeIn}>
+                <Card>
+                  <CardContent className="p-5 space-y-3">
+                    {linkedTemplate && (
+                      <div className="flex items-center gap-3">
+                        <div className="w-9 h-9 rounded-md bg-muted flex items-center justify-center shrink-0">
+                          <FileText className="w-4 h-4 text-muted-foreground" />
+                        </div>
+                        <div>
+                          <p className="text-sm font-medium text-muted-foreground">Template</p>
+                          <p className="text-sm font-semibold" data-testid="text-meeting-template">{linkedTemplate.name}</p>
+                        </div>
+                      </div>
+                    )}
+                    {meeting.contextText && (
+                      <div className="flex items-start gap-3">
+                        <div className="w-9 h-9 rounded-md bg-muted flex items-center justify-center shrink-0 mt-0.5">
+                          <MessageSquareText className="w-4 h-4 text-muted-foreground" />
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <p className="text-sm font-medium text-muted-foreground">Context</p>
+                          <p className="text-sm text-foreground whitespace-pre-wrap" data-testid="text-meeting-context">{meeting.contextText}</p>
+                        </div>
+                      </div>
+                    )}
+                    {meeting.contextFileName && (
+                      <div className="flex items-center gap-3">
+                        <div className="w-9 h-9 rounded-md bg-muted flex items-center justify-center shrink-0">
+                          <Paperclip className="w-4 h-4 text-muted-foreground" />
+                        </div>
+                        <div>
+                          <p className="text-sm font-medium text-muted-foreground">Attached File</p>
+                          <p className="text-sm font-semibold" data-testid="text-meeting-context-file">{meeting.contextFileName}</p>
+                        </div>
+                      </div>
+                    )}
+                  </CardContent>
+                </Card>
+              </motion.section>
+            )}
 
             {meeting.audioUrl && (
               <motion.section {...fadeIn} className="mb-8">

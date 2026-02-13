@@ -12,6 +12,7 @@ export const users = pgTable("users", {
   firstName: text("first_name").notNull(),
   lastName: text("last_name").notNull(),
   isVerified: boolean("is_verified").default(false).notNull(),
+  isAdmin: boolean("is_admin").default(false).notNull(),
   verificationToken: text("verification_token"),
   verificationTokenExpiry: timestamp("verification_token_expiry"),
   trialEndsAt: timestamp("trial_ends_at"),
@@ -22,6 +23,16 @@ export const users = pgTable("users", {
   payfastSubscriptionId: text("payfast_subscription_id"),
   subscriptionCurrentPeriodEnd: timestamp("subscription_current_period_end"),
   cancelledAt: timestamp("cancelled_at"),
+  createdAt: timestamp("created_at").defaultNow(),
+});
+
+export const templates = pgTable("templates", {
+  id: serial("id").primaryKey(),
+  name: text("name").notNull(),
+  description: text("description"),
+  formatPrompt: text("format_prompt").notNull(),
+  isDefault: boolean("is_default").default(false).notNull(),
+  createdBy: integer("created_by").references(() => users.id, { onDelete: "set null" }),
   createdAt: timestamp("created_at").defaultNow(),
 });
 
@@ -37,10 +48,14 @@ export const clients = pgTable("clients", {
 export const meetings = pgTable("meetings", {
   clientId: integer("client_id").references(() => clients.id, { onDelete: "set null" }),
   userId: integer("user_id").references(() => users.id, { onDelete: "cascade" }),
+  templateId: integer("template_id").references(() => templates.id, { onDelete: "set null" }),
   id: serial("id").primaryKey(),
   title: text("title").notNull(),
   date: timestamp("date").notNull().defaultNow(),
   audioUrl: text("audio_url"),
+  contextText: text("context_text"),
+  contextFileUrl: text("context_file_url"),
+  contextFileName: text("context_file_name"),
   status: text("status", { enum: ["uploading", "processing", "completed", "failed"] }).notNull().default("uploading"),
   createdAt: timestamp("created_at").defaultNow(),
 });
@@ -94,9 +109,14 @@ export const messages = pgTable("messages", {
 
 // === RELATIONS ===
 
+export const templatesRelations = relations(templates, ({ one }) => ({
+  creator: one(users, { fields: [templates.createdBy], references: [users.id] }),
+}));
+
 export const usersRelations = relations(users, ({ many }) => ({
   meetings: many(meetings),
   clients: many(clients),
+  templates: many(templates),
 }));
 
 export const clientsRelations = relations(clients, ({ one, many }) => ({
@@ -109,6 +129,10 @@ export const meetingsRelations = relations(meetings, ({ one, many }) => ({
   client: one(clients, {
     fields: [meetings.clientId],
     references: [clients.id],
+  }),
+  template: one(templates, {
+    fields: [meetings.templateId],
+    references: [templates.id],
   }),
   transcript: one(transcripts, {
     fields: [meetings.id],
@@ -164,6 +188,8 @@ export const insertUserSchema = createInsertSchema(users).omit({
   passwordHash: z.string().min(6, "Password must be at least 6 characters"),
 });
 
+export const insertTemplateSchema = createInsertSchema(templates).omit({ id: true, createdAt: true });
+
 export const insertClientSchema = createInsertSchema(clients).omit({ id: true, createdAt: true });
 
 export const insertMeetingSchema = createInsertSchema(meetings).extend({
@@ -188,6 +214,9 @@ export const insertMessageSchema = createInsertSchema(messages).omit({
 
 export type User = typeof users.$inferSelect;
 export type InsertUser = z.infer<typeof insertUserSchema>;
+
+export type Template = typeof templates.$inferSelect;
+export type InsertTemplate = z.infer<typeof insertTemplateSchema>;
 
 export type Client = typeof clients.$inferSelect;
 export type InsertClient = z.infer<typeof insertClientSchema>;

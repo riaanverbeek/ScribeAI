@@ -1,10 +1,12 @@
 import { useState } from "react";
 import { useLocation } from "wouter";
+import { useQuery } from "@tanstack/react-query";
 import { useCreateMeeting, useUploadAudio, useProcessMeeting } from "@/hooks/use-meetings";
 import { useClients, useCreateClient } from "@/hooks/use-clients";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Textarea } from "@/components/ui/textarea";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Card, CardContent } from "@/components/ui/card";
 import {
@@ -21,10 +23,11 @@ import {
   DialogTitle,
   DialogTrigger,
 } from "@/components/ui/dialog";
-import { Mic, UploadCloud, ChevronLeft, Loader2, Plus, Users } from "lucide-react";
+import { Mic, UploadCloud, ChevronLeft, Loader2, Plus, Users, FileText, Paperclip } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { useVoiceRecorder } from "@/replit_integrations/audio";
 import { motion } from "framer-motion";
+import type { Template } from "@shared/schema";
 
 export default function NewMeeting() {
   const [, setLocation] = useLocation();
@@ -33,6 +36,9 @@ export default function NewMeeting() {
   const [title, setTitle] = useState("");
   const [file, setFile] = useState<File | null>(null);
   const [selectedClientId, setSelectedClientId] = useState<string>("");
+  const [selectedTemplateId, setSelectedTemplateId] = useState<string>("");
+  const [contextText, setContextText] = useState("");
+  const [contextFile, setContextFile] = useState<File | null>(null);
   const [newClientName, setNewClientName] = useState("");
   const [newClientEmail, setNewClientEmail] = useState("");
   const [newClientCompany, setNewClientCompany] = useState("");
@@ -43,6 +49,14 @@ export default function NewMeeting() {
   const processMutation = useProcessMeeting();
   const { data: clients } = useClients();
   const createClientMutation = useCreateClient();
+  const { data: templates } = useQuery<Template[]>({
+    queryKey: ["/api/templates"],
+    queryFn: async () => {
+      const res = await fetch("/api/templates", { credentials: "include" });
+      if (!res.ok) throw new Error("Failed to load templates");
+      return res.json();
+    },
+  });
   
   const recorder = useVoiceRecorder();
 
@@ -82,6 +96,32 @@ export default function NewMeeting() {
       }
 
       const meeting = await createMutation.mutateAsync(meetingData);
+
+      const contextPayload: any = {};
+      if (selectedTemplateId) {
+        contextPayload.templateId = Number(selectedTemplateId);
+      }
+      if (contextText.trim()) {
+        contextPayload.contextText = contextText.trim();
+      }
+      if (Object.keys(contextPayload).length > 0) {
+        await fetch(`/api/meetings/${meeting.id}/context`, {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          credentials: "include",
+          body: JSON.stringify(contextPayload),
+        });
+      }
+
+      if (contextFile) {
+        const formData = new FormData();
+        formData.append("file", contextFile);
+        await fetch(`/api/meetings/${meeting.id}/context-file`, {
+          method: "POST",
+          credentials: "include",
+          body: formData,
+        });
+      }
 
       let audioFile = file;
 
@@ -220,6 +260,71 @@ export default function NewMeeting() {
                 </div>
               </DialogContent>
             </Dialog>
+          </div>
+        </div>
+
+        {templates && templates.length > 0 && (
+          <div className="space-y-3">
+            <Label className="text-base font-semibold text-slate-900">Summary Template</Label>
+            <Select value={selectedTemplateId} onValueChange={setSelectedTemplateId}>
+              <SelectTrigger className="h-12 rounded-xl border-slate-200" data-testid="select-template">
+                <div className="flex items-center gap-2">
+                  <FileText className="w-4 h-4 text-slate-400" />
+                  <SelectValue placeholder="Select a template (optional)" />
+                </div>
+              </SelectTrigger>
+              <SelectContent>
+                {templates.map((tpl) => (
+                  <SelectItem key={tpl.id} value={String(tpl.id)} data-testid={`select-template-option-${tpl.id}`}>
+                    <div className="flex flex-col">
+                      <span>{tpl.name}</span>
+                      {tpl.description && <span className="text-xs text-slate-500">{tpl.description}</span>}
+                    </div>
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            <p className="text-xs text-muted-foreground">Controls how the AI structures the meeting summary.</p>
+          </div>
+        )}
+
+        <div className="space-y-3">
+          <Label className="text-base font-semibold text-slate-900">Meeting Context (optional)</Label>
+          <p className="text-xs text-muted-foreground -mt-1">Provide any background info the AI should consider during analysis.</p>
+          <Textarea
+            placeholder="e.g. This is a follow-up to last week's budget review. Focus on action items related to cost reduction."
+            value={contextText}
+            onChange={(e) => setContextText(e.target.value)}
+            rows={3}
+            className="rounded-xl border-slate-200"
+            data-testid="input-context-text"
+          />
+          <div className="flex items-center gap-3">
+            <input
+              type="file"
+              id="context-file-upload"
+              className="hidden"
+              accept=".txt,.md,.csv,.json,.doc,.docx,.pdf"
+              onChange={(e) => {
+                if (e.target.files?.[0]) setContextFile(e.target.files[0]);
+              }}
+              data-testid="input-context-file"
+            />
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => document.getElementById("context-file-upload")?.click()}
+              type="button"
+              data-testid="button-attach-context-file"
+            >
+              <Paperclip className="w-4 h-4 mr-1.5" />
+              Attach File
+            </Button>
+            {contextFile && (
+              <span className="text-sm text-muted-foreground" data-testid="text-context-file-name">
+                {contextFile.name}
+              </span>
+            )}
           </div>
         </div>
 

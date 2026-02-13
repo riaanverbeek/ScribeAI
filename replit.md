@@ -12,18 +12,30 @@ Preferred communication style: Simple, everyday language.
 
 ## Recent Changes
 
+### Feb 13, 2026 - Templates & Meeting Context System
+- Added `templates` table with name, description, formatPrompt, isDefault, createdBy fields
+- Added `templateId`, `contextText`, `contextFileUrl`, `contextFileName` fields to meetings table
+- Added `isAdmin` flag to users table with `requireAdmin` middleware
+- Template CRUD routes (GET/POST/PATCH/DELETE) with admin-only create/edit/delete
+- Meeting context routes: PATCH `/api/meetings/:id/context` and POST `/api/meetings/:id/context-file`
+- AI processing pipeline now injects template formatPrompt and user-provided context into LLM system prompt
+- Frontend: Templates admin page (`/templates`) with create/edit/delete UI
+- Navigation shows Templates link only for admin users
+- NewMeeting page: template selector dropdown + context text input + context file attach
+- MeetingDetail page: displays selected template, context text, and attached file name
+
 ### Feb 13, 2026 - Authentication & Subscription System
-- Added `users` table with registration, email verification, password hashing (bcrypt)
+- Added `users` table with registration, password hashing (bcrypt), auto-login on registration
 - Added `userId` FK to `meetings` and `clients` tables for multi-tenant data isolation
 - Implemented session-based auth with `express-session` + `connect-pg-simple`
-- Email verification via Resend integration (24-hour token expiry, 7-day free trial starts on verification)
+- 7-day free trial starts immediately on registration (no email verification required)
 - PayFast subscription integration (sandbox mode, R199/month recurring):
   - Checkout URL generation with signature
   - ITN webhook with signature + merchant_id validation
   - Cancel subscription API
-- Access control middleware: `requireAuth`, `requireVerified`, `requireSubscription`
+- Access control middleware: `requireAuth`, `requireAdmin`, `requireSubscription`
 - All routes enforce userId ownership checks (users can only access their own meetings/clients)
-- Frontend: Login, Register, VerifyEmail, Subscription, SubscriptionSuccess, SubscriptionCancel pages
+- Frontend: Login, Register, Subscription, SubscriptionSuccess, SubscriptionCancel pages
 - Protected routes via `ProtectedRoute` and `PublicOnlyRoute` wrappers
 - Subscription paywall banner on MeetingDetail when AI features are locked
 - Navigation updated with user info, subscription link, and sign-out
@@ -60,7 +72,8 @@ Preferred communication style: Simple, everyday language.
 - **Core Tables**:
   - `users` - User accounts with subscription fields (status, trial dates, PayFast tokens)
   - `clients` - Client information (name, email, company, userId FK)
-  - `meetings` - Meeting metadata, status tracking, client association, userId FK
+  - `meetings` - Meeting metadata, status tracking, client association, userId FK, templateId FK, context fields
+  - `templates` - Admin-managed AI summary format templates (name, description, formatPrompt, isDefault, createdBy)
   - `transcripts` - Full transcription text
   - `action_items` - Extracted tasks with assignees
   - `topics` - Identified discussion topics with relevance scores
@@ -68,8 +81,7 @@ Preferred communication style: Simple, everyday language.
   - `conversations`/`messages` - Chat functionality for Replit integrations
 
 ### Auth & Subscription Flow
-- Registration creates unverified user with verification token
-- Verification email sent via Resend, verifies user and starts 7-day trial
+- Registration creates user with auto-login and immediate 7-day trial (no email verification required)
 - Trial expiry check on login and /api/auth/me
 - PayFast subscription checkout redirects to PayFast payment page
 - ITN webhook receives payment status (COMPLETE/CANCELLED) and updates user

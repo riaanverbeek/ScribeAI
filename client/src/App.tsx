@@ -17,6 +17,7 @@ import Register from "@/pages/Register";
 import Subscription from "@/pages/Subscription";
 import SubscriptionSuccess from "@/pages/SubscriptionSuccess";
 import SubscriptionCancel from "@/pages/SubscriptionCancel";
+import Templates from "@/pages/Templates";
 
 function ProtectedRoute({ children }: { children: React.ReactNode }) {
   const { isAuthenticated, isLoading } = useAuth();
@@ -98,6 +99,11 @@ function Router() {
       <Route path="/subscription">
         <ProtectedRoute>
           <Layout><Subscription /></Layout>
+        </ProtectedRoute>
+      </Route>
+      <Route path="/templates">
+        <ProtectedRoute>
+          <Layout><Templates /></Layout>
         </ProtectedRoute>
       </Route>
 

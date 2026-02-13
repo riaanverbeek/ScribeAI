@@ -1,5 +1,5 @@
 import { Link, useLocation } from "wouter";
-import { LayoutDashboard, PlusCircle, Users, Mic, CreditCard, LogOut } from "lucide-react";
+import { LayoutDashboard, PlusCircle, Users, Mic, CreditCard, LogOut, FileText } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useAuth, useLogout, useSubscriptionStatus } from "@/hooks/use-auth";
 import { Badge } from "@/components/ui/badge";
@@ -10,6 +10,7 @@ const navItems = [
   { label: "Clients", icon: Users, href: "/clients", requiresSubscription: true },
   { label: "New Meeting", icon: PlusCircle, href: "/new" },
   { label: "Subscription", icon: CreditCard, href: "/subscription" },
+  { label: "Templates", icon: FileText, href: "/templates", adminOnly: true },
 ];
 
 export function Navigation() {
@@ -31,7 +32,7 @@ export function Navigation() {
         </div>
 
         <div className="flex md:flex-col justify-around md:justify-start md:px-4 md:gap-2 p-2 md:py-4">
-          {navItems.map((item) => {
+          {navItems.filter(item => !item.adminOnly || user?.isAdmin).map((item) => {
             const isActive = location === item.href;
             const isLocked = item.requiresSubscription && !hasFullAccess;
             return (

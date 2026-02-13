@@ -1,10 +1,10 @@
 import { db } from "./db";
 import { 
-    users, clients, meetings, transcripts, actionItems, topics, meetingSummaries,
-    type InsertUser, type InsertClient, type InsertMeeting, type InsertTranscript, type InsertActionItem, type InsertTopic, type InsertMeetingSummary,
-    type User, type Client, type Meeting, type Transcript, type ActionItem, type Topic, type MeetingSummary
+    users, clients, meetings, transcripts, actionItems, topics, meetingSummaries, templates,
+    type InsertUser, type InsertClient, type InsertMeeting, type InsertTranscript, type InsertActionItem, type InsertTopic, type InsertMeetingSummary, type InsertTemplate,
+    type User, type Client, type Meeting, type Transcript, type ActionItem, type Topic, type MeetingSummary, type Template
 } from "@shared/schema";
-import { eq, and } from "drizzle-orm";
+import { eq, and, desc } from "drizzle-orm";
 
 export interface IStorage {
     // Users
@@ -14,6 +14,17 @@ export interface IStorage {
     createUser(user: InsertUser): Promise<User>;
     verifyUser(id: number): Promise<User>;
     updateUserSubscription(id: number, data: Partial<Pick<User, "subscriptionStatus" | "payfastToken" | "payfastSubscriptionId" | "subscriptionCurrentPeriodEnd" | "cancelledAt" | "trialEndsAt">>): Promise<User>;
+
+    // Templates
+    getTemplates(): Promise<Template[]>;
+    getTemplate(id: number): Promise<Template | undefined>;
+    createTemplate(template: InsertTemplate): Promise<Template>;
+    updateTemplate(id: number, data: Partial<Pick<Template, "name" | "description" | "formatPrompt" | "isDefault">>): Promise<Template>;
+    deleteTemplate(id: number): Promise<void>;
+
+    // Meetings - context
+    updateMeetingContext(id: number, data: { contextText?: string | null; templateId?: number | null }): Promise<Meeting>;
+    updateMeetingContextFile(id: number, contextFileUrl: string, contextFileName: string): Promise<Meeting>;
 
     // Clients
     getClients(userId?: number): Promise<Client[]>;
@@ -89,6 +100,41 @@ export class DatabaseStorage implements IStorage {
     async updateUserSubscription(id: number, data: Partial<Pick<User, "subscriptionStatus" | "payfastToken" | "payfastSubscriptionId" | "subscriptionCurrentPeriodEnd" | "cancelledAt" | "trialEndsAt">>): Promise<User> {
         const [user] = await db.update(users).set(data).where(eq(users.id, id)).returning();
         return user;
+    }
+
+    // Templates
+    async getTemplates(): Promise<Template[]> {
+        return await db.select().from(templates).orderBy(desc(templates.createdAt));
+    }
+
+    async getTemplate(id: number): Promise<Template | undefined> {
+        const [template] = await db.select().from(templates).where(eq(templates.id, id));
+        return template;
+    }
+
+    async createTemplate(insertTemplate: InsertTemplate): Promise<Template> {
+        const [template] = await db.insert(templates).values(insertTemplate).returning();
+        return template;
+    }
+
+    async updateTemplate(id: number, data: Partial<Pick<Template, "name" | "description" | "formatPrompt" | "isDefault">>): Promise<Template> {
+        const [template] = await db.update(templates).set(data).where(eq(templates.id, id)).returning();
+        return template;
+    }
+
+    async deleteTemplate(id: number): Promise<void> {
+        await db.delete(templates).where(eq(templates.id, id));
+    }
+
+    // Meetings - context
+    async updateMeetingContext(id: number, data: { contextText?: string | null; templateId?: number | null }): Promise<Meeting> {
+        const [meeting] = await db.update(meetings).set(data).where(eq(meetings.id, id)).returning();
+        return meeting;
+    }
+
+    async updateMeetingContextFile(id: number, contextFileUrl: string, contextFileName: string): Promise<Meeting> {
+        const [meeting] = await db.update(meetings).set({ contextFileUrl, contextFileName }).where(eq(meetings.id, id)).returning();
+        return meeting;
     }
 
     // Clients

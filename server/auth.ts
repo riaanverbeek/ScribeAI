@@ -53,6 +53,14 @@ export async function requireAuth(req: Request, res: Response, next: NextFunctio
   next();
 }
 
+export async function requireAdmin(req: Request, res: Response, next: NextFunction) {
+  const user = (req as any).user as User;
+  if (!user.isAdmin) {
+    return res.status(403).json({ message: "Admin access required" });
+  }
+  next();
+}
+
 export async function requireSubscription(req: Request, res: Response, next: NextFunction) {
   const user = (req as any).user as User;
   if (!hasFullAccess(user)) {

@@ -13,7 +13,7 @@ import OpenAI from "openai";
 import fs from "fs";
 import path from "path";
 import { generatePayfastSubscriptionUrl, validatePayfastSignature, cancelPayfastSubscription } from "./payfast";
-import { requireAuth, requireSubscription, sanitizeUser, getEffectiveSubscriptionStatus, hasFullAccess } from "./auth";
+import { requireAuth, requireAdmin, requireSubscription, sanitizeUser, getEffectiveSubscriptionStatus, hasFullAccess } from "./auth";
 import type { User } from "@shared/schema";
 
 const upload = multer({ dest: "uploads/" });
@@ -252,6 +252,123 @@ export async function registerRoutes(
     });
   });
 
+  // ========== TEMPLATE ROUTES ==========
+
+  app.get("/api/templates", requireAuth, async (req, res) => {
+    const templateList = await storage.getTemplates();
+    res.json(templateList);
+  });
+
+  app.get("/api/templates/:id", requireAuth, async (req, res) => {
+    const id = Number(req.params.id);
+    const template = await storage.getTemplate(id);
+    if (!template) {
+      return res.status(404).json({ message: "Template not found" });
+    }
+    res.json(template);
+  });
+
+  app.post("/api/templates", requireAuth, requireAdmin, async (req, res) => {
+    try {
+      const { name, description, formatPrompt, isDefault } = z.object({
+        name: z.string().min(1, "Name is required"),
+        description: z.string().optional(),
+        formatPrompt: z.string().min(1, "Format prompt is required"),
+        isDefault: z.boolean().optional(),
+      }).parse(req.body);
+
+      const user = (req as any).user as User;
+      const template = await storage.createTemplate({
+        name,
+        description: description || null,
+        formatPrompt,
+        isDefault: isDefault || false,
+        createdBy: user.id,
+      });
+      res.status(201).json(template);
+    } catch (err) {
+      if (err instanceof z.ZodError) {
+        return res.status(400).json({ message: err.errors[0].message });
+      }
+      throw err;
+    }
+  });
+
+  app.patch("/api/templates/:id", requireAuth, requireAdmin, async (req, res) => {
+    const id = Number(req.params.id);
+    const existing = await storage.getTemplate(id);
+    if (!existing) {
+      return res.status(404).json({ message: "Template not found" });
+    }
+    try {
+      const data = z.object({
+        name: z.string().min(1).optional(),
+        description: z.string().nullable().optional(),
+        formatPrompt: z.string().min(1).optional(),
+        isDefault: z.boolean().optional(),
+      }).parse(req.body);
+
+      const updated = await storage.updateTemplate(id, data);
+      res.json(updated);
+    } catch (err) {
+      if (err instanceof z.ZodError) {
+        return res.status(400).json({ message: err.errors[0].message });
+      }
+      throw err;
+    }
+  });
+
+  app.delete("/api/templates/:id", requireAuth, requireAdmin, async (req, res) => {
+    const id = Number(req.params.id);
+    const existing = await storage.getTemplate(id);
+    if (!existing) {
+      return res.status(404).json({ message: "Template not found" });
+    }
+    await storage.deleteTemplate(id);
+    res.status(204).send();
+  });
+
+  // ========== MEETING CONTEXT ROUTES ==========
+
+  app.patch("/api/meetings/:id/context", requireAuth, async (req, res) => {
+    const id = Number(req.params.id);
+    const user = (req as any).user as User;
+    const meeting = await storage.getMeeting(id);
+    if (!meeting || meeting.userId !== user.id) {
+      return res.status(404).json({ message: "Meeting not found" });
+    }
+    try {
+      const data = z.object({
+        contextText: z.string().nullable().optional(),
+        templateId: z.number().nullable().optional(),
+      }).parse(req.body);
+
+      const updated = await storage.updateMeetingContext(id, data);
+      res.json(updated);
+    } catch (err) {
+      if (err instanceof z.ZodError) {
+        return res.status(400).json({ message: err.errors[0].message });
+      }
+      throw err;
+    }
+  });
+
+  app.post("/api/meetings/:id/context-file", requireAuth, upload.single('file'), async (req, res) => {
+    const id = Number(req.params.id);
+    const user = (req as any).user as User;
+    const meeting = await storage.getMeeting(id);
+    if (!meeting || meeting.userId !== user.id) {
+      return res.status(404).json({ message: "Meeting not found" });
+    }
+    if (!req.file) {
+      return res.status(400).json({ message: "No file uploaded" });
+    }
+    const filePath = req.file.path;
+    const fileName = req.file.originalname;
+    const updated = await storage.updateMeetingContextFile(id, filePath, fileName);
+    res.json(updated);
+  });
+
   // ========== CLIENT ROUTES ==========
 
   app.get(api.clients.list.path, requireAuth, requireSubscription, async (req, res) => {
@@ -402,6 +519,27 @@ export async function registerRoutes(
               language: "en" 
           });
 
+          let templateFormatInstructions = "";
+          if (meeting.templateId) {
+            const template = await storage.getTemplate(meeting.templateId);
+            if (template) {
+              templateFormatInstructions = `\n\nIMPORTANT - Use the following format/style for the summary:\n${template.formatPrompt}`;
+            }
+          }
+
+          let contextSection = "";
+          if (meeting.contextText) {
+            contextSection += `\n\nAdditional context provided by the user:\n${meeting.contextText}`;
+          }
+          if (meeting.contextFileUrl && meeting.contextFileName) {
+            try {
+              const fileContent = fs.readFileSync(meeting.contextFileUrl, "utf-8");
+              contextSection += `\n\nContent from attached file (${meeting.contextFileName}):\n${fileContent}`;
+            } catch (fileErr) {
+              console.error("Failed to read context file:", fileErr);
+            }
+          }
+
           const systemPrompt = `
             You are an expert meeting analyst. Analyze the following meeting transcript.
             
@@ -409,6 +547,8 @@ export async function registerRoutes(
             1. Action Items (assignee if clear, otherwise 'Unknown')
             2. Key Topics (title, summary, relevance score 1-100)
             3. Executive Summary (concise overview)
+            ${templateFormatInstructions}
+            ${contextSection ? `\nTake the following context into account when generating your analysis:${contextSection}` : ""}
             
             Return JSON in this format:
             {
