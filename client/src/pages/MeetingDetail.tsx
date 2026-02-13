@@ -170,45 +170,42 @@ export default function MeetingDetail() {
   };
 
   return (
-    <div className="flex h-screen bg-background">
-      <div className="flex-1 flex flex-col h-full overflow-hidden">
+    <div className="flex flex-col h-full overflow-hidden">
         
-        <header className="bg-white dark:bg-background border-b px-6 py-4 flex items-center justify-between shrink-0">
-          <div className="flex items-center gap-4">
-            <Link href="/">
-              <Button variant="ghost" size="icon" className="rounded-full" data-testid="button-back">
-                <ChevronLeft className="w-5 h-5" />
-              </Button>
-            </Link>
-            <div>
-              <h1 className="text-xl font-display font-bold" data-testid="text-meeting-title">{meeting.title}</h1>
-              <div className="flex items-center gap-3 text-sm text-muted-foreground mt-0.5 flex-wrap">
-                <span className="flex items-center gap-1.5">
-                  <Calendar className="w-3.5 h-3.5" />
-                  {format(new Date(meeting.date), "MMMM d, yyyy")}
-                </span>
-                <StatusBadge status={meeting.status as any} />
-              </div>
-            </div>
+      <header className="bg-white dark:bg-background border-b px-4 sm:px-6 py-3 sm:py-4 flex items-center gap-3 shrink-0">
+        <Link href="/">
+          <Button variant="ghost" size="icon" className="rounded-full shrink-0" data-testid="button-back">
+            <ChevronLeft className="w-5 h-5" />
+          </Button>
+        </Link>
+        <div className="min-w-0">
+          <h1 className="text-base sm:text-xl font-display font-bold truncate" data-testid="text-meeting-title">{meeting.title}</h1>
+          <div className="flex items-center gap-2 sm:gap-3 text-xs sm:text-sm text-muted-foreground mt-0.5 flex-wrap">
+            <span className="flex items-center gap-1.5">
+              <Calendar className="w-3.5 h-3.5 shrink-0" />
+              {format(new Date(meeting.date), "MMM d, yyyy")}
+            </span>
+            <StatusBadge status={meeting.status as any} />
           </div>
-        </header>
+        </div>
+      </header>
 
-        <ScrollArea className="flex-1">
-          <div className="p-6 md:p-8 max-w-5xl mx-auto space-y-8">
+      <ScrollArea className="flex-1">
+        <div className="p-4 sm:p-6 md:p-8 max-w-5xl mx-auto space-y-6 sm:space-y-8">
             
             <motion.section {...fadeIn}>
               <Card>
-                <CardContent className="p-5">
-                  <div className="flex items-center justify-between gap-4 flex-wrap">
+                <CardContent className="p-4 sm:p-5">
+                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 sm:gap-4">
                     <div className="flex items-center gap-3">
                       <div className="w-9 h-9 rounded-md bg-muted flex items-center justify-center shrink-0">
                         <Users className="w-4 h-4 text-muted-foreground" />
                       </div>
-                      <div>
+                      <div className="min-w-0">
                         <p className="text-sm font-medium text-muted-foreground">Linked Client</p>
                         {linkedClient ? (
                           <Link href={`/client/${linkedClient.id}`}>
-                            <span className="text-sm font-semibold hover:underline cursor-pointer" data-testid="text-linked-client">
+                            <span className="text-sm font-semibold hover:underline cursor-pointer truncate block" data-testid="text-linked-client">
                               {linkedClient.name}
                               {linkedClient.company && <span className="text-muted-foreground font-normal"> — {linkedClient.company}</span>}
                             </span>
@@ -220,7 +217,7 @@ export default function MeetingDetail() {
                     </div>
 
                     {!isEditingClient ? (
-                      <div className="flex items-center gap-2">
+                      <div className="flex items-center gap-2 shrink-0">
                         {linkedClient && (
                           <Button
                             variant="ghost"
@@ -244,12 +241,12 @@ export default function MeetingDetail() {
                         </Button>
                       </div>
                     ) : (
-                      <div className="flex items-center gap-2">
+                      <div className="flex items-center gap-2 flex-wrap">
                         <Select
                           value={selectedClientId}
                           onValueChange={(val) => handleLinkClient(val)}
                         >
-                          <SelectTrigger className="w-[220px]" data-testid="select-link-client">
+                          <SelectTrigger className="w-full sm:w-[220px]" data-testid="select-link-client">
                             <SelectValue placeholder="Select a client" />
                           </SelectTrigger>
                           <SelectContent>
@@ -504,18 +501,20 @@ export default function MeetingDetail() {
             {!hasFullAccess && (
               <motion.div {...fadeIn}>
                 <Card className="border-dashed">
-                  <CardContent className="p-6 flex items-center gap-4">
-                    <div className="w-10 h-10 rounded-md bg-muted flex items-center justify-center shrink-0">
-                      <Lock className="w-5 h-5 text-muted-foreground" />
+                  <CardContent className="p-4 sm:p-6 flex flex-col sm:flex-row items-start sm:items-center gap-3 sm:gap-4">
+                    <div className="flex items-center gap-3 flex-1 min-w-0">
+                      <div className="w-10 h-10 rounded-md bg-muted flex items-center justify-center shrink-0">
+                        <Lock className="w-5 h-5 text-muted-foreground" />
+                      </div>
+                      <div>
+                        <p className="font-medium text-sm">AI analysis features are locked</p>
+                        <p className="text-xs sm:text-sm text-muted-foreground mt-0.5">
+                          Subscribe to unlock transcription, summaries, action items, and topic analysis.
+                        </p>
+                      </div>
                     </div>
-                    <div className="flex-1">
-                      <p className="font-medium text-sm">AI analysis features are locked</p>
-                      <p className="text-sm text-muted-foreground mt-0.5">
-                        Subscribe to unlock transcription, summaries, action items, and topic analysis.
-                      </p>
-                    </div>
-                    <Link href="/subscription">
-                      <Button size="sm" data-testid="button-subscribe-cta">
+                    <Link href="/subscription" className="w-full sm:w-auto shrink-0">
+                      <Button size="sm" className="w-full sm:w-auto" data-testid="button-subscribe-cta">
                         <CreditCard className="w-4 h-4 mr-1.5" />
                         Subscribe
                       </Button>
@@ -526,33 +525,33 @@ export default function MeetingDetail() {
             )}
 
             <Tabs defaultValue="summary" className="w-full">
-              <TabsList className="w-full justify-start bg-transparent border-b p-0 h-auto rounded-none gap-8 mb-6">
+              <TabsList className="w-full justify-start bg-transparent border-b p-0 h-auto rounded-none gap-4 sm:gap-8 mb-6 overflow-x-auto flex-nowrap">
                 <TabsTrigger 
                   value="summary" 
-                  className="rounded-none border-b-2 border-transparent px-0 py-3 data-[state=active]:border-accent data-[state=active]:bg-transparent data-[state=active]:shadow-none font-medium"
+                  className="rounded-none border-b-2 border-transparent px-0 py-3 data-[state=active]:border-accent data-[state=active]:bg-transparent data-[state=active]:shadow-none font-medium whitespace-nowrap shrink-0"
                 >
-                  <Sparkles className="w-4 h-4 mr-2" />
-                  Executive Summary
+                  <Sparkles className="w-4 h-4 mr-1.5" />
+                  <span className="hidden sm:inline">Executive </span>Summary
                 </TabsTrigger>
                 <TabsTrigger 
                   value="transcript" 
-                  className="rounded-none border-b-2 border-transparent px-0 py-3 data-[state=active]:border-accent data-[state=active]:bg-transparent data-[state=active]:shadow-none font-medium"
+                  className="rounded-none border-b-2 border-transparent px-0 py-3 data-[state=active]:border-accent data-[state=active]:bg-transparent data-[state=active]:shadow-none font-medium whitespace-nowrap shrink-0"
                 >
-                  <FileText className="w-4 h-4 mr-2" />
+                  <FileText className="w-4 h-4 mr-1.5" />
                   Transcript
                 </TabsTrigger>
                 <TabsTrigger 
                   value="actions" 
-                  className="rounded-none border-b-2 border-transparent px-0 py-3 data-[state=active]:border-accent data-[state=active]:bg-transparent data-[state=active]:shadow-none font-medium"
+                  className="rounded-none border-b-2 border-transparent px-0 py-3 data-[state=active]:border-accent data-[state=active]:bg-transparent data-[state=active]:shadow-none font-medium whitespace-nowrap shrink-0"
                 >
-                  <CheckSquare className="w-4 h-4 mr-2" />
-                  Action Items
+                  <CheckSquare className="w-4 h-4 mr-1.5" />
+                  <span className="hidden sm:inline">Action </span>Items
                 </TabsTrigger>
                 <TabsTrigger 
                   value="topics" 
-                  className="rounded-none border-b-2 border-transparent px-0 py-3 data-[state=active]:border-accent data-[state=active]:bg-transparent data-[state=active]:shadow-none font-medium"
+                  className="rounded-none border-b-2 border-transparent px-0 py-3 data-[state=active]:border-accent data-[state=active]:bg-transparent data-[state=active]:shadow-none font-medium whitespace-nowrap shrink-0"
                 >
-                  <LayoutList className="w-4 h-4 mr-2" />
+                  <LayoutList className="w-4 h-4 mr-1.5" />
                   Topics
                 </TabsTrigger>
               </TabsList>
@@ -560,8 +559,8 @@ export default function MeetingDetail() {
               <div className="min-h-[400px]">
                 <TabsContent value="summary" className="outline-none">
                   {meeting.summary ? (
-                    <motion.div {...fadeIn} className="bg-card rounded-2xl border p-8">
-                      <div className="prose prose-slate dark:prose-invert max-w-none prose-headings:font-display">
+                    <motion.div {...fadeIn} className="bg-card rounded-2xl border p-4 sm:p-6 md:p-8">
+                      <div className="prose prose-sm sm:prose-base prose-slate dark:prose-invert max-w-none prose-headings:font-display">
                         <div dangerouslySetInnerHTML={{ __html: meeting.summary.content }} />
                       </div>
                     </motion.div>
@@ -573,12 +572,12 @@ export default function MeetingDetail() {
                 <TabsContent value="transcript" className="outline-none">
                   {meeting.transcript ? (
                     <motion.div {...fadeIn} className="bg-card rounded-2xl border overflow-hidden">
-                      <div className="p-6 space-y-6">
+                      <div className="p-4 sm:p-6 space-y-4 sm:space-y-6">
                         {meeting.transcript.content.split('\n\n').map((block, idx) => (
-                          <div key={idx} className="flex gap-4">
+                          <div key={idx} className="flex gap-3 sm:gap-4">
                             <div className="flex-shrink-0 mt-1">
-                              <div className="w-8 h-8 rounded-full bg-muted flex items-center justify-center text-muted-foreground">
-                                <User className="w-4 h-4" />
+                              <div className="w-7 h-7 sm:w-8 sm:h-8 rounded-full bg-muted flex items-center justify-center text-muted-foreground">
+                                <User className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
                               </div>
                             </div>
                             <div className="flex-1">
@@ -605,7 +604,7 @@ export default function MeetingDetail() {
                           transition={{ delay: idx * 0.1 }}
                         >
                            <Card>
-                             <CardContent className="p-6 flex items-start gap-4">
+                             <CardContent className="p-4 sm:p-6 flex items-start gap-3 sm:gap-4">
                                <div className="mt-0.5">
                                  <input type="checkbox" className="w-5 h-5 rounded border-input cursor-pointer" />
                                </div>
@@ -664,7 +663,6 @@ export default function MeetingDetail() {
             </Tabs>
           </div>
         </ScrollArea>
-      </div>
     </div>
   );
 }

@@ -116,11 +116,11 @@ export default function Templates() {
   const isPending = createMutation.isPending || updateMutation.isPending;
 
   return (
-    <div className="p-6 md:p-10 max-w-4xl mx-auto">
-      <div className="flex items-center justify-between gap-4 mb-8 flex-wrap">
+    <div className="p-4 sm:p-6 md:p-10 max-w-4xl mx-auto">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6 sm:mb-8">
         <div>
-          <h1 className="text-3xl font-display font-bold" data-testid="text-templates-title">Templates</h1>
-          <p className="text-muted-foreground mt-1">Manage AI summary format templates. Users can select a template to control how the AI structures its analysis.</p>
+          <h1 className="text-2xl sm:text-3xl font-display font-bold" data-testid="text-templates-title">Templates</h1>
+          <p className="text-muted-foreground mt-1 text-sm sm:text-base">Manage AI summary format templates. Users can select a template to control how the AI structures its analysis.</p>
         </div>
 
         <Dialog open={dialogOpen} onOpenChange={(open) => { if (!open) resetForm(); setDialogOpen(open); }}>

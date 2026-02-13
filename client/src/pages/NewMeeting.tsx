@@ -152,7 +152,7 @@ export default function NewMeeting() {
   const isPending = createMutation.isPending || uploadMutation.isPending;
 
   return (
-    <div className="p-6 md:p-10 max-w-3xl mx-auto min-h-screen">
+    <div className="p-4 sm:p-6 md:p-10 max-w-3xl mx-auto">
       <Button 
         variant="ghost" 
         className="mb-6 pl-0 hover:bg-transparent hover:text-primary"
@@ -163,9 +163,9 @@ export default function NewMeeting() {
         Back to Dashboard
       </Button>
 
-      <div className="mb-8">
-        <h1 className="text-3xl font-display font-bold text-slate-900">New Meeting</h1>
-        <p className="text-slate-500 mt-1">Record a conversation or upload an existing file.</p>
+      <div className="mb-6 sm:mb-8">
+        <h1 className="text-2xl sm:text-3xl font-display font-bold text-slate-900 dark:text-foreground">New Meeting</h1>
+        <p className="text-slate-500 mt-1 text-sm sm:text-base">Record a conversation or upload an existing file.</p>
       </div>
 
       <div className="grid gap-8">

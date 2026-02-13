@@ -74,15 +74,16 @@ export default function Dashboard() {
   };
 
   return (
-    <div className="p-6 md:p-10 max-w-7xl mx-auto space-y-8">
-      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+    <div className="p-4 sm:p-6 md:p-10 max-w-7xl mx-auto space-y-6 sm:space-y-8">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
-          <h1 className="text-3xl font-display font-bold text-slate-900" data-testid="text-dashboard-heading">Your Meetings</h1>
-          <p className="text-slate-500 mt-1 font-body">Manage recordings and view AI insights.</p>
+          <h1 className="text-2xl sm:text-3xl font-display font-bold text-slate-900 dark:text-foreground" data-testid="text-dashboard-heading">Your Meetings</h1>
+          <p className="text-slate-500 mt-1 font-body text-sm sm:text-base">Manage recordings and view AI insights.</p>
         </div>
         <Link href="/new">
           <Button 
-            className="rounded-xl px-6 py-6 bg-primary hover:bg-slate-800 text-white shadow-lg shadow-slate-900/20 transition-all hover:-translate-y-0.5"
+            size="lg"
+            className="rounded-xl w-full sm:w-auto"
             data-testid="button-new-meeting"
           >
             <Plus className="mr-2 w-5 h-5" />
@@ -93,7 +94,7 @@ export default function Dashboard() {
 
       <div className="flex items-center gap-3 flex-wrap">
         <Select value={selectedClientId} onValueChange={setSelectedClientId}>
-          <SelectTrigger className="w-[220px] rounded-xl" data-testid="select-filter-client">
+          <SelectTrigger className="w-full sm:w-[220px] rounded-xl" data-testid="select-filter-client">
             <div className="flex items-center gap-2">
               <Users className="w-4 h-4 text-slate-400" />
               <SelectValue placeholder="Filter by client" />
@@ -131,7 +132,7 @@ export default function Dashboard() {
           variants={container}
           initial="hidden"
           animate="show"
-          className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6"
+          className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 sm:gap-6"
         >
           {filteredMeetings.map((meeting) => {
             const clientName = getClientName(meeting.clientId);
@@ -139,7 +140,7 @@ export default function Dashboard() {
               <motion.div 
                 key={meeting.id} 
                 variants={item}
-                className="group relative bg-white rounded-2xl border border-slate-200 p-6 hover:shadow-xl hover:border-primary/20 transition-all duration-300"
+                className="group relative bg-white dark:bg-card rounded-2xl border border-slate-200 dark:border-border p-5 sm:p-6 hover:shadow-xl hover:border-primary/20 transition-all duration-300"
                 data-testid={`card-meeting-${meeting.id}`}
               >
                 <div className="flex justify-between items-start mb-4 gap-2">
@@ -153,9 +154,9 @@ export default function Dashboard() {
                   </div>
                   <DropdownMenu>
                     <DropdownMenuTrigger asChild>
-                      <button className="p-2 -mr-2 -mt-2 rounded-lg hover:bg-slate-100 text-slate-400 hover:text-slate-600 transition-colors">
+                      <Button variant="ghost" size="icon" className="-mr-2 -mt-2 text-slate-400">
                         <MoreVertical className="w-4 h-4" />
-                      </button>
+                      </Button>
                     </DropdownMenuTrigger>
                     <DropdownMenuContent align="end" className="w-48 rounded-xl p-1">
                       <DropdownMenuItem 
