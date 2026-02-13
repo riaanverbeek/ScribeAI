@@ -14,6 +14,8 @@ export function AudioPlayer({ url }: AudioPlayerProps) {
   const [duration, setDuration] = useState(0);
   const [currentTime, setCurrentTime] = useState(0);
 
+  const resolvedUrl = url.startsWith("http") || url.startsWith("/") ? url : `/${url}`;
+
   useEffect(() => {
     if (!containerRef.current) return;
 
@@ -27,7 +29,7 @@ export function AudioPlayer({ url }: AudioPlayerProps) {
       barRadius: 3,
       height: 64,
       normalize: true,
-      url: url,
+      url: resolvedUrl,
     });
 
     wavesurfer.current.on("play", () => setIsPlaying(true));
@@ -38,7 +40,7 @@ export function AudioPlayer({ url }: AudioPlayerProps) {
     return () => {
       wavesurfer.current?.destroy();
     };
-  }, [url]);
+  }, [resolvedUrl]);
 
   const togglePlay = () => {
     wavesurfer.current?.playPause();

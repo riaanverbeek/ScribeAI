@@ -1,4 +1,5 @@
 import type { Express } from "express";
+import express from "express";
 import { createServer, type Server } from "http";
 import { storage } from "./storage";
 import { api } from "@shared/routes";
@@ -27,6 +28,8 @@ export async function registerRoutes(
 
   // Seed data on startup
   await seedDatabase();
+
+  app.use("/uploads", express.static(path.resolve("uploads")));
 
   // GET /api/meetings
   app.get(api.meetings.list.path, async (req, res) => {
