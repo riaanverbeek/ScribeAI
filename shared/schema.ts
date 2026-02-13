@@ -5,16 +5,38 @@ import { relations, sql } from "drizzle-orm";
 
 // === TABLE DEFINITIONS ===
 
+export const users = pgTable("users", {
+  id: serial("id").primaryKey(),
+  email: text("email").notNull().unique(),
+  passwordHash: text("password_hash").notNull(),
+  firstName: text("first_name").notNull(),
+  lastName: text("last_name").notNull(),
+  isVerified: boolean("is_verified").default(false).notNull(),
+  verificationToken: text("verification_token"),
+  verificationTokenExpiry: timestamp("verification_token_expiry"),
+  trialEndsAt: timestamp("trial_ends_at"),
+  subscriptionStatus: text("subscription_status", {
+    enum: ["none", "trialing", "active", "cancelled", "expired"]
+  }).notNull().default("none"),
+  payfastToken: text("payfast_token"),
+  payfastSubscriptionId: text("payfast_subscription_id"),
+  subscriptionCurrentPeriodEnd: timestamp("subscription_current_period_end"),
+  cancelledAt: timestamp("cancelled_at"),
+  createdAt: timestamp("created_at").defaultNow(),
+});
+
 export const clients = pgTable("clients", {
   id: serial("id").primaryKey(),
   name: text("name").notNull(),
   email: text("email"),
   company: text("company"),
+  userId: integer("user_id").references(() => users.id, { onDelete: "cascade" }),
   createdAt: timestamp("created_at").defaultNow(),
 });
 
 export const meetings = pgTable("meetings", {
   clientId: integer("client_id").references(() => clients.id, { onDelete: "set null" }),
+  userId: integer("user_id").references(() => users.id, { onDelete: "cascade" }),
   id: serial("id").primaryKey(),
   title: text("title").notNull(),
   date: timestamp("date").notNull().defaultNow(),
@@ -44,13 +66,13 @@ export const topics = pgTable("topics", {
   meetingId: integer("meeting_id").notNull().references(() => meetings.id, { onDelete: "cascade" }),
   title: text("title").notNull(),
   summary: text("summary").notNull(),
-  relevanceScore: integer("relevance_score"), // 1-100
+  relevanceScore: integer("relevance_score"),
 });
 
 export const meetingSummaries = pgTable("meeting_summaries", {
   id: serial("id").primaryKey(),
   meetingId: integer("meeting_id").notNull().references(() => meetings.id, { onDelete: "cascade" }),
-  content: text("content").notNull(), // Executive summary
+  content: text("content").notNull(),
   createdAt: timestamp("created_at").defaultNow(),
 });
 
@@ -72,11 +94,18 @@ export const messages = pgTable("messages", {
 
 // === RELATIONS ===
 
-export const clientsRelations = relations(clients, ({ many }) => ({
+export const usersRelations = relations(users, ({ many }) => ({
+  meetings: many(meetings),
+  clients: many(clients),
+}));
+
+export const clientsRelations = relations(clients, ({ one, many }) => ({
+  user: one(users, { fields: [clients.userId], references: [users.id] }),
   meetings: many(meetings),
 }));
 
 export const meetingsRelations = relations(meetings, ({ one, many }) => ({
+  user: one(users, { fields: [meetings.userId], references: [users.id] }),
   client: one(clients, {
     fields: [meetings.clientId],
     references: [clients.id],
@@ -123,6 +152,18 @@ export const meetingSummariesRelations = relations(meetingSummaries, ({ one }) =
 
 // === BASE SCHEMAS ===
 
+export const insertUserSchema = createInsertSchema(users).omit({
+  id: true, createdAt: true, isVerified: true, verificationToken: true,
+  verificationTokenExpiry: true, trialEndsAt: true, subscriptionStatus: true,
+  payfastToken: true, payfastSubscriptionId: true, subscriptionCurrentPeriodEnd: true,
+  cancelledAt: true,
+}).extend({
+  email: z.string().email("Please enter a valid email address"),
+  firstName: z.string().min(1, "First name is required"),
+  lastName: z.string().min(1, "Last name is required"),
+  passwordHash: z.string().min(6, "Password must be at least 6 characters"),
+});
+
 export const insertClientSchema = createInsertSchema(clients).omit({ id: true, createdAt: true });
 
 export const insertMeetingSchema = createInsertSchema(meetings).extend({
@@ -144,6 +185,9 @@ export const insertMessageSchema = createInsertSchema(messages).omit({
 });
 
 // === EXPLICIT API CONTRACT TYPES ===
+
+export type User = typeof users.$inferSelect;
+export type InsertUser = z.infer<typeof insertUserSchema>;
 
 export type Client = typeof clients.$inferSelect;
 export type InsertClient = z.infer<typeof insertClientSchema>;
@@ -168,11 +212,12 @@ export type InsertConversation = z.infer<typeof insertConversationSchema>;
 export type Message = typeof messages.$inferSelect;
 export type InsertMessage = z.infer<typeof insertMessageSchema>;
 
+export type SafeUser = Omit<User, "passwordHash" | "verificationToken" | "verificationTokenExpiry">;
 
 // Request types
 export type CreateMeetingRequest = InsertMeeting;
 export type UpdateMeetingStatusRequest = { status: "uploading" | "processing" | "completed" | "failed" };
-export type AnalyzeMeetingRequest = { meetingId: number }; // Triggers AI process
+export type AnalyzeMeetingRequest = { meetingId: number };
 
 // Response types
 export type MeetingListResponse = Meeting[];

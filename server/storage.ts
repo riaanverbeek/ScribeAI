@@ -1,20 +1,28 @@
 import { db } from "./db";
 import { 
-    clients, meetings, transcripts, actionItems, topics, meetingSummaries,
-    type InsertClient, type InsertMeeting, type InsertTranscript, type InsertActionItem, type InsertTopic, type InsertMeetingSummary,
-    type Client, type Meeting, type Transcript, type ActionItem, type Topic, type MeetingSummary
+    users, clients, meetings, transcripts, actionItems, topics, meetingSummaries,
+    type InsertUser, type InsertClient, type InsertMeeting, type InsertTranscript, type InsertActionItem, type InsertTopic, type InsertMeetingSummary,
+    type User, type Client, type Meeting, type Transcript, type ActionItem, type Topic, type MeetingSummary
 } from "@shared/schema";
-import { eq } from "drizzle-orm";
+import { eq, and } from "drizzle-orm";
 
 export interface IStorage {
+    // Users
+    getUserById(id: number): Promise<User | undefined>;
+    getUserByEmail(email: string): Promise<User | undefined>;
+    getUserByVerificationToken(token: string): Promise<User | undefined>;
+    createUser(user: InsertUser): Promise<User>;
+    verifyUser(id: number): Promise<User>;
+    updateUserSubscription(id: number, data: Partial<Pick<User, "subscriptionStatus" | "payfastToken" | "payfastSubscriptionId" | "subscriptionCurrentPeriodEnd" | "cancelledAt" | "trialEndsAt">>): Promise<User>;
+
     // Clients
-    getClients(): Promise<Client[]>;
+    getClients(userId?: number): Promise<Client[]>;
     getClient(id: number): Promise<Client | undefined>;
     createClient(client: InsertClient): Promise<Client>;
     deleteClient(id: number): Promise<void>;
 
     // Meetings
-    getMeetings(): Promise<Meeting[]>;
+    getMeetings(userId?: number): Promise<Meeting[]>;
     getMeetingsByClient(clientId: number): Promise<Meeting[]>;
     getMeeting(id: number): Promise<Meeting | undefined>;
     createMeeting(meeting: InsertMeeting): Promise<Meeting>;
@@ -41,8 +49,53 @@ export interface IStorage {
 }
 
 export class DatabaseStorage implements IStorage {
+    // Users
+    async getUserById(id: number): Promise<User | undefined> {
+        const [user] = await db.select().from(users).where(eq(users.id, id));
+        return user;
+    }
+
+    async getUserByEmail(email: string): Promise<User | undefined> {
+        const [user] = await db.select().from(users).where(eq(users.email, email.toLowerCase()));
+        return user;
+    }
+
+    async getUserByVerificationToken(token: string): Promise<User | undefined> {
+        const [user] = await db.select().from(users).where(eq(users.verificationToken, token));
+        return user;
+    }
+
+    async createUser(insertUser: InsertUser): Promise<User> {
+        const [user] = await db.insert(users).values({
+            ...insertUser,
+            email: insertUser.email.toLowerCase(),
+        }).returning();
+        return user;
+    }
+
+    async verifyUser(id: number): Promise<User> {
+        const trialEnd = new Date();
+        trialEnd.setDate(trialEnd.getDate() + 7);
+        const [user] = await db.update(users).set({
+            isVerified: true,
+            verificationToken: null,
+            verificationTokenExpiry: null,
+            subscriptionStatus: "trialing",
+            trialEndsAt: trialEnd,
+        }).where(eq(users.id, id)).returning();
+        return user;
+    }
+
+    async updateUserSubscription(id: number, data: Partial<Pick<User, "subscriptionStatus" | "payfastToken" | "payfastSubscriptionId" | "subscriptionCurrentPeriodEnd" | "cancelledAt" | "trialEndsAt">>): Promise<User> {
+        const [user] = await db.update(users).set(data).where(eq(users.id, id)).returning();
+        return user;
+    }
+
     // Clients
-    async getClients(): Promise<Client[]> {
+    async getClients(userId?: number): Promise<Client[]> {
+        if (userId) {
+            return await db.select().from(clients).where(eq(clients.userId, userId)).orderBy(clients.name);
+        }
         return await db.select().from(clients).orderBy(clients.name);
     }
 
@@ -61,7 +114,10 @@ export class DatabaseStorage implements IStorage {
     }
 
     // Meetings
-    async getMeetings(): Promise<Meeting[]> {
+    async getMeetings(userId?: number): Promise<Meeting[]> {
+        if (userId) {
+            return await db.select().from(meetings).where(eq(meetings.userId, userId)).orderBy(meetings.createdAt);
+        }
         return await db.select().from(meetings).orderBy(meetings.createdAt);
     }
 
