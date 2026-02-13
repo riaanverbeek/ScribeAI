@@ -10,6 +10,24 @@ The application follows a monorepo structure with a React frontend, Express back
 
 Preferred communication style: Simple, everyday language.
 
+## Recent Changes
+
+### Feb 13, 2026 - Authentication & Subscription System
+- Added `users` table with registration, email verification, password hashing (bcrypt)
+- Added `userId` FK to `meetings` and `clients` tables for multi-tenant data isolation
+- Implemented session-based auth with `express-session` + `connect-pg-simple`
+- Email verification via Resend integration (24-hour token expiry, 7-day free trial starts on verification)
+- PayFast subscription integration (sandbox mode, R199/month recurring):
+  - Checkout URL generation with signature
+  - ITN webhook with signature + merchant_id validation
+  - Cancel subscription API
+- Access control middleware: `requireAuth`, `requireVerified`, `requireSubscription`
+- All routes enforce userId ownership checks (users can only access their own meetings/clients)
+- Frontend: Login, Register, VerifyEmail, Subscription, SubscriptionSuccess, SubscriptionCancel pages
+- Protected routes via `ProtectedRoute` and `PublicOnlyRoute` wrappers
+- Subscription paywall banner on MeetingDetail when AI features are locked
+- Navigation updated with user info, subscription link, and sign-out
+
 ## System Architecture
 
 ### Frontend Architecture
@@ -24,6 +42,10 @@ Preferred communication style: Simple, everyday language.
 ### Backend Architecture
 - **Framework**: Express 5 on Node.js with TypeScript
 - **API Pattern**: RESTful endpoints defined in `shared/routes.ts` with Zod schemas for validation
+- **Authentication**: Session-based auth with bcrypt password hashing
+  - `server/auth.ts` - Middleware (requireAuth, requireVerified, requireSubscription) and helpers
+  - `server/email.ts` - Resend email integration for verification emails
+  - `server/payfast.ts` - PayFast subscription checkout, ITN webhook, cancellation
 - **File Uploads**: Multer for handling audio file uploads to `uploads/` directory
 - **AI Processing**: OpenAI API integration via Replit AI Integrations for:
   - Speech-to-text transcription
@@ -36,19 +58,30 @@ Preferred communication style: Simple, everyday language.
 - **Schema Location**: `shared/schema.ts` defines all tables
 - **Migrations**: Drizzle Kit with `db:push` command
 - **Core Tables**:
-  - `clients` - Client information (name, email, company)
-  - `meetings` - Meeting metadata, status tracking, and client association (clientId FK)
+  - `users` - User accounts with subscription fields (status, trial dates, PayFast tokens)
+  - `clients` - Client information (name, email, company, userId FK)
+  - `meetings` - Meeting metadata, status tracking, client association, userId FK
   - `transcripts` - Full transcription text
   - `action_items` - Extracted tasks with assignees
   - `topics` - Identified discussion topics with relevance scores
   - `meeting_summaries` - AI-generated executive summaries
   - `conversations`/`messages` - Chat functionality for Replit integrations
 
+### Auth & Subscription Flow
+- Registration creates unverified user with verification token
+- Verification email sent via Resend, verifies user and starts 7-day trial
+- Trial expiry check on login and /api/auth/me
+- PayFast subscription checkout redirects to PayFast payment page
+- ITN webhook receives payment status (COMPLETE/CANCELLED) and updates user
+- Subscription status: none → trialing → active/expired/cancelled
+- Access control: unsubscribed users can create meetings and play audio, but AI analysis, transcription, summaries, action items, topics, and client management require active subscription or trial
+
 ### Key Design Patterns
 - **Shared Types**: Schema and route definitions in `shared/` folder are used by both frontend and backend
 - **Storage Abstraction**: `server/storage.ts` implements `IStorage` interface for database operations
 - **Status State Machine**: Meetings progress through `uploading` → `processing` → `completed`/`failed`
 - **Polling**: Frontend polls every 2 seconds for meetings in `processing` or `uploading` status
+- **Ownership Checks**: All routes validate userId on meetings/clients to prevent cross-tenant access
 
 ### Build Configuration
 - **Development**: `tsx` runs TypeScript directly, Vite handles frontend HMR
@@ -63,9 +96,23 @@ Preferred communication style: Simple, everyday language.
   - `AI_INTEGRATIONS_OPENAI_API_KEY`
   - `AI_INTEGRATIONS_OPENAI_BASE_URL`
 
+### Payment
+- **PayFast** (sandbox mode): Subscription payments
+- **Environment Variables Required**:
+  - `PAYFAST_MERCHANT_ID`
+  - `PAYFAST_MERCHANT_KEY`
+  - `PAYFAST_PASSPHRASE`
+
+### Email
+- **Resend** (via Replit Integrations): Verification emails
+
+### Auth
+- **Environment Variables Required**:
+  - `SESSION_SECRET`
+
 ### Database
 - **PostgreSQL**: Connection via `DATABASE_URL` environment variable
-- **Session Storage**: `connect-pg-simple` for Express sessions (if authentication added)
+- **Session Storage**: `connect-pg-simple` for Express sessions
 
 ### Audio Processing
 - **ffmpeg**: Required system dependency for converting WebM audio (from browser recording) to WAV format for API processing

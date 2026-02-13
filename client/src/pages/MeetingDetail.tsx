@@ -1,8 +1,9 @@
 import { useState } from "react";
 import { useMeeting, useUpdateMeetingClient } from "@/hooks/use-meetings";
 import { useClients, useCreateClient } from "@/hooks/use-clients";
+import { useSubscriptionStatus } from "@/hooks/use-auth";
 import { useRoute, Link } from "wouter";
-import { ChevronLeft, Calendar, User, LayoutList, FileText, CheckSquare, Sparkles, Users, Plus, Loader2, X, Pencil } from "lucide-react";
+import { ChevronLeft, Calendar, User, LayoutList, FileText, CheckSquare, Sparkles, Users, Plus, Loader2, X, Pencil, Lock, CreditCard } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { StatusBadge } from "@/components/StatusBadge";
@@ -38,6 +39,7 @@ export default function MeetingDetail() {
   const updateClientMutation = useUpdateMeetingClient();
   const createClientMutation = useCreateClient();
   const { toast } = useToast();
+  const { hasFullAccess } = useSubscriptionStatus();
 
   const [isEditingClient, setIsEditingClient] = useState(false);
   const [selectedClientId, setSelectedClientId] = useState<string>("");
@@ -267,6 +269,30 @@ export default function MeetingDetail() {
               <motion.section {...fadeIn} className="mb-8">
                  <AudioPlayer url={meeting.audioUrl} />
               </motion.section>
+            )}
+
+            {!hasFullAccess && (
+              <motion.div {...fadeIn}>
+                <Card className="border-dashed">
+                  <CardContent className="p-6 flex items-center gap-4">
+                    <div className="w-10 h-10 rounded-md bg-muted flex items-center justify-center shrink-0">
+                      <Lock className="w-5 h-5 text-muted-foreground" />
+                    </div>
+                    <div className="flex-1">
+                      <p className="font-medium text-sm">AI analysis features are locked</p>
+                      <p className="text-sm text-muted-foreground mt-0.5">
+                        Subscribe to unlock transcription, summaries, action items, and topic analysis.
+                      </p>
+                    </div>
+                    <Link href="/subscription">
+                      <Button size="sm" data-testid="button-subscribe-cta">
+                        <CreditCard className="w-4 h-4 mr-1.5" />
+                        Subscribe
+                      </Button>
+                    </Link>
+                  </CardContent>
+                </Card>
+              </motion.div>
             )}
 
             <Tabs defaultValue="summary" className="w-full">

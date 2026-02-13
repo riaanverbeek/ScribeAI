@@ -34,20 +34,23 @@ export async function registerRoutes(
 
   await seedDatabase();
 
-  // Session setup
   const PgSession = connectPgSimple(session);
+  const sessionSecret = process.env.SESSION_SECRET;
+  if (!sessionSecret) {
+    console.error("WARNING: SESSION_SECRET not set. Using insecure fallback for development only.");
+  }
   app.use(session({
     store: new PgSession({
       conString: process.env.DATABASE_URL,
       createTableIfMissing: true,
     }),
-    secret: process.env.SESSION_SECRET || "scribeai-secret-key-change-in-prod",
+    secret: sessionSecret || "dev-only-insecure-fallback",
     resave: false,
     saveUninitialized: false,
     cookie: {
       maxAge: 30 * 24 * 60 * 60 * 1000,
       httpOnly: true,
-      secure: false,
+      secure: process.env.NODE_ENV === "production",
       sameSite: "lax",
     },
   }));
@@ -236,6 +239,17 @@ export async function registerRoutes(
       const data = req.body;
       console.log("PayFast ITN received:", JSON.stringify(data));
 
+      if (!validatePayfastSignature(data)) {
+        console.error("PayFast ITN: invalid signature");
+        return res.status(200).send("OK");
+      }
+
+      const expectedMerchantId = process.env.PAYFAST_MERCHANT_ID;
+      if (data.merchant_id !== expectedMerchantId) {
+        console.error("PayFast ITN: merchant_id mismatch");
+        return res.status(200).send("OK");
+      }
+
       const userId = parseInt(data.custom_str1);
       if (!userId) {
         console.error("PayFast ITN: missing userId in custom_str1");
@@ -316,8 +330,9 @@ export async function registerRoutes(
 
   app.get(api.clients.get.path, requireAuth, requireVerified, requireSubscription, async (req, res) => {
     const id = Number(req.params.id);
+    const user = (req as any).user as User;
     const client = await storage.getClient(id);
-    if (!client) {
+    if (!client || client.userId !== user.id) {
       return res.status(404).json({ message: "Client not found" });
     }
     const clientMeetings = await storage.getMeetingsByClient(id);
@@ -340,8 +355,9 @@ export async function registerRoutes(
 
   app.delete(api.clients.delete.path, requireAuth, requireVerified, requireSubscription, async (req, res) => {
     const id = Number(req.params.id);
+    const user = (req as any).user as User;
     const client = await storage.getClient(id);
-    if (!client) {
+    if (!client || client.userId !== user.id) {
       return res.status(404).json({ message: "Client not found" });
     }
     await storage.deleteClient(id);
@@ -363,12 +379,12 @@ export async function registerRoutes(
 
   app.get(api.meetings.get.path, requireAuth, requireVerified, async (req, res) => {
     const id = Number(req.params.id);
+    const user = (req as any).user as User;
     const meeting = await storage.getMeeting(id);
-    if (!meeting) {
+    if (!meeting || meeting.userId !== user.id) {
       return res.status(404).json({ message: "Meeting not found" });
     }
     
-    const user = (req as any).user as User;
     const canAccessAnalysis = hasFullAccess(user);
     
     const transcript = canAccessAnalysis ? await storage.getTranscript(id) : undefined;
@@ -401,6 +417,11 @@ export async function registerRoutes(
 
   app.post("/api/meetings/:id/audio", requireAuth, requireVerified, upload.single('audio'), async (req, res) => {
       const id = Number(req.params.id);
+      const user = (req as any).user as User;
+      const existingMeeting = await storage.getMeeting(id);
+      if (!existingMeeting || existingMeeting.userId !== user.id) {
+          return res.status(404).json({ message: "Meeting not found" });
+      }
       if (!req.file) {
           return res.status(400).json({ message: "No file uploaded" });
       }
@@ -425,9 +446,10 @@ export async function registerRoutes(
 
   app.post("/api/meetings/:id/process", requireAuth, requireVerified, requireSubscription, async (req, res) => {
       const id = Number(req.params.id);
+      const user = (req as any).user as User;
       const meeting = await storage.getMeeting(id);
       
-      if (!meeting) {
+      if (!meeting || meeting.userId !== user.id) {
           return res.status(404).json({ message: "Meeting not found" });
       }
       if (!meeting.audioUrl) {
@@ -516,8 +538,9 @@ export async function registerRoutes(
 
   app.patch(api.meetings.updateClient.path, requireAuth, requireVerified, requireSubscription, async (req, res) => {
     const id = Number(req.params.id);
+    const user = (req as any).user as User;
     const meeting = await storage.getMeeting(id);
-    if (!meeting) {
+    if (!meeting || meeting.userId !== user.id) {
       return res.status(404).json({ message: "Meeting not found" });
     }
     try {
@@ -540,8 +563,9 @@ export async function registerRoutes(
 
   app.delete(api.meetings.delete.path, requireAuth, requireVerified, async (req, res) => {
     const id = Number(req.params.id);
+    const user = (req as any).user as User;
     const meeting = await storage.getMeeting(id);
-    if (!meeting) {
+    if (!meeting || meeting.userId !== user.id) {
       return res.status(404).json({ message: "Meeting not found" });
     }
     await storage.deleteMeeting(id);
