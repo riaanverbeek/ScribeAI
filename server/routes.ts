@@ -608,6 +608,116 @@ export async function registerRoutes(
       }
   });
 
+  app.post("/api/meetings/:id/reprocess", requireAuth, requireSubscription, async (req, res) => {
+      const id = Number(req.params.id);
+      const user = (req as any).user as User;
+      const meeting = await storage.getMeeting(id);
+
+      if (!meeting || meeting.userId !== user.id) {
+          return res.status(404).json({ message: "Meeting not found" });
+      }
+
+      const transcript = await storage.getTranscript(id);
+      if (!transcript) {
+          return res.status(400).json({ message: "No transcript available. Process the meeting first." });
+      }
+
+      await storage.updateMeetingStatus(id, "processing");
+      await storage.clearMeetingAnalysis(id);
+
+      res.json({ message: "Reprocessing started", status: "processing" });
+
+      try {
+          const freshMeeting = (await storage.getMeeting(id))!;
+          const transcriptText = transcript.content;
+
+          let templateFormatInstructions = "";
+          if (freshMeeting.templateId) {
+            const template = await storage.getTemplate(freshMeeting.templateId);
+            if (template) {
+              templateFormatInstructions = `\n\nIMPORTANT - Use the following format/style for the summary:\n${template.formatPrompt}`;
+            }
+          }
+
+          let contextSection = "";
+          if (freshMeeting.contextText) {
+            contextSection += `\n\nAdditional context provided by the user:\n${freshMeeting.contextText}`;
+          }
+          if (freshMeeting.contextFileUrl && freshMeeting.contextFileName) {
+            try {
+              const fileContent = fs.readFileSync(freshMeeting.contextFileUrl, "utf-8");
+              contextSection += `\n\nContent from attached file (${freshMeeting.contextFileName}):\n${fileContent}`;
+            } catch (fileErr) {
+              console.error("Failed to read context file:", fileErr);
+            }
+          }
+
+          const systemPrompt = `
+            You are an expert meeting analyst. Analyze the following meeting transcript.
+            
+            Extract:
+            1. Action Items (assignee if clear, otherwise 'Unknown')
+            2. Key Topics (title, summary, relevance score 1-100)
+            3. Executive Summary (concise overview)
+            ${templateFormatInstructions}
+            ${contextSection ? `\nTake the following context into account when generating your analysis:${contextSection}` : ""}
+            
+            Return JSON in this format:
+            {
+                "actionItems": [{"content": "...", "assignee": "...", "status": "pending"}],
+                "topics": [{"title": "...", "summary": "...", "relevanceScore": 85}],
+                "summary": "..."
+            }
+          `;
+
+          const response = await openai.chat.completions.create({
+              model: "gpt-4o",
+              messages: [
+                  { role: "system", content: systemPrompt },
+                  { role: "user", content: transcriptText }
+              ],
+              response_format: { type: "json_object" }
+          });
+
+          const analysis = JSON.parse(response.choices[0].message.content || "{}");
+
+          if (analysis.actionItems) {
+              for (const item of analysis.actionItems) {
+                  await storage.createActionItem({
+                      meetingId: id,
+                      content: item.content,
+                      assignee: item.assignee,
+                      status: "pending"
+                  });
+              }
+          }
+
+          if (analysis.topics) {
+              for (const topic of analysis.topics) {
+                  await storage.createTopic({
+                      meetingId: id,
+                      title: topic.title,
+                      summary: topic.summary,
+                      relevanceScore: topic.relevanceScore
+                  });
+              }
+          }
+
+          if (analysis.summary) {
+              await storage.createSummary({
+                  meetingId: id,
+                  content: analysis.summary
+              });
+          }
+
+          await storage.updateMeetingStatus(id, "completed");
+
+      } catch (error) {
+          console.error("Reprocessing error:", error);
+          await storage.updateMeetingStatus(id, "failed");
+      }
+  });
+
   app.patch(api.meetings.updateClient.path, requireAuth, requireSubscription, async (req, res) => {
     const id = Number(req.params.id);
     const user = (req as any).user as User;

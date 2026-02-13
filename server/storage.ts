@@ -57,6 +57,9 @@ export interface IStorage {
     // Summaries
     getSummary(meetingId: number): Promise<MeetingSummary | undefined>;
     createSummary(summary: InsertMeetingSummary): Promise<MeetingSummary>;
+
+    // Clear analysis data (for reprocessing)
+    clearMeetingAnalysis(meetingId: number): Promise<void>;
 }
 
 export class DatabaseStorage implements IStorage {
@@ -249,6 +252,12 @@ export class DatabaseStorage implements IStorage {
     async createSummary(insertSummary: InsertMeetingSummary): Promise<MeetingSummary> {
         const [summary] = await db.insert(meetingSummaries).values(insertSummary).returning();
         return summary;
+    }
+
+    async clearMeetingAnalysis(meetingId: number): Promise<void> {
+        await db.delete(actionItems).where(eq(actionItems.meetingId, meetingId));
+        await db.delete(topics).where(eq(topics.meetingId, meetingId));
+        await db.delete(meetingSummaries).where(eq(meetingSummaries.meetingId, meetingId));
     }
 }
 

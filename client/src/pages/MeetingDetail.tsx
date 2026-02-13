@@ -1,16 +1,18 @@
-import { useState } from "react";
-import { useQuery } from "@tanstack/react-query";
+import { useState, useEffect } from "react";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { apiRequest } from "@/lib/queryClient";
 import { useMeeting, useUpdateMeetingClient } from "@/hooks/use-meetings";
 import { useClients, useCreateClient } from "@/hooks/use-clients";
 import { useSubscriptionStatus } from "@/hooks/use-auth";
 import { useRoute, Link } from "wouter";
-import { ChevronLeft, Calendar, User, LayoutList, FileText, CheckSquare, Sparkles, Users, Plus, Loader2, X, Pencil, Lock, CreditCard, Paperclip, MessageSquareText } from "lucide-react";
+import { ChevronLeft, Calendar, User, LayoutList, FileText, CheckSquare, Sparkles, Users, Plus, Loader2, X, Pencil, Lock, CreditCard, Paperclip, MessageSquareText, RefreshCw } from "lucide-react";
 import type { Template } from "@shared/schema";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { StatusBadge } from "@/components/StatusBadge";
 import { AudioPlayer } from "@/components/AudioPlayer";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Textarea } from "@/components/ui/textarea";
 import { format } from "date-fns";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { ScrollArea } from "@/components/ui/scroll-area";
@@ -43,6 +45,8 @@ export default function MeetingDetail() {
   const { toast } = useToast();
   const { hasFullAccess } = useSubscriptionStatus();
 
+  const queryClient = useQueryClient();
+
   const { data: templates } = useQuery<Template[]>({
     queryKey: ["/api/templates"],
     queryFn: async () => {
@@ -59,11 +63,65 @@ export default function MeetingDetail() {
   const [newClientEmail, setNewClientEmail] = useState("");
   const [newClientCompany, setNewClientCompany] = useState("");
 
+  const [isEditingContext, setIsEditingContext] = useState(false);
+  const [editTemplateId, setEditTemplateId] = useState<string>("");
+  const [editContextText, setEditContextText] = useState("");
+  const [editContextFile, setEditContextFile] = useState<File | null>(null);
+
+  const reprocessMutation = useMutation({
+    mutationFn: async (meetingId: number) => {
+      const res = await apiRequest("POST", `/api/meetings/${meetingId}/reprocess`);
+      return res.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/meetings/:id", id] });
+      queryClient.invalidateQueries({ queryKey: ["/api/meetings"] });
+      toast({ title: "Analysis is being regenerated", description: "The page will update automatically when complete." });
+    },
+    onError: (err: any) => {
+      toast({ title: "Regeneration failed", description: err.message, variant: "destructive" });
+    },
+  });
+
   if (isLoading) return <div className="p-10 text-center text-slate-500">Loading details...</div>;
   if (error || !meeting) return <div className="p-10 text-center text-red-500">Meeting not found</div>;
 
   const linkedClient = meeting.clientId && clients ? clients.find(c => c.id === meeting.clientId) : null;
   const linkedTemplate = meeting.templateId && templates ? templates.find(t => t.id === meeting.templateId) : null;
+
+  const startEditingContext = () => {
+    setEditTemplateId(meeting.templateId ? String(meeting.templateId) : "");
+    setEditContextText(meeting.contextText || "");
+    setEditContextFile(null);
+    setIsEditingContext(true);
+  };
+
+  const handleSaveContextAndReprocess = async () => {
+    if (!id) return;
+    try {
+      const contextPayload: any = {
+        templateId: editTemplateId ? Number(editTemplateId) : null,
+        contextText: editContextText.trim() || null,
+      };
+      await apiRequest("PATCH", `/api/meetings/${id}/context`, contextPayload);
+
+      if (editContextFile) {
+        const formData = new FormData();
+        formData.append("file", editContextFile);
+        await fetch(`/api/meetings/${id}/context-file`, {
+          method: "POST",
+          credentials: "include",
+          body: formData,
+        });
+      }
+
+      setIsEditingContext(false);
+      queryClient.invalidateQueries({ queryKey: ["/api/meetings/:id", id] });
+      reprocessMutation.mutate(id);
+    } catch (err: any) {
+      toast({ title: "Failed to update", description: err.message, variant: "destructive" });
+    }
+  };
 
   const handleLinkClient = async (clientIdStr: string) => {
     if (!id) return;
@@ -277,40 +335,158 @@ export default function MeetingDetail() {
               </Card>
             </motion.section>
 
-            {(linkedTemplate || meeting.contextText || meeting.contextFileName) && (
+            {hasFullAccess && meeting.status === "completed" && (
               <motion.section {...fadeIn}>
                 <Card>
-                  <CardContent className="p-5 space-y-3">
-                    {linkedTemplate && (
-                      <div className="flex items-center gap-3">
-                        <div className="w-9 h-9 rounded-md bg-muted flex items-center justify-center shrink-0">
-                          <FileText className="w-4 h-4 text-muted-foreground" />
+                  <CardContent className="p-5">
+                    {!isEditingContext ? (
+                      <div className="space-y-3">
+                        <div className="flex items-center justify-between gap-4 flex-wrap">
+                          <p className="text-sm font-medium text-muted-foreground">AI Settings</p>
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={startEditingContext}
+                            data-testid="button-edit-context"
+                          >
+                            <Pencil className="w-3.5 h-3.5 mr-1" />
+                            Edit & Regenerate
+                          </Button>
                         </div>
-                        <div>
-                          <p className="text-sm font-medium text-muted-foreground">Template</p>
-                          <p className="text-sm font-semibold" data-testid="text-meeting-template">{linkedTemplate.name}</p>
-                        </div>
+                        {linkedTemplate && (
+                          <div className="flex items-center gap-3">
+                            <div className="w-9 h-9 rounded-md bg-muted flex items-center justify-center shrink-0">
+                              <FileText className="w-4 h-4 text-muted-foreground" />
+                            </div>
+                            <div>
+                              <p className="text-xs text-muted-foreground">Template</p>
+                              <p className="text-sm font-semibold" data-testid="text-meeting-template">{linkedTemplate.name}</p>
+                            </div>
+                          </div>
+                        )}
+                        {meeting.contextText && (
+                          <div className="flex items-start gap-3">
+                            <div className="w-9 h-9 rounded-md bg-muted flex items-center justify-center shrink-0 mt-0.5">
+                              <MessageSquareText className="w-4 h-4 text-muted-foreground" />
+                            </div>
+                            <div className="flex-1 min-w-0">
+                              <p className="text-xs text-muted-foreground">Context</p>
+                              <p className="text-sm text-foreground whitespace-pre-wrap" data-testid="text-meeting-context">{meeting.contextText}</p>
+                            </div>
+                          </div>
+                        )}
+                        {meeting.contextFileName && (
+                          <div className="flex items-center gap-3">
+                            <div className="w-9 h-9 rounded-md bg-muted flex items-center justify-center shrink-0">
+                              <Paperclip className="w-4 h-4 text-muted-foreground" />
+                            </div>
+                            <div>
+                              <p className="text-xs text-muted-foreground">Attached File</p>
+                              <p className="text-sm font-semibold" data-testid="text-meeting-context-file">{meeting.contextFileName}</p>
+                            </div>
+                          </div>
+                        )}
+                        {!linkedTemplate && !meeting.contextText && !meeting.contextFileName && (
+                          <p className="text-sm text-muted-foreground">No template or context set. Edit to add one and regenerate the analysis.</p>
+                        )}
                       </div>
-                    )}
-                    {meeting.contextText && (
-                      <div className="flex items-start gap-3">
-                        <div className="w-9 h-9 rounded-md bg-muted flex items-center justify-center shrink-0 mt-0.5">
-                          <MessageSquareText className="w-4 h-4 text-muted-foreground" />
+                    ) : (
+                      <div className="space-y-4">
+                        <p className="text-sm font-medium text-muted-foreground">Edit AI Settings</p>
+                        <p className="text-xs text-muted-foreground -mt-2">Changes will regenerate the summary, action items, and topics using the existing transcript.</p>
+
+                        {templates && templates.length > 0 && (
+                          <div className="space-y-2">
+                            <Label className="text-sm">Template</Label>
+                            <Select value={editTemplateId} onValueChange={setEditTemplateId}>
+                              <SelectTrigger data-testid="select-edit-template">
+                                <SelectValue placeholder="No template selected" />
+                              </SelectTrigger>
+                              <SelectContent>
+                                {templates.map((tpl) => (
+                                  <SelectItem key={tpl.id} value={String(tpl.id)} data-testid={`select-edit-template-option-${tpl.id}`}>
+                                    {tpl.name}
+                                  </SelectItem>
+                                ))}
+                              </SelectContent>
+                            </Select>
+                            {editTemplateId && (
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                onClick={() => setEditTemplateId("")}
+                                className="text-xs text-muted-foreground"
+                                data-testid="button-clear-template"
+                              >
+                                <X className="w-3 h-3 mr-1" /> Clear template
+                              </Button>
+                            )}
+                          </div>
+                        )}
+
+                        <div className="space-y-2">
+                          <Label className="text-sm">Context</Label>
+                          <Textarea
+                            placeholder="Provide background info for the AI..."
+                            value={editContextText}
+                            onChange={(e) => setEditContextText(e.target.value)}
+                            rows={3}
+                            data-testid="input-edit-context-text"
+                          />
                         </div>
-                        <div className="flex-1 min-w-0">
-                          <p className="text-sm font-medium text-muted-foreground">Context</p>
-                          <p className="text-sm text-foreground whitespace-pre-wrap" data-testid="text-meeting-context">{meeting.contextText}</p>
+
+                        <div className="space-y-2">
+                          <Label className="text-sm">Attach File</Label>
+                          <div className="flex items-center gap-3">
+                            <input
+                              type="file"
+                              id="edit-context-file"
+                              className="hidden"
+                              accept=".txt,.md,.csv,.json,.doc,.docx,.pdf"
+                              onChange={(e) => {
+                                if (e.target.files?.[0]) setEditContextFile(e.target.files[0]);
+                              }}
+                              data-testid="input-edit-context-file"
+                            />
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              onClick={() => document.getElementById("edit-context-file")?.click()}
+                              type="button"
+                              data-testid="button-attach-edit-file"
+                            >
+                              <Paperclip className="w-4 h-4 mr-1.5" />
+                              {meeting.contextFileName ? "Replace File" : "Attach File"}
+                            </Button>
+                            {(editContextFile || meeting.contextFileName) && (
+                              <span className="text-sm text-muted-foreground" data-testid="text-edit-context-file-name">
+                                {editContextFile ? editContextFile.name : meeting.contextFileName}
+                              </span>
+                            )}
+                          </div>
                         </div>
-                      </div>
-                    )}
-                    {meeting.contextFileName && (
-                      <div className="flex items-center gap-3">
-                        <div className="w-9 h-9 rounded-md bg-muted flex items-center justify-center shrink-0">
-                          <Paperclip className="w-4 h-4 text-muted-foreground" />
-                        </div>
-                        <div>
-                          <p className="text-sm font-medium text-muted-foreground">Attached File</p>
-                          <p className="text-sm font-semibold" data-testid="text-meeting-context-file">{meeting.contextFileName}</p>
+
+                        <div className="flex items-center gap-2 pt-2">
+                          <Button
+                            onClick={handleSaveContextAndReprocess}
+                            disabled={reprocessMutation.isPending}
+                            data-testid="button-regenerate"
+                          >
+                            {reprocessMutation.isPending ? (
+                              <><Loader2 className="mr-2 w-4 h-4 animate-spin" /> Regenerating...</>
+                            ) : (
+                              <><RefreshCw className="w-4 h-4 mr-1.5" /> Save & Regenerate</>
+                            )}
+                          </Button>
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => setIsEditingContext(false)}
+                            disabled={reprocessMutation.isPending}
+                            data-testid="button-cancel-edit-context"
+                          >
+                            Cancel
+                          </Button>
                         </div>
                       </div>
                     )}
