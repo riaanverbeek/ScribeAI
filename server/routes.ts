@@ -4,7 +4,7 @@ import { storage } from "./storage";
 import { api } from "@shared/routes";
 import { z } from "zod";
 import multer from "multer";
-import { speechToText } from "./replit_integrations/audio";
+import { speechToText, convertWebmToWav } from "./replit_integrations/audio";
 import OpenAI from "openai";
 import fs from "fs";
 import path from "path";
@@ -80,12 +80,21 @@ export async function registerRoutes(
           return res.status(400).json({ message: "No file uploaded" });
       }
       
-      // In a real app, upload to cloud storage (S3/GCS). 
-      // For now, we'll keep the local path but move it to a public folder or just store the path.
-      // Since Replit uploads are ephemeral, this is just for demo.
-      const audioUrl = req.file.path; // TODO: Move to persistent storage
+      const originalName = req.file.originalname || "";
+      const mimetype = req.file.mimetype || "";
+      const ext = path.extname(originalName).toLowerCase();
       
-      const meeting = await storage.updateMeetingAudioUrl(id, audioUrl);
+      let finalPath = req.file.path;
+      
+      if (mimetype.includes("webm") || ext === ".webm") {
+          const webmBuffer = fs.readFileSync(req.file.path);
+          const wavBuffer = await convertWebmToWav(webmBuffer);
+          finalPath = req.file.path + ".wav";
+          fs.writeFileSync(finalPath, wavBuffer);
+          fs.unlinkSync(req.file.path);
+      }
+      
+      const meeting = await storage.updateMeetingAudioUrl(id, finalPath);
       res.json({ message: "Audio uploaded successfully" });
   });
 
@@ -110,7 +119,9 @@ export async function registerRoutes(
 
           // 1. Transcribe
           const audioBuffer = fs.readFileSync(meeting.audioUrl);
-          const transcriptText = await speechToText(audioBuffer);
+          const audioExt = path.extname(meeting.audioUrl).toLowerCase();
+          const format: "wav" | "mp3" | "webm" = audioExt === ".mp3" ? "mp3" : audioExt === ".webm" ? "webm" : "wav";
+          const transcriptText = await speechToText(audioBuffer, format);
           
           await storage.createTranscript({
               meetingId: id,
@@ -136,7 +147,7 @@ export async function registerRoutes(
           `;
 
           const response = await openai.chat.completions.create({
-              model: "gpt-4o", // the newest OpenAI model
+              model: "gpt-4o",
               messages: [
                   { role: "system", content: systemPrompt },
                   { role: "user", content: transcriptText }
