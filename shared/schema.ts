@@ -15,6 +15,8 @@ export const users = pgTable("users", {
   isAdmin: boolean("is_admin").default(false).notNull(),
   verificationToken: text("verification_token"),
   verificationTokenExpiry: timestamp("verification_token_expiry"),
+  resetToken: text("reset_token"),
+  resetTokenExpiry: timestamp("reset_token_expiry"),
   trialEndsAt: timestamp("trial_ends_at"),
   subscriptionStatus: text("subscription_status", {
     enum: ["none", "trialing", "active", "cancelled", "expired"]
@@ -241,7 +243,7 @@ export type InsertConversation = z.infer<typeof insertConversationSchema>;
 export type Message = typeof messages.$inferSelect;
 export type InsertMessage = z.infer<typeof insertMessageSchema>;
 
-export type SafeUser = Omit<User, "passwordHash" | "verificationToken" | "verificationTokenExpiry">;
+export type SafeUser = Omit<User, "passwordHash" | "verificationToken" | "verificationTokenExpiry" | "resetToken" | "resetTokenExpiry">;
 
 // Request types
 export type CreateMeetingRequest = InsertMeeting;

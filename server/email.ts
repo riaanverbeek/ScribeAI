@@ -68,6 +68,36 @@ export async function sendVerificationEmail(toEmail: string, firstName: string, 
   });
 }
 
+export async function sendPasswordResetEmail(toEmail: string, firstName: string, resetToken: string) {
+  const { client, fromEmail } = await getUncachableResendClient();
+
+  const baseUrl = getBaseUrl();
+  const resetUrl = `${baseUrl}/reset-password?token=${resetToken}`;
+
+  await client.emails.send({
+    from: fromEmail || 'ScribeAI <noreply@resend.dev>',
+    to: toEmail,
+    subject: 'Reset your ScribeAI password',
+    html: `
+      <div style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; max-width: 560px; margin: 0 auto; padding: 40px 20px;">
+        <h1 style="font-size: 24px; color: #1a1a1a; margin-bottom: 24px;">Password Reset</h1>
+        <p style="font-size: 16px; color: #4a4a4a; line-height: 1.6; margin-bottom: 24px;">
+          Hi ${firstName}, we received a request to reset your password. Click the button below to choose a new password.
+        </p>
+        <a href="${resetUrl}" style="display: inline-block; background: #18181b; color: #ffffff; padding: 12px 32px; border-radius: 8px; text-decoration: none; font-size: 16px; font-weight: 600;">
+          Reset Password
+        </a>
+        <p style="font-size: 14px; color: #888; margin-top: 32px; line-height: 1.5;">
+          This link expires in 1 hour. If you didn't request a password reset, you can safely ignore this email.
+        </p>
+        <p style="font-size: 12px; color: #aaa; margin-top: 40px; border-top: 1px solid #eee; padding-top: 20px;">
+          ScribeAI - Meeting Transcription & Analysis
+        </p>
+      </div>
+    `,
+  });
+}
+
 function getBaseUrl(): string {
   if (process.env.REPLIT_DEV_DOMAIN) {
     return `https://${process.env.REPLIT_DEV_DOMAIN}`;

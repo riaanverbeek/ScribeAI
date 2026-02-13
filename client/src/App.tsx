@@ -18,6 +18,8 @@ import Subscription from "@/pages/Subscription";
 import SubscriptionSuccess from "@/pages/SubscriptionSuccess";
 import SubscriptionCancel from "@/pages/SubscriptionCancel";
 import Templates from "@/pages/Templates";
+import ForgotPassword from "@/pages/ForgotPassword";
+import ResetPassword from "@/pages/ResetPassword";
 
 function ProtectedRoute({ children }: { children: React.ReactNode }) {
   const { isAuthenticated, isLoading } = useAuth();
@@ -63,6 +65,12 @@ function Router() {
       </Route>
       <Route path="/register">
         <PublicOnlyRoute><Register /></PublicOnlyRoute>
+      </Route>
+      <Route path="/forgot-password">
+        <PublicOnlyRoute><ForgotPassword /></PublicOnlyRoute>
+      </Route>
+      <Route path="/reset-password">
+        <PublicOnlyRoute><ResetPassword /></PublicOnlyRoute>
       </Route>
       <Route path="/subscription/success">
         <ProtectedRoute><SubscriptionSuccess /></ProtectedRoute>

@@ -88,6 +88,9 @@ export default function Login() {
               <Button type="submit" className="w-full" disabled={login.isPending} data-testid="button-login">
                 {login.isPending ? "Signing in..." : "Sign In"}
               </Button>
+              <Link href="/forgot-password" className="text-sm text-muted-foreground text-center" data-testid="link-forgot-password">
+                Forgot your password?
+              </Link>
               <p className="text-sm text-muted-foreground text-center">
                 Don't have an account?{" "}
                 <Link href="/register" className="text-foreground font-medium underline underline-offset-4" data-testid="link-register">

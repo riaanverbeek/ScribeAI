@@ -12,7 +12,9 @@ import { speechToText, convertWebmToWav } from "./replit_integrations/audio";
 import OpenAI from "openai";
 import fs from "fs";
 import path from "path";
+import crypto from "crypto";
 import { generatePayfastSubscriptionUrl, validatePayfastSignature, cancelPayfastSubscription } from "./payfast";
+import { sendPasswordResetEmail } from "./email";
 import { requireAuth, requireAdmin, requireSubscription, sanitizeUser, getEffectiveSubscriptionStatus, hasFullAccess } from "./auth";
 import type { User } from "@shared/schema";
 
@@ -151,6 +153,76 @@ export async function registerRoutes(
 
     const freshUser = await storage.getUserById(user.id);
     res.json({ user: sanitizeUser(freshUser!) });
+  });
+
+  const resetRateLimit = new Map<string, number>();
+  setInterval(() => {
+    const now = Date.now();
+    for (const [key, timestamp] of resetRateLimit) {
+      if (now - timestamp > 60_000) resetRateLimit.delete(key);
+    }
+  }, 60_000);
+
+  app.post("/api/auth/forgot-password", async (req, res) => {
+    try {
+      const { email } = z.object({ email: z.string().email() }).parse(req.body);
+
+      const rateLimitKey = email.toLowerCase();
+      const lastRequest = resetRateLimit.get(rateLimitKey);
+      if (lastRequest && Date.now() - lastRequest < 60_000) {
+        return res.json({ message: "If an account with that email exists, we've sent a password reset link." });
+      }
+      resetRateLimit.set(rateLimitKey, Date.now());
+
+      const user = await storage.getUserByEmail(email);
+      if (!user) {
+        return res.json({ message: "If an account with that email exists, we've sent a password reset link." });
+      }
+
+      const resetToken = crypto.randomBytes(32).toString("hex");
+      const expiry = new Date(Date.now() + 60 * 60 * 1000);
+      await storage.setResetToken(user.id, resetToken, expiry);
+
+      try {
+        await sendPasswordResetEmail(user.email, user.firstName, resetToken);
+      } catch (emailErr) {
+        console.error("Failed to send reset email:", emailErr);
+        return res.status(500).json({ message: "Failed to send reset email. Please try again later." });
+      }
+
+      res.json({ message: "If an account with that email exists, we've sent a password reset link." });
+    } catch (err) {
+      if (err instanceof z.ZodError) {
+        return res.status(400).json({ message: err.errors[0].message });
+      }
+      console.error("Forgot password error:", err);
+      res.status(500).json({ message: "Something went wrong" });
+    }
+  });
+
+  app.post("/api/auth/reset-password", async (req, res) => {
+    try {
+      const { token, password } = z.object({
+        token: z.string().min(1),
+        password: z.string().min(6, "Password must be at least 6 characters"),
+      }).parse(req.body);
+
+      const user = await storage.getUserByResetToken(token);
+      if (!user || !user.resetTokenExpiry || new Date(user.resetTokenExpiry) < new Date()) {
+        return res.status(400).json({ message: "This reset link is invalid or has expired. Please request a new one." });
+      }
+
+      const passwordHash = await bcrypt.hash(password, 12);
+      await storage.updatePassword(user.id, passwordHash);
+
+      res.json({ message: "Password has been reset successfully. You can now sign in with your new password." });
+    } catch (err) {
+      if (err instanceof z.ZodError) {
+        return res.status(400).json({ message: err.errors[0].message });
+      }
+      console.error("Reset password error:", err);
+      res.status(500).json({ message: "Something went wrong" });
+    }
   });
 
   // ========== PAYFAST ROUTES ==========

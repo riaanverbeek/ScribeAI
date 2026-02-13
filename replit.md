@@ -35,7 +35,8 @@ Preferred communication style: Simple, everyday language.
   - Cancel subscription API
 - Access control middleware: `requireAuth`, `requireAdmin`, `requireSubscription`
 - All routes enforce userId ownership checks (users can only access their own meetings/clients)
-- Frontend: Login, Register, Subscription, SubscriptionSuccess, SubscriptionCancel pages
+- Password reset flow: forgot-password sends email with token (1hr expiry), reset-password validates token and updates password
+- Frontend: Login, Register, ForgotPassword, ResetPassword, Subscription, SubscriptionSuccess, SubscriptionCancel pages
 - Protected routes via `ProtectedRoute` and `PublicOnlyRoute` wrappers
 - Subscription paywall banner on MeetingDetail when AI features are locked
 - Navigation updated with user info, subscription link, and sign-out

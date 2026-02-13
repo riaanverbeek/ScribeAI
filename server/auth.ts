@@ -9,7 +9,7 @@ declare module "express-session" {
 }
 
 export function sanitizeUser(user: User): SafeUser {
-  const { passwordHash, verificationToken, verificationTokenExpiry, ...safe } = user;
+  const { passwordHash, verificationToken, verificationTokenExpiry, resetToken, resetTokenExpiry, ...safe } = user;
   return safe;
 }
 
