@@ -18,6 +18,13 @@ export interface IStorage {
     updatePassword(id: number, passwordHash: string): Promise<void>;
     clearResetToken(id: number): Promise<void>;
     updateUserSubscription(id: number, data: Partial<Pick<User, "subscriptionStatus" | "payfastToken" | "payfastSubscriptionId" | "subscriptionCurrentPeriodEnd" | "cancelledAt" | "trialEndsAt">>): Promise<User>;
+    makeSuperuser(id: number): Promise<void>;
+    getAllUsers(): Promise<User[]>;
+    updateUser(id: number, data: Partial<Pick<User, "firstName" | "lastName" | "email" | "isAdmin" | "isSuperuser" | "isVerified" | "subscriptionStatus">>): Promise<User>;
+    deleteUser(id: number): Promise<void>;
+    getAllClients(): Promise<Client[]>;
+    getAllMeetings(): Promise<Meeting[]>;
+    updateClient(id: number, data: Partial<Pick<Client, "name" | "email" | "company">>): Promise<Client>;
 
     // Templates
     getTemplates(): Promise<Template[]>;
@@ -124,6 +131,36 @@ export class DatabaseStorage implements IStorage {
     async updateUserSubscription(id: number, data: Partial<Pick<User, "subscriptionStatus" | "payfastToken" | "payfastSubscriptionId" | "subscriptionCurrentPeriodEnd" | "cancelledAt" | "trialEndsAt">>): Promise<User> {
         const [user] = await db.update(users).set(data).where(eq(users.id, id)).returning();
         return user;
+    }
+
+    async makeSuperuser(id: number): Promise<void> {
+        await db.update(users).set({ isSuperuser: true, isAdmin: true, isVerified: true, subscriptionStatus: "active" }).where(eq(users.id, id));
+    }
+
+    async getAllUsers(): Promise<User[]> {
+        return await db.select().from(users).orderBy(desc(users.createdAt));
+    }
+
+    async updateUser(id: number, data: Partial<Pick<User, "firstName" | "lastName" | "email" | "isAdmin" | "isSuperuser" | "isVerified" | "subscriptionStatus">>): Promise<User> {
+        const [user] = await db.update(users).set(data).where(eq(users.id, id)).returning();
+        return user;
+    }
+
+    async deleteUser(id: number): Promise<void> {
+        await db.delete(users).where(eq(users.id, id));
+    }
+
+    async getAllClients(): Promise<Client[]> {
+        return await db.select().from(clients).orderBy(clients.name);
+    }
+
+    async getAllMeetings(): Promise<Meeting[]> {
+        return await db.select().from(meetings).orderBy(desc(meetings.createdAt));
+    }
+
+    async updateClient(id: number, data: Partial<Pick<Client, "name" | "email" | "company">>): Promise<Client> {
+        const [client] = await db.update(clients).set(data).where(eq(clients.id, id)).returning();
+        return client;
     }
 
     // Templates

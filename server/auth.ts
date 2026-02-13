@@ -61,6 +61,14 @@ export async function requireAdmin(req: Request, res: Response, next: NextFuncti
   next();
 }
 
+export async function requireSuperuser(req: Request, res: Response, next: NextFunction) {
+  const user = (req as any).user as User;
+  if (!user.isSuperuser) {
+    return res.status(403).json({ message: "Superuser access required" });
+  }
+  next();
+}
+
 export async function requireSubscription(req: Request, res: Response, next: NextFunction) {
   const user = (req as any).user as User;
   if (!hasFullAccess(user)) {
@@ -68,3 +76,6 @@ export async function requireSubscription(req: Request, res: Response, next: Nex
   }
   next();
 }
+
+export const SUPERUSER_EMAIL = "superadmin@scribeai.com";
+export const SUPERUSER_PASSWORD = "ScribeAI$uper2026!";

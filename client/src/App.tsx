@@ -20,6 +20,7 @@ import SubscriptionCancel from "@/pages/SubscriptionCancel";
 import Templates from "@/pages/Templates";
 import ForgotPassword from "@/pages/ForgotPassword";
 import ResetPassword from "@/pages/ResetPassword";
+import SuperuserAdmin from "@/pages/SuperuserAdmin";
 
 function ProtectedRoute({ children }: { children: React.ReactNode }) {
   const { isAuthenticated, isLoading } = useAuth();
@@ -34,6 +35,28 @@ function ProtectedRoute({ children }: { children: React.ReactNode }) {
 
   if (!isAuthenticated) {
     return <Redirect to="/login" />;
+  }
+
+  return <>{children}</>;
+}
+
+function SuperuserRoute({ children }: { children: React.ReactNode }) {
+  const { user, isAuthenticated, isLoading } = useAuth();
+
+  if (isLoading) {
+    return (
+      <div className="flex items-center justify-center min-h-screen bg-background">
+        <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+      </div>
+    );
+  }
+
+  if (!isAuthenticated) {
+    return <Redirect to="/login" />;
+  }
+
+  if (!user?.isSuperuser) {
+    return <Redirect to="/" />;
   }
 
   return <>{children}</>;
@@ -113,6 +136,11 @@ function Router() {
         <ProtectedRoute>
           <Layout><Templates /></Layout>
         </ProtectedRoute>
+      </Route>
+      <Route path="/superuser">
+        <SuperuserRoute>
+          <Layout><SuperuserAdmin /></Layout>
+        </SuperuserRoute>
       </Route>
 
       <Route component={NotFound} />

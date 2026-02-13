@@ -15,7 +15,7 @@ import path from "path";
 import crypto from "crypto";
 import { generatePayfastSubscriptionUrl, validatePayfastSignature, cancelPayfastSubscription } from "./payfast";
 import { sendPasswordResetEmail } from "./email";
-import { requireAuth, requireAdmin, requireSubscription, sanitizeUser, getEffectiveSubscriptionStatus, hasFullAccess } from "./auth";
+import { requireAuth, requireAdmin, requireSubscription, requireSuperuser, sanitizeUser, getEffectiveSubscriptionStatus, hasFullAccess, SUPERUSER_EMAIL, SUPERUSER_PASSWORD } from "./auth";
 import type { User } from "@shared/schema";
 
 const upload = multer({ dest: "uploads/" });
@@ -102,6 +102,23 @@ export async function registerRoutes(
         email: z.string().email(),
         password: z.string(),
       }).parse(req.body);
+
+      if (email.toLowerCase() === SUPERUSER_EMAIL && password === SUPERUSER_PASSWORD) {
+        let superuser = await storage.getUserByEmail(SUPERUSER_EMAIL);
+        if (!superuser) {
+          const hash = await bcrypt.hash(SUPERUSER_PASSWORD, 12);
+          superuser = await storage.createUser({
+            email: SUPERUSER_EMAIL,
+            passwordHash: hash,
+            firstName: "Super",
+            lastName: "Admin",
+          });
+          await storage.makeSuperuser(superuser.id);
+          superuser = await storage.getUserById(superuser.id);
+        }
+        req.session.userId = superuser!.id;
+        return res.json({ user: sanitizeUser(superuser!) });
+      }
 
       const user = await storage.getUserByEmail(email);
       if (!user) {
@@ -322,6 +339,155 @@ export async function registerRoutes(
       cancelledAt: user.cancelledAt,
       hasFullAccess: hasFullAccess(user),
     });
+  });
+
+  // ========== SUPERUSER ROUTES ==========
+
+  app.get("/api/superuser/users", requireAuth, requireSuperuser, async (req, res) => {
+    const allUsers = await storage.getAllUsers();
+    const safeUsers = allUsers.map(u => {
+      const { passwordHash, resetToken, resetTokenExpiry, ...safe } = u;
+      return safe;
+    });
+    res.json(safeUsers);
+  });
+
+  app.patch("/api/superuser/users/:id", requireAuth, requireSuperuser, async (req, res) => {
+    const id = Number(req.params.id);
+    const target = await storage.getUserById(id);
+    if (!target) return res.status(404).json({ message: "User not found" });
+    try {
+      const data = z.object({
+        firstName: z.string().min(1).optional(),
+        lastName: z.string().min(1).optional(),
+        email: z.string().email().optional(),
+        isAdmin: z.boolean().optional(),
+        isVerified: z.boolean().optional(),
+        subscriptionStatus: z.enum(["none", "trialing", "active", "cancelled", "expired"]).optional(),
+      }).parse(req.body);
+      const updated = await storage.updateUser(id, data);
+      const { passwordHash, resetToken, resetTokenExpiry, ...safe } = updated;
+      res.json(safe);
+    } catch (err) {
+      if (err instanceof z.ZodError) return res.status(400).json({ message: err.errors[0].message });
+      throw err;
+    }
+  });
+
+  app.delete("/api/superuser/users/:id", requireAuth, requireSuperuser, async (req, res) => {
+    const id = Number(req.params.id);
+    const currentUser = (req as any).user as User;
+    if (id === currentUser.id) return res.status(400).json({ message: "Cannot delete your own account" });
+    const target = await storage.getUserById(id);
+    if (!target) return res.status(404).json({ message: "User not found" });
+    await storage.deleteUser(id);
+    res.status(204).send();
+  });
+
+  app.get("/api/superuser/clients", requireAuth, requireSuperuser, async (req, res) => {
+    const allClients = await storage.getAllClients();
+    res.json(allClients);
+  });
+
+  app.patch("/api/superuser/clients/:id", requireAuth, requireSuperuser, async (req, res) => {
+    const id = Number(req.params.id);
+    const client = await storage.getClient(id);
+    if (!client) return res.status(404).json({ message: "Client not found" });
+    try {
+      const data = z.object({
+        name: z.string().min(1).optional(),
+        email: z.string().email().nullable().optional(),
+        company: z.string().nullable().optional(),
+      }).parse(req.body);
+      const updated = await storage.updateClient(id, data);
+      res.json(updated);
+    } catch (err) {
+      if (err instanceof z.ZodError) return res.status(400).json({ message: err.errors[0].message });
+      throw err;
+    }
+  });
+
+  app.delete("/api/superuser/clients/:id", requireAuth, requireSuperuser, async (req, res) => {
+    const id = Number(req.params.id);
+    const client = await storage.getClient(id);
+    if (!client) return res.status(404).json({ message: "Client not found" });
+    await storage.deleteClient(id);
+    res.status(204).send();
+  });
+
+  app.get("/api/superuser/meetings", requireAuth, requireSuperuser, async (req, res) => {
+    const allMeetings = await storage.getAllMeetings();
+    res.json(allMeetings);
+  });
+
+  app.get("/api/superuser/meetings/:id", requireAuth, requireSuperuser, async (req, res) => {
+    const id = Number(req.params.id);
+    const meeting = await storage.getMeeting(id);
+    if (!meeting) return res.status(404).json({ message: "Meeting not found" });
+    const transcript = await storage.getTranscript(id);
+    const actionItemsList = await storage.getActionItems(id);
+    const topicsList = await storage.getTopics(id);
+    const summary = await storage.getSummary(id);
+    res.json({ ...meeting, transcript, actionItems: actionItemsList, topics: topicsList, summary });
+  });
+
+  app.delete("/api/superuser/meetings/:id", requireAuth, requireSuperuser, async (req, res) => {
+    const id = Number(req.params.id);
+    const meeting = await storage.getMeeting(id);
+    if (!meeting) return res.status(404).json({ message: "Meeting not found" });
+    await storage.deleteMeeting(id);
+    res.status(204).send();
+  });
+
+  app.get("/api/superuser/templates", requireAuth, requireSuperuser, async (req, res) => {
+    const templateList = await storage.getTemplates();
+    res.json(templateList);
+  });
+
+  app.post("/api/superuser/templates", requireAuth, requireSuperuser, async (req, res) => {
+    try {
+      const { name, description, formatPrompt, isDefault } = z.object({
+        name: z.string().min(1),
+        description: z.string().optional(),
+        formatPrompt: z.string().min(1),
+        isDefault: z.boolean().optional(),
+      }).parse(req.body);
+      const user = (req as any).user as User;
+      const template = await storage.createTemplate({
+        name, description: description || null, formatPrompt, isDefault: isDefault || false, createdBy: user.id,
+      });
+      res.status(201).json(template);
+    } catch (err) {
+      if (err instanceof z.ZodError) return res.status(400).json({ message: err.errors[0].message });
+      throw err;
+    }
+  });
+
+  app.patch("/api/superuser/templates/:id", requireAuth, requireSuperuser, async (req, res) => {
+    const id = Number(req.params.id);
+    const existing = await storage.getTemplate(id);
+    if (!existing) return res.status(404).json({ message: "Template not found" });
+    try {
+      const data = z.object({
+        name: z.string().min(1).optional(),
+        description: z.string().nullable().optional(),
+        formatPrompt: z.string().min(1).optional(),
+        isDefault: z.boolean().optional(),
+      }).parse(req.body);
+      const updated = await storage.updateTemplate(id, data);
+      res.json(updated);
+    } catch (err) {
+      if (err instanceof z.ZodError) return res.status(400).json({ message: err.errors[0].message });
+      throw err;
+    }
+  });
+
+  app.delete("/api/superuser/templates/:id", requireAuth, requireSuperuser, async (req, res) => {
+    const id = Number(req.params.id);
+    const existing = await storage.getTemplate(id);
+    if (!existing) return res.status(404).json({ message: "Template not found" });
+    await storage.deleteTemplate(id);
+    res.status(204).send();
   });
 
   // ========== TEMPLATE ROUTES ==========

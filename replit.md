@@ -12,6 +12,16 @@ Preferred communication style: Simple, everyday language.
 
 ## Recent Changes
 
+### Feb 13, 2026 - Superuser Functionality
+- Added `isSuperuser` boolean field to users table
+- Hardcoded superuser credentials in `server/auth.ts` (SUPERUSER_EMAIL, SUPERUSER_PASSWORD)
+- Superuser auto-created on first login with hardcoded credentials
+- `requireSuperuser` middleware for access control
+- Superuser API routes under `/api/superuser/*` for full CRUD on users, clients, meetings, templates
+- SuperuserAdmin frontend page (`/superuser`) with tabs for Users, Clients, Meetings, Templates
+- Client-side `SuperuserRoute` wrapper prevents non-superusers from accessing the page
+- Navigation shows "Superuser" link only for superuser accounts
+
 ### Feb 13, 2026 - Templates & Meeting Context System
 - Added `templates` table with name, description, formatPrompt, isDefault, createdBy fields
 - Added `templateId`, `contextText`, `contextFileUrl`, `contextFileName` fields to meetings table
@@ -33,7 +43,7 @@ Preferred communication style: Simple, everyday language.
   - Checkout URL generation with signature
   - ITN webhook with signature + merchant_id validation
   - Cancel subscription API
-- Access control middleware: `requireAuth`, `requireAdmin`, `requireSubscription`
+- Access control middleware: `requireAuth`, `requireAdmin`, `requireSuperuser`, `requireSubscription`
 - All routes enforce userId ownership checks (users can only access their own meetings/clients)
 - Password reset flow: forgot-password sends email with token (1hr expiry), reset-password validates token and updates password
 - Frontend: Login, Register, ForgotPassword, ResetPassword, Subscription, SubscriptionSuccess, SubscriptionCancel pages

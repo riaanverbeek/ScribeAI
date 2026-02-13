@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { Link, useLocation } from "wouter";
-import { LayoutDashboard, PlusCircle, Users, Mic, CreditCard, LogOut, FileText, Menu, X } from "lucide-react";
+import { LayoutDashboard, PlusCircle, Users, Mic, CreditCard, LogOut, FileText, Menu, X, ShieldCheck } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useAuth, useLogout, useSubscriptionStatus } from "@/hooks/use-auth";
 import { Badge } from "@/components/ui/badge";
@@ -12,6 +12,7 @@ const navItems = [
   { label: "New Meeting", icon: PlusCircle, href: "/new" },
   { label: "Subscription", icon: CreditCard, href: "/subscription" },
   { label: "Templates", icon: FileText, href: "/templates", adminOnly: true },
+  { label: "Superuser", icon: ShieldCheck, href: "/superuser", superuserOnly: true },
 ];
 
 export function Navigation() {
@@ -21,7 +22,11 @@ export function Navigation() {
   const { hasFullAccess, status } = useSubscriptionStatus();
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
 
-  const filteredItems = navItems.filter(item => !item.adminOnly || user?.isAdmin);
+  const filteredItems = navItems.filter(item => {
+    if (item.superuserOnly && !user?.isSuperuser) return false;
+    if (item.adminOnly && !user?.isAdmin) return false;
+    return true;
+  });
   const mobileItems = filteredItems.slice(0, 4);
 
   return (
