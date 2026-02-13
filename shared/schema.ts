@@ -13,6 +13,7 @@ export const users = pgTable("users", {
   lastName: text("last_name").notNull(),
   isVerified: boolean("is_verified").default(false).notNull(),
   isAdmin: boolean("is_admin").default(false).notNull(),
+  isSuperuser: boolean("is_superuser").default(false).notNull(),
   verificationToken: text("verification_token"),
   verificationTokenExpiry: timestamp("verification_token_expiry"),
   resetToken: text("reset_token"),
@@ -244,6 +245,7 @@ export type Message = typeof messages.$inferSelect;
 export type InsertMessage = z.infer<typeof insertMessageSchema>;
 
 export type SafeUser = Omit<User, "passwordHash" | "verificationToken" | "verificationTokenExpiry" | "resetToken" | "resetTokenExpiry">;
+export type SuperuserSafeUser = Omit<User, "passwordHash" | "resetToken" | "resetTokenExpiry">;
 
 // Request types
 export type CreateMeetingRequest = InsertMeeting;
