@@ -25,7 +25,15 @@ export const users = pgTable("users", {
   payfastToken: text("payfast_token"),
   payfastSubscriptionId: text("payfast_subscription_id"),
   subscriptionCurrentPeriodEnd: timestamp("subscription_current_period_end"),
+  roleId: integer("role_id").references(() => roles.id, { onDelete: "set null" }),
+  customRole: text("custom_role"),
   cancelledAt: timestamp("cancelled_at"),
+  createdAt: timestamp("created_at").defaultNow(),
+});
+
+export const roles = pgTable("roles", {
+  id: serial("id").primaryKey(),
+  name: text("name").notNull().unique(),
   createdAt: timestamp("created_at").defaultNow(),
 });
 
@@ -59,6 +67,7 @@ export const meetings = pgTable("meetings", {
   contextText: text("context_text"),
   contextFileUrl: text("context_file_url"),
   contextFileName: text("context_file_name"),
+  userRole: text("user_role"),
   status: text("status", { enum: ["uploading", "processing", "completed", "failed"] }).notNull().default("uploading"),
   createdAt: timestamp("created_at").defaultNow(),
 });
@@ -183,13 +192,15 @@ export const insertUserSchema = createInsertSchema(users).omit({
   id: true, createdAt: true, isVerified: true, verificationToken: true,
   verificationTokenExpiry: true, trialEndsAt: true, subscriptionStatus: true,
   payfastToken: true, payfastSubscriptionId: true, subscriptionCurrentPeriodEnd: true,
-  cancelledAt: true,
+  cancelledAt: true, roleId: true, customRole: true,
 }).extend({
   email: z.string().email("Please enter a valid email address"),
   firstName: z.string().min(1, "First name is required"),
   lastName: z.string().min(1, "Last name is required"),
   passwordHash: z.string().min(6, "Password must be at least 6 characters"),
 });
+
+export const insertRoleSchema = createInsertSchema(roles).omit({ id: true, createdAt: true });
 
 export const insertTemplateSchema = createInsertSchema(templates).omit({ id: true, createdAt: true });
 
@@ -217,6 +228,9 @@ export const insertMessageSchema = createInsertSchema(messages).omit({
 
 export type User = typeof users.$inferSelect;
 export type InsertUser = z.infer<typeof insertUserSchema>;
+
+export type Role = typeof roles.$inferSelect;
+export type InsertRole = z.infer<typeof insertRoleSchema>;
 
 export type Template = typeof templates.$inferSelect;
 export type InsertTemplate = z.infer<typeof insertTemplateSchema>;

@@ -1,8 +1,8 @@
 import { db } from "./db";
 import { 
-    users, clients, meetings, transcripts, actionItems, topics, meetingSummaries, templates,
-    type InsertUser, type InsertClient, type InsertMeeting, type InsertTranscript, type InsertActionItem, type InsertTopic, type InsertMeetingSummary, type InsertTemplate,
-    type User, type Client, type Meeting, type Transcript, type ActionItem, type Topic, type MeetingSummary, type Template
+    users, clients, meetings, transcripts, actionItems, topics, meetingSummaries, templates, roles,
+    type InsertUser, type InsertClient, type InsertMeeting, type InsertTranscript, type InsertActionItem, type InsertTopic, type InsertMeetingSummary, type InsertTemplate, type InsertRole,
+    type User, type Client, type Meeting, type Transcript, type ActionItem, type Topic, type MeetingSummary, type Template, type Role
 } from "@shared/schema";
 import { eq, and, desc } from "drizzle-orm";
 
@@ -25,6 +25,14 @@ export interface IStorage {
     getAllClients(): Promise<Client[]>;
     getAllMeetings(): Promise<Meeting[]>;
     updateClient(id: number, data: Partial<Pick<Client, "name" | "email" | "company">>): Promise<Client>;
+
+    // Roles
+    getRoles(): Promise<Role[]>;
+    getRole(id: number): Promise<Role | undefined>;
+    createRole(role: InsertRole): Promise<Role>;
+    updateRole(id: number, data: { name: string }): Promise<Role>;
+    deleteRole(id: number): Promise<void>;
+    updateUserRole(userId: number, roleId: number | null, customRole: string | null): Promise<User>;
 
     // Templates
     getTemplates(): Promise<Template[]>;
@@ -161,6 +169,36 @@ export class DatabaseStorage implements IStorage {
     async updateClient(id: number, data: Partial<Pick<Client, "name" | "email" | "company">>): Promise<Client> {
         const [client] = await db.update(clients).set(data).where(eq(clients.id, id)).returning();
         return client;
+    }
+
+    // Roles
+    async getRoles(): Promise<Role[]> {
+        return await db.select().from(roles).orderBy(roles.name);
+    }
+
+    async getRole(id: number): Promise<Role | undefined> {
+        const [role] = await db.select().from(roles).where(eq(roles.id, id));
+        return role;
+    }
+
+    async createRole(insertRole: InsertRole): Promise<Role> {
+        const [role] = await db.insert(roles).values(insertRole).returning();
+        return role;
+    }
+
+    async updateRole(id: number, data: { name: string }): Promise<Role> {
+        const [role] = await db.update(roles).set(data).where(eq(roles.id, id)).returning();
+        return role;
+    }
+
+    async deleteRole(id: number): Promise<void> {
+        await db.update(users).set({ roleId: null }).where(eq(users.roleId, id));
+        await db.delete(roles).where(eq(roles.id, id));
+    }
+
+    async updateUserRole(userId: number, roleId: number | null, customRole: string | null): Promise<User> {
+        const [user] = await db.update(users).set({ roleId, customRole }).where(eq(users.id, userId)).returning();
+        return user;
     }
 
     // Templates

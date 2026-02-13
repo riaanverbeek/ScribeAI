@@ -12,9 +12,9 @@ import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
-import { Pencil, Trash2, Plus, Users, Briefcase, Calendar, FileText, Shield, ShieldCheck } from "lucide-react";
+import { Pencil, Trash2, Plus, Users, Briefcase, Calendar, FileText, Shield, ShieldCheck, Tag } from "lucide-react";
 import { format } from "date-fns";
-import type { SafeUser, Client, Meeting, Template } from "@shared/schema";
+import type { SafeUser, Client, Meeting, Template, Role } from "@shared/schema";
 
 type SuperuserUser = SafeUser & { isSuperuser: boolean };
 
@@ -495,6 +495,139 @@ function TemplatesTab() {
   );
 }
 
+function RolesTab() {
+  const { toast } = useToast();
+  const { data: rolesList = [], isLoading } = useQuery<Role[]>({ queryKey: ["/api/superuser/roles"] });
+  const [editRole, setEditRole] = useState<Role | null>(null);
+  const [deleteRole, setDeleteRole] = useState<Role | null>(null);
+  const [showCreate, setShowCreate] = useState(false);
+  const [roleName, setRoleName] = useState("");
+
+  const createMutation = useMutation({
+    mutationFn: async (data: { name: string }) => {
+      const res = await apiRequest("POST", "/api/superuser/roles", data);
+      return res.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/superuser/roles"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/roles"] });
+      setShowCreate(false);
+      setRoleName("");
+      toast({ title: "Role created" });
+    },
+    onError: (err: Error) => toast({ title: "Error", description: err.message, variant: "destructive" }),
+  });
+
+  const updateMutation = useMutation({
+    mutationFn: async ({ id, data }: { id: number; data: { name: string } }) => {
+      const res = await apiRequest("PATCH", `/api/superuser/roles/${id}`, data);
+      return res.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/superuser/roles"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/roles"] });
+      setEditRole(null);
+      setRoleName("");
+      toast({ title: "Role updated" });
+    },
+    onError: (err: Error) => toast({ title: "Error", description: err.message, variant: "destructive" }),
+  });
+
+  const deleteMutation = useMutation({
+    mutationFn: async (id: number) => {
+      await apiRequest("DELETE", `/api/superuser/roles/${id}`);
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/superuser/roles"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/roles"] });
+      setDeleteRole(null);
+      toast({ title: "Role deleted" });
+    },
+    onError: (err: Error) => toast({ title: "Error", description: err.message, variant: "destructive" }),
+  });
+
+  const openEdit = (r: Role) => {
+    setRoleName(r.name);
+    setEditRole(r);
+  };
+
+  if (isLoading) return <div className="p-6 text-muted-foreground">Loading roles...</div>;
+
+  return (
+    <div className="space-y-3">
+      <div className="flex justify-end">
+        <Button size="sm" onClick={() => { setRoleName(""); setShowCreate(true); }} data-testid="button-create-role">
+          <Plus className="w-4 h-4 mr-1" /> New Role
+        </Button>
+      </div>
+      {rolesList.length === 0 && <p className="text-sm text-muted-foreground p-4">No roles found. Create roles for users to select from.</p>}
+      {rolesList.map((r) => (
+        <Card key={r.id}>
+          <CardContent className="flex items-center justify-between gap-3 p-4">
+            <div className="flex items-center gap-2">
+              <Tag className="w-4 h-4 text-muted-foreground" />
+              <span className="font-medium text-sm" data-testid={`text-role-name-${r.id}`}>{r.name}</span>
+            </div>
+            <div className="flex items-center gap-1">
+              <Button size="icon" variant="ghost" onClick={() => openEdit(r)} data-testid={`button-edit-role-${r.id}`}>
+                <Pencil className="w-4 h-4" />
+              </Button>
+              <Button size="icon" variant="ghost" onClick={() => setDeleteRole(r)} data-testid={`button-delete-role-${r.id}`}>
+                <Trash2 className="w-4 h-4" />
+              </Button>
+            </div>
+          </CardContent>
+        </Card>
+      ))}
+
+      <Dialog open={showCreate || !!editRole} onOpenChange={(open) => { if (!open) { setShowCreate(false); setEditRole(null); } }}>
+        <DialogContent>
+          <DialogHeader><DialogTitle>{editRole ? "Edit Role" : "New Role"}</DialogTitle></DialogHeader>
+          <div className="space-y-3">
+            <div>
+              <Label>Role Name</Label>
+              <Input value={roleName} onChange={(e) => setRoleName(e.target.value)} placeholder="e.g. Project Manager" data-testid="input-role-name" />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => { setShowCreate(false); setEditRole(null); }}>Cancel</Button>
+            <Button
+              onClick={() => {
+                if (editRole) {
+                  updateMutation.mutate({ id: editRole.id, data: { name: roleName } });
+                } else {
+                  createMutation.mutate({ name: roleName });
+                }
+              }}
+              disabled={!roleName.trim() || createMutation.isPending || updateMutation.isPending}
+              data-testid="button-save-role"
+            >
+              {(createMutation.isPending || updateMutation.isPending) ? "Saving..." : "Save"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <AlertDialog open={!!deleteRole} onOpenChange={(open) => !open && setDeleteRole(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete Role</AlertDialogTitle>
+            <AlertDialogDescription>
+              This will permanently delete "{deleteRole?.name}". Users with this role will have their role cleared.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction onClick={() => deleteRole && deleteMutation.mutate(deleteRole.id)} data-testid="button-confirm-delete-role">
+              Delete
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+    </div>
+  );
+}
+
 export default function SuperuserAdmin() {
   return (
     <div className="p-4 sm:p-6 lg:p-8 max-w-5xl mx-auto">
@@ -503,11 +636,11 @@ export default function SuperuserAdmin() {
           <ShieldCheck className="w-6 h-6 text-primary" />
           <h1 className="text-2xl font-bold" data-testid="text-superuser-heading">Superuser Panel</h1>
         </div>
-        <p className="text-sm text-muted-foreground">Manage all users, clients, meetings, and templates across the platform.</p>
+        <p className="text-sm text-muted-foreground">Manage all users, clients, meetings, templates, and roles across the platform.</p>
       </div>
 
       <Tabs defaultValue="users">
-        <TabsList className="w-full grid grid-cols-4 mb-4" data-testid="tabs-superuser">
+        <TabsList className="w-full grid grid-cols-5 mb-4" data-testid="tabs-superuser">
           <TabsTrigger value="users" className="gap-1" data-testid="tab-users">
             <Users className="w-4 h-4 hidden sm:block" /> Users
           </TabsTrigger>
@@ -520,12 +653,16 @@ export default function SuperuserAdmin() {
           <TabsTrigger value="templates" className="gap-1" data-testid="tab-templates">
             <FileText className="w-4 h-4 hidden sm:block" /> Templates
           </TabsTrigger>
+          <TabsTrigger value="roles" className="gap-1" data-testid="tab-roles">
+            <Tag className="w-4 h-4 hidden sm:block" /> Roles
+          </TabsTrigger>
         </TabsList>
 
         <TabsContent value="users"><UsersTab /></TabsContent>
         <TabsContent value="clients"><ClientsTab /></TabsContent>
         <TabsContent value="meetings"><MeetingsTab /></TabsContent>
         <TabsContent value="templates"><TemplatesTab /></TabsContent>
+        <TabsContent value="roles"><RolesTab /></TabsContent>
       </Tabs>
     </div>
   );

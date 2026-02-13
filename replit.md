@@ -12,13 +12,26 @@ Preferred communication style: Simple, everyday language.
 
 ## Recent Changes
 
+### Feb 13, 2026 - User Roles System
+- Added `roles` table with name (unique), createdAt fields
+- Added `roleId` FK and `customRole` text fields to users table
+- Added `userRole` text field to meetings table (snapshot of user's role at meeting creation)
+- Superuser CRUD routes for roles at `/api/superuser/roles/*`
+- Public GET `/api/roles` for fetching available roles
+- User role update endpoint: PATCH `/api/users/me/role` (set roleId or customRole)
+- Role is auto-captured when creating a meeting (resolved from roleId name or customRole text)
+- AI processing pipeline includes user role in system prompt context for both process and reprocess
+- Settings page (`/settings`) with searchable role dropdown, "Other" custom input, save/clear buttons
+- Roles tab added to SuperuserAdmin page for role management
+- Navigation updated with Settings link
+
 ### Feb 13, 2026 - Superuser Functionality
 - Added `isSuperuser` boolean field to users table
 - Hardcoded superuser credentials in `server/auth.ts` (SUPERUSER_EMAIL, SUPERUSER_PASSWORD)
 - Superuser auto-created on first login with hardcoded credentials
 - `requireSuperuser` middleware for access control
-- Superuser API routes under `/api/superuser/*` for full CRUD on users, clients, meetings, templates
-- SuperuserAdmin frontend page (`/superuser`) with tabs for Users, Clients, Meetings, Templates
+- Superuser API routes under `/api/superuser/*` for full CRUD on users, clients, meetings, templates, roles
+- SuperuserAdmin frontend page (`/superuser`) with tabs for Users, Clients, Meetings, Templates, Roles
 - Client-side `SuperuserRoute` wrapper prevents non-superusers from accessing the page
 - Navigation shows "Superuser" link only for superuser accounts
 

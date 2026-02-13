@@ -490,6 +490,76 @@ export async function registerRoutes(
     res.status(204).send();
   });
 
+  // ========== SUPERUSER ROLES ROUTES ==========
+
+  app.get("/api/superuser/roles", requireAuth, requireSuperuser, async (req, res) => {
+    const roleList = await storage.getRoles();
+    res.json(roleList);
+  });
+
+  app.post("/api/superuser/roles", requireAuth, requireSuperuser, async (req, res) => {
+    try {
+      const { name } = z.object({
+        name: z.string().min(1, "Role name is required"),
+      }).parse(req.body);
+      const role = await storage.createRole({ name });
+      res.status(201).json(role);
+    } catch (err) {
+      if (err instanceof z.ZodError) return res.status(400).json({ message: err.errors[0].message });
+      if ((err as any)?.code === "23505") return res.status(400).json({ message: "A role with that name already exists" });
+      throw err;
+    }
+  });
+
+  app.patch("/api/superuser/roles/:id", requireAuth, requireSuperuser, async (req, res) => {
+    const id = Number(req.params.id);
+    const existing = await storage.getRole(id);
+    if (!existing) return res.status(404).json({ message: "Role not found" });
+    try {
+      const { name } = z.object({
+        name: z.string().min(1, "Role name is required"),
+      }).parse(req.body);
+      const updated = await storage.updateRole(id, { name });
+      res.json(updated);
+    } catch (err) {
+      if (err instanceof z.ZodError) return res.status(400).json({ message: err.errors[0].message });
+      if ((err as any)?.code === "23505") return res.status(400).json({ message: "A role with that name already exists" });
+      throw err;
+    }
+  });
+
+  app.delete("/api/superuser/roles/:id", requireAuth, requireSuperuser, async (req, res) => {
+    const id = Number(req.params.id);
+    const existing = await storage.getRole(id);
+    if (!existing) return res.status(404).json({ message: "Role not found" });
+    await storage.deleteRole(id);
+    res.status(204).send();
+  });
+
+  // ========== ROLES (PUBLIC) ==========
+
+  app.get("/api/roles", requireAuth, async (req, res) => {
+    const roleList = await storage.getRoles();
+    res.json(roleList);
+  });
+
+  // ========== USER ROLE UPDATE ==========
+
+  app.patch("/api/users/me/role", requireAuth, async (req, res) => {
+    try {
+      const user = (req as any).user as User;
+      const { roleId, customRole } = z.object({
+        roleId: z.number().nullable(),
+        customRole: z.string().nullable(),
+      }).parse(req.body);
+      const updated = await storage.updateUserRole(user.id, roleId, customRole);
+      res.json({ user: sanitizeUser(updated) });
+    } catch (err) {
+      if (err instanceof z.ZodError) return res.status(400).json({ message: err.errors[0].message });
+      throw err;
+    }
+  });
+
   // ========== TEMPLATE ROUTES ==========
 
   app.get("/api/templates", requireAuth, async (req, res) => {
@@ -692,7 +762,14 @@ export async function registerRoutes(
     try {
       const user = (req as any).user as User;
       const input = api.meetings.create.input.parse(req.body);
-      const meeting = await storage.createMeeting({ ...input, userId: user.id });
+      let userRole: string | null = null;
+      if (user.customRole) {
+        userRole = user.customRole;
+      } else if (user.roleId) {
+        const role = await storage.getRole(user.roleId);
+        if (role) userRole = role.name;
+      }
+      const meeting = await storage.createMeeting({ ...input, userId: user.id, userRole });
       res.status(201).json(meeting);
     } catch (err) {
       if (err instanceof z.ZodError) {
@@ -766,6 +843,9 @@ export async function registerRoutes(
           }
 
           let contextSection = "";
+          if (meeting.userRole) {
+            contextSection += `\n\nThe person who recorded this meeting has the following role/position: ${meeting.userRole}`;
+          }
           if (meeting.contextText) {
             contextSection += `\n\nAdditional context provided by the user:\n${meeting.contextText}`;
           }
@@ -878,6 +958,9 @@ export async function registerRoutes(
           }
 
           let contextSection = "";
+          if (freshMeeting.userRole) {
+            contextSection += `\n\nThe person who recorded this meeting has the following role/position: ${freshMeeting.userRole}`;
+          }
           if (freshMeeting.contextText) {
             contextSection += `\n\nAdditional context provided by the user:\n${freshMeeting.contextText}`;
           }

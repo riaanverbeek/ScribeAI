@@ -21,6 +21,7 @@ import Templates from "@/pages/Templates";
 import ForgotPassword from "@/pages/ForgotPassword";
 import ResetPassword from "@/pages/ResetPassword";
 import SuperuserAdmin from "@/pages/SuperuserAdmin";
+import Settings from "@/pages/Settings";
 
 function ProtectedRoute({ children }: { children: React.ReactNode }) {
   const { isAuthenticated, isLoading } = useAuth();
@@ -135,6 +136,11 @@ function Router() {
       <Route path="/templates">
         <ProtectedRoute>
           <Layout><Templates /></Layout>
+        </ProtectedRoute>
+      </Route>
+      <Route path="/settings">
+        <ProtectedRoute>
+          <Layout><Settings /></Layout>
         </ProtectedRoute>
       </Route>
       <Route path="/superuser">
