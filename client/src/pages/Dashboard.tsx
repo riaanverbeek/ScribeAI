@@ -2,9 +2,12 @@ import { useState } from "react";
 import { Link } from "wouter";
 import { useMeetings, useDeleteMeeting } from "@/hooks/use-meetings";
 import { useClients } from "@/hooks/use-clients";
+import { useOfflineRecordings, useOnlineStatus } from "@/hooks/use-offline";
+import { retrySingle, syncAllPending } from "@/lib/offlineSync";
+import { deleteOfflineRecording } from "@/lib/offlineDb";
 import { StatusBadge } from "@/components/StatusBadge";
 import { format } from "date-fns";
-import { Plus, ChevronRight, MoreVertical, Trash2, Calendar, Clock, Mic, Users, X } from "lucide-react";
+import { Plus, ChevronRight, MoreVertical, Trash2, Calendar, Clock, Mic, Users, X, WifiOff, RefreshCw, Loader2, CloudUpload } from "lucide-react";
 import { motion } from "framer-motion";
 import {
   DropdownMenu,
@@ -21,12 +24,57 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
+import { useToast } from "@/hooks/use-toast";
 
 export default function Dashboard() {
   const [selectedClientId, setSelectedClientId] = useState<string>("");
   const { data: meetings, isLoading, isError } = useMeetings();
   const { data: clients } = useClients();
   const deleteMutation = useDeleteMeeting();
+  const { recordings: offlineRecordings, refresh: refreshOffline } = useOfflineRecordings();
+  const isOnline = useOnlineStatus();
+  const { toast } = useToast();
+  const [syncingId, setSyncingId] = useState<string | null>(null);
+  const [syncingAll, setSyncingAll] = useState(false);
+
+  const handleSyncAll = async () => {
+    setSyncingAll(true);
+    try {
+      const result = await syncAllPending();
+      if (result.synced > 0) {
+        toast({ title: "Sync Complete", description: `${result.synced} recording(s) uploaded successfully.` });
+      }
+      if (result.failed > 0) {
+        toast({ title: "Some Failed", description: `${result.failed} recording(s) failed to upload.`, variant: "destructive" });
+      }
+    } finally {
+      setSyncingAll(false);
+      await refreshOffline();
+    }
+  };
+
+  const handleRetrySingle = async (id: string) => {
+    setSyncingId(id);
+    try {
+      const success = await retrySingle(id);
+      if (success) {
+        toast({ title: "Upload Complete", description: "Recording uploaded and processing started." });
+      } else {
+        toast({ title: "Upload Failed", description: "Could not upload. Try again later.", variant: "destructive" });
+      }
+    } finally {
+      setSyncingId(null);
+      await refreshOffline();
+    }
+  };
+
+  const handleDeleteOffline = async (id: string) => {
+    await deleteOfflineRecording(id);
+    await refreshOffline();
+    toast({ title: "Deleted", description: "Offline recording removed." });
+  };
+
+  const pendingRecordings = offlineRecordings.filter(r => r.status !== "syncing" || syncingId === r.id);
 
   const filteredMeetings = selectedClientId
     ? meetings?.filter(m => m.clientId === Number(selectedClientId))
@@ -126,6 +174,110 @@ export default function Dashboard() {
           </Badge>
         )}
       </div>
+
+      {pendingRecordings.length > 0 && (
+        <div className="space-y-4" data-testid="section-offline-recordings">
+          <div className="flex items-center justify-between gap-3 flex-wrap">
+            <div className="flex items-center gap-2">
+              <WifiOff className="w-5 h-5 text-amber-500" />
+              <h2 className="text-lg font-semibold text-slate-900 dark:text-foreground">
+                Saved Offline ({pendingRecordings.length})
+              </h2>
+            </div>
+            {isOnline && pendingRecordings.some(r => r.status === "pending" || r.status === "failed") && (
+              <Button
+                size="sm"
+                variant="outline"
+                onClick={handleSyncAll}
+                disabled={syncingAll}
+                data-testid="button-sync-all"
+              >
+                {syncingAll ? (
+                  <><Loader2 className="mr-1.5 w-4 h-4 animate-spin" /> Uploading...</>
+                ) : (
+                  <><CloudUpload className="mr-1.5 w-4 h-4" /> Upload All</>
+                )}
+              </Button>
+            )}
+          </div>
+
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 sm:gap-6">
+            {pendingRecordings.map((rec) => (
+              <div
+                key={rec.id}
+                className="relative bg-white dark:bg-card rounded-2xl border border-amber-200 dark:border-amber-800 p-5 sm:p-6"
+                data-testid={`card-offline-${rec.id}`}
+              >
+                <div className="flex justify-between items-start mb-4 gap-2">
+                  <Badge
+                    variant="secondary"
+                    className={
+                      rec.status === "syncing"
+                        ? "bg-blue-50 text-blue-700 dark:bg-blue-950 dark:text-blue-300"
+                        : rec.status === "failed"
+                        ? "bg-red-50 text-red-700 dark:bg-red-950 dark:text-red-300"
+                        : "bg-amber-50 text-amber-700 dark:bg-amber-950 dark:text-amber-300"
+                    }
+                  >
+                    {rec.status === "syncing" ? (
+                      <><Loader2 className="w-3 h-3 mr-1 animate-spin" /> Uploading</>
+                    ) : rec.status === "failed" ? (
+                      "Upload Failed"
+                    ) : (
+                      <><WifiOff className="w-3 h-3 mr-1" /> Waiting to Upload</>
+                    )}
+                  </Badge>
+                  <DropdownMenu>
+                    <DropdownMenuTrigger asChild>
+                      <Button variant="ghost" size="icon" className="-mr-2 -mt-2 text-slate-400">
+                        <MoreVertical className="w-4 h-4" />
+                      </Button>
+                    </DropdownMenuTrigger>
+                    <DropdownMenuContent align="end" className="w-48 rounded-xl p-1">
+                      {isOnline && rec.status !== "syncing" && (
+                        <DropdownMenuItem
+                          className="rounded-lg cursor-pointer"
+                          onClick={() => handleRetrySingle(rec.id)}
+                          disabled={syncingId === rec.id}
+                        >
+                          <RefreshCw className="mr-2 w-4 h-4" />
+                          Upload Now
+                        </DropdownMenuItem>
+                      )}
+                      <DropdownMenuItem
+                        className="text-red-600 focus:text-red-700 focus:bg-red-50 rounded-lg cursor-pointer"
+                        onClick={() => handleDeleteOffline(rec.id)}
+                      >
+                        <Trash2 className="mr-2 w-4 h-4" />
+                        Delete
+                      </DropdownMenuItem>
+                    </DropdownMenuContent>
+                  </DropdownMenu>
+                </div>
+
+                <h3 className="text-xl font-bold text-slate-900 dark:text-foreground mb-2">
+                  {rec.title}
+                </h3>
+
+                <div className="flex flex-col gap-2 mt-4 text-sm text-slate-500">
+                  <div className="flex items-center gap-2">
+                    <Calendar className="w-4 h-4 text-slate-400" />
+                    {format(new Date(rec.createdAt), "MMM d, yyyy")}
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <Clock className="w-4 h-4 text-slate-400" />
+                    {format(new Date(rec.createdAt), "h:mm a")}
+                  </div>
+                </div>
+
+                {rec.status === "failed" && rec.errorMessage && (
+                  <p className="mt-3 text-xs text-red-500">{rec.errorMessage}</p>
+                )}
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
 
       {filteredMeetings && filteredMeetings.length > 0 ? (
         <motion.div 

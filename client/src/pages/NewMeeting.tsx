@@ -3,6 +3,8 @@ import { useLocation } from "wouter";
 import { useQuery } from "@tanstack/react-query";
 import { useCreateMeeting, useUploadAudio, useProcessMeeting } from "@/hooks/use-meetings";
 import { useClients, useCreateClient } from "@/hooks/use-clients";
+import { useOnlineStatus } from "@/hooks/use-offline";
+import { saveOfflineRecording } from "@/lib/offlineDb";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -23,7 +25,7 @@ import {
   DialogTitle,
   DialogTrigger,
 } from "@/components/ui/dialog";
-import { Mic, UploadCloud, ChevronLeft, Loader2, Plus, Users, FileText, Paperclip } from "lucide-react";
+import { Mic, UploadCloud, ChevronLeft, Loader2, Plus, Users, FileText, Paperclip, WifiOff, Wifi } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { useVoiceRecorder } from "@/replit_integrations/audio";
 import { motion } from "framer-motion";
@@ -32,6 +34,7 @@ import type { Template } from "@shared/schema";
 export default function NewMeeting() {
   const [, setLocation] = useLocation();
   const { toast } = useToast();
+  const isOnline = useOnlineStatus();
   
   const [title, setTitle] = useState("");
   const [file, setFile] = useState<File | null>(null);
@@ -43,6 +46,7 @@ export default function NewMeeting() {
   const [newClientEmail, setNewClientEmail] = useState("");
   const [newClientCompany, setNewClientCompany] = useState("");
   const [dialogOpen, setDialogOpen] = useState(false);
+  const [isSavingOffline, setIsSavingOffline] = useState(false);
   
   const createMutation = useCreateMeeting();
   const uploadMutation = useUploadAudio();
@@ -80,7 +84,79 @@ export default function NewMeeting() {
     } catch (error) {}
   };
 
+  const handleSaveOffline = async () => {
+    if (!title.trim()) {
+      toast({ title: "Title Required", description: "Please give your meeting a name.", variant: "destructive" });
+      return;
+    }
+
+    let audioBlob: Blob | null = null;
+    let audioFileName = "recording.webm";
+    let audioMimeType = "audio/webm";
+
+    if (file) {
+      audioBlob = file;
+      audioFileName = file.name;
+      audioMimeType = file.type || "audio/webm";
+    } else if (recorder.state === "stopped") {
+      // already handled by file state
+    }
+
+    if (!audioBlob && !file) {
+      toast({ title: "Audio Required", description: "Please record or upload audio first.", variant: "destructive" });
+      return;
+    }
+
+    const actualBlob = audioBlob || file!;
+    setIsSavingOffline(true);
+
+    try {
+      const id = `offline-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+
+      let ctxBlob: Blob | null = null;
+      let ctxFileName: string | null = null;
+      if (contextFile) {
+        ctxBlob = contextFile;
+        ctxFileName = contextFile.name;
+      }
+
+      await saveOfflineRecording({
+        id,
+        title: title.trim(),
+        audioBlob: actualBlob,
+        audioFileName: file ? file.name : audioFileName,
+        audioMimeType: file ? (file.type || audioMimeType) : audioMimeType,
+        clientId: selectedClientId ? Number(selectedClientId) : null,
+        templateId: selectedTemplateId ? Number(selectedTemplateId) : null,
+        contextText: contextText,
+        contextFile: ctxBlob,
+        contextFileName: ctxFileName,
+        createdAt: new Date().toISOString(),
+        status: "pending",
+      });
+
+      toast({
+        title: "Saved Offline",
+        description: "Your recording has been saved. It will upload automatically when you're back online.",
+      });
+
+      setLocation("/");
+    } catch (err) {
+      toast({
+        title: "Save Failed",
+        description: "Could not save the recording locally. Please try again.",
+        variant: "destructive",
+      });
+    } finally {
+      setIsSavingOffline(false);
+    }
+  };
+
   const handleCreate = async () => {
+    if (!isOnline) {
+      return handleSaveOffline();
+    }
+
     if (!title.trim()) {
       toast({ title: "Title Required", description: "Please give your meeting a name.", variant: "destructive" });
       return;
@@ -149,7 +225,7 @@ export default function NewMeeting() {
     toast({ title: "Recording Saved", description: "Ready to process." });
   };
 
-  const isPending = createMutation.isPending || uploadMutation.isPending;
+  const isPending = createMutation.isPending || uploadMutation.isPending || isSavingOffline;
 
   return (
     <div className="p-4 sm:p-6 md:p-10 max-w-3xl mx-auto">
@@ -168,6 +244,16 @@ export default function NewMeeting() {
         <p className="text-slate-500 mt-1 text-sm sm:text-base">Record a conversation or upload an existing file.</p>
       </div>
 
+      {!isOnline && (
+        <div className="mb-6 flex items-center gap-3 rounded-md border border-amber-200 bg-amber-50 dark:bg-amber-950/20 dark:border-amber-800 px-4 py-3" data-testid="banner-offline">
+          <WifiOff className="w-5 h-5 text-amber-600 dark:text-amber-400 shrink-0" />
+          <div>
+            <p className="text-sm font-medium text-amber-800 dark:text-amber-300">You're offline</p>
+            <p className="text-xs text-amber-600 dark:text-amber-400">You can still record audio. It will be saved locally and uploaded when you're back online.</p>
+          </div>
+        </div>
+      )}
+
       <div className="grid gap-8">
         <div className="space-y-3">
           <Label htmlFor="title" className="text-base font-semibold text-slate-900">Meeting Title</Label>
@@ -181,89 +267,91 @@ export default function NewMeeting() {
           />
         </div>
 
-        <div className="space-y-3">
-          <Label className="text-base font-semibold text-slate-900">Client</Label>
-          <div className="flex items-center gap-3">
-            <Select value={selectedClientId} onValueChange={setSelectedClientId}>
-              <SelectTrigger className="h-12 rounded-xl border-slate-200 flex-1" data-testid="select-client">
-                <div className="flex items-center gap-2">
-                  <Users className="w-4 h-4 text-slate-400" />
-                  <SelectValue placeholder="Select a client (optional)" />
-                </div>
-              </SelectTrigger>
-              <SelectContent>
-                {clients?.map((client) => (
-                  <SelectItem key={client.id} value={String(client.id)} data-testid={`select-client-option-${client.id}`}>
-                    <div className="flex flex-col">
-                      <span>{client.name}</span>
-                      {client.company && <span className="text-xs text-slate-500">{client.company}</span>}
-                    </div>
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-            
-            <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
-              <DialogTrigger asChild>
-                <Button variant="outline" size="icon" className="h-12 w-12 rounded-xl shrink-0" data-testid="button-new-client">
-                  <Plus className="w-5 h-5" />
-                </Button>
-              </DialogTrigger>
-              <DialogContent className="rounded-2xl">
-                <DialogHeader>
-                  <DialogTitle>Add New Client</DialogTitle>
-                </DialogHeader>
-                <div className="grid gap-4 py-4">
-                  <div className="space-y-2">
-                    <Label htmlFor="client-name">Name *</Label>
-                    <Input
-                      id="client-name"
-                      placeholder="e.g. John Smith"
-                      value={newClientName}
-                      onChange={(e) => setNewClientName(e.target.value)}
-                      data-testid="input-client-name"
-                    />
+        {isOnline && (
+          <div className="space-y-3">
+            <Label className="text-base font-semibold text-slate-900">Client</Label>
+            <div className="flex items-center gap-3">
+              <Select value={selectedClientId} onValueChange={setSelectedClientId}>
+                <SelectTrigger className="h-12 rounded-xl border-slate-200 flex-1" data-testid="select-client">
+                  <div className="flex items-center gap-2">
+                    <Users className="w-4 h-4 text-slate-400" />
+                    <SelectValue placeholder="Select a client (optional)" />
                   </div>
-                  <div className="space-y-2">
-                    <Label htmlFor="client-email">Email</Label>
-                    <Input
-                      id="client-email"
-                      type="email"
-                      placeholder="e.g. john@example.com"
-                      value={newClientEmail}
-                      onChange={(e) => setNewClientEmail(e.target.value)}
-                      data-testid="input-client-email"
-                    />
-                  </div>
-                  <div className="space-y-2">
-                    <Label htmlFor="client-company">Company</Label>
-                    <Input
-                      id="client-company"
-                      placeholder="e.g. Acme Corp"
-                      value={newClientCompany}
-                      onChange={(e) => setNewClientCompany(e.target.value)}
-                      data-testid="input-client-company"
-                    />
-                  </div>
-                  <Button 
-                    onClick={handleCreateClient}
-                    disabled={createClientMutation.isPending}
-                    className="w-full"
-                    data-testid="button-save-client"
-                  >
-                    {createClientMutation.isPending ? (
-                      <><Loader2 className="mr-2 w-4 h-4 animate-spin" /> Creating...</>
-                    ) : (
-                      "Add Client"
-                    )}
+                </SelectTrigger>
+                <SelectContent>
+                  {clients?.map((client) => (
+                    <SelectItem key={client.id} value={String(client.id)} data-testid={`select-client-option-${client.id}`}>
+                      <div className="flex flex-col">
+                        <span>{client.name}</span>
+                        {client.company && <span className="text-xs text-slate-500">{client.company}</span>}
+                      </div>
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              
+              <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
+                <DialogTrigger asChild>
+                  <Button variant="outline" size="icon" className="h-12 w-12 rounded-xl shrink-0" data-testid="button-new-client">
+                    <Plus className="w-5 h-5" />
                   </Button>
-                </div>
-              </DialogContent>
-            </Dialog>
+                </DialogTrigger>
+                <DialogContent className="rounded-2xl">
+                  <DialogHeader>
+                    <DialogTitle>Add New Client</DialogTitle>
+                  </DialogHeader>
+                  <div className="grid gap-4 py-4">
+                    <div className="space-y-2">
+                      <Label htmlFor="client-name">Name *</Label>
+                      <Input
+                        id="client-name"
+                        placeholder="e.g. John Smith"
+                        value={newClientName}
+                        onChange={(e) => setNewClientName(e.target.value)}
+                        data-testid="input-client-name"
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="client-email">Email</Label>
+                      <Input
+                        id="client-email"
+                        type="email"
+                        placeholder="e.g. john@example.com"
+                        value={newClientEmail}
+                        onChange={(e) => setNewClientEmail(e.target.value)}
+                        data-testid="input-client-email"
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="client-company">Company</Label>
+                      <Input
+                        id="client-company"
+                        placeholder="e.g. Acme Corp"
+                        value={newClientCompany}
+                        onChange={(e) => setNewClientCompany(e.target.value)}
+                        data-testid="input-client-company"
+                      />
+                    </div>
+                    <Button 
+                      onClick={handleCreateClient}
+                      disabled={createClientMutation.isPending}
+                      className="w-full"
+                      data-testid="button-save-client"
+                    >
+                      {createClientMutation.isPending ? (
+                        <><Loader2 className="mr-2 w-4 h-4 animate-spin" /> Creating...</>
+                      ) : (
+                        "Add Client"
+                      )}
+                    </Button>
+                  </div>
+                </DialogContent>
+              </Dialog>
+            </div>
           </div>
-        </div>
+        )}
 
-        {templates && templates.length > 0 && (
+        {isOnline && templates && templates.length > 0 && (
           <div className="space-y-3">
             <Label className="text-base font-semibold text-slate-900">Summary Template</Label>
             <Select value={selectedTemplateId} onValueChange={setSelectedTemplateId}>
@@ -427,7 +515,12 @@ export default function NewMeeting() {
           {isPending ? (
             <>
               <Loader2 className="mr-2 w-5 h-5 animate-spin" />
-              Creating & Uploading...
+              {isSavingOffline ? "Saving Offline..." : "Creating & Uploading..."}
+            </>
+          ) : !isOnline ? (
+            <>
+              <WifiOff className="mr-2 w-5 h-5" />
+              Save for Later
             </>
           ) : (
             "Process Meeting"
