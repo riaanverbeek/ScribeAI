@@ -74,7 +74,7 @@ export default function Dashboard() {
     toast({ title: "Deleted", description: "Offline recording removed." });
   };
 
-  const pendingRecordings = offlineRecordings.filter(r => r.status !== "syncing" || syncingId === r.id);
+  const pendingRecordings = offlineRecordings;
 
   const filteredMeetings = selectedClientId
     ? meetings?.filter(m => m.clientId === Number(selectedClientId))

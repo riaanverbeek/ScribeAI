@@ -90,24 +90,14 @@ export default function NewMeeting() {
       return;
     }
 
-    let audioBlob: Blob | null = null;
-    let audioFileName = "recording.webm";
-    let audioMimeType = "audio/webm";
-
-    if (file) {
-      audioBlob = file;
-      audioFileName = file.name;
-      audioMimeType = file.type || "audio/webm";
-    } else if (recorder.state === "stopped") {
-      // already handled by file state
-    }
-
-    if (!audioBlob && !file) {
+    if (!file) {
       toast({ title: "Audio Required", description: "Please record or upload audio first.", variant: "destructive" });
       return;
     }
 
-    const actualBlob = audioBlob || file!;
+    const actualBlob: Blob = file;
+    const audioFileName = file.name || "recording.webm";
+    const audioMimeType = file.type || "audio/webm";
     setIsSavingOffline(true);
 
     try {
@@ -124,8 +114,8 @@ export default function NewMeeting() {
         id,
         title: title.trim(),
         audioBlob: actualBlob,
-        audioFileName: file ? file.name : audioFileName,
-        audioMimeType: file ? (file.type || audioMimeType) : audioMimeType,
+        audioFileName,
+        audioMimeType,
         clientId: selectedClientId ? Number(selectedClientId) : null,
         templateId: selectedTemplateId ? Number(selectedTemplateId) : null,
         contextText: contextText,

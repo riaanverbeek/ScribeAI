@@ -12,6 +12,19 @@ Preferred communication style: Simple, everyday language.
 
 ## Recent Changes
 
+### Feb 14, 2026 - Offline Recording & PWA Support
+- Added IndexedDB storage for offline audio recordings (`client/src/lib/offlineDb.ts`)
+- Offline sync manager auto-uploads pending recordings when back online (`client/src/lib/offlineSync.ts`)
+- `useOnlineStatus` hook for reactive connectivity detection (`client/src/hooks/use-offline.ts`)
+- `useOfflineRecordings` hook for managing IndexedDB recordings state
+- NewMeeting page detects offline state: shows amber banner, saves recordings to IndexedDB with "Save for Later" flow
+- Dashboard shows "Saved Offline" section with pending recordings, status badges (pending/syncing/failed), manual retry, delete
+- Service worker (`client/public/sw.js`) caches app shell for offline access, serves cached pages when offline
+- PWA manifest (`client/public/manifest.json`) enables "Add to Home Screen" on mobile
+- Offline fallback HTML page (`client/public/offline.html`) shown when navigating offline without cache
+- Service worker registered in `client/src/main.tsx` on app load
+- Auto-sync initialized on app start with online/offline event listeners
+
 ### Feb 13, 2026 - User Roles System
 - Added `roles` table with name (unique), createdAt fields
 - Added `roleId` FK and `customRole` text fields to users table
