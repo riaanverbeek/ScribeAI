@@ -8,6 +8,8 @@ import { deleteOfflineRecording } from "@/lib/offlineDb";
 import { StatusBadge } from "@/components/StatusBadge";
 import { format } from "date-fns";
 import { Plus, ChevronRight, MoreVertical, Trash2, Calendar, Clock, Mic, Users, X, WifiOff, RefreshCw, Loader2, CloudUpload } from "lucide-react";
+import { useViewMode } from "@/hooks/use-view-mode";
+import { ViewToggle } from "@/components/ViewToggle";
 import { motion } from "framer-motion";
 import {
   DropdownMenu,
@@ -36,6 +38,7 @@ export default function Dashboard() {
   const { toast } = useToast();
   const [syncingId, setSyncingId] = useState<string | null>(null);
   const [syncingAll, setSyncingAll] = useState(false);
+  const [viewMode, setViewMode] = useViewMode("dashboard-view");
 
   const handleSyncAll = async () => {
     setSyncingAll(true);
@@ -173,6 +176,9 @@ export default function Dashboard() {
             Showing meetings for: {selectedClient.name}
           </Badge>
         )}
+        <div className="ml-auto">
+          <ViewToggle mode={viewMode} onChange={setViewMode} />
+        </div>
       </div>
 
       {pendingRecordings.length > 0 && (
@@ -280,75 +286,143 @@ export default function Dashboard() {
       )}
 
       {filteredMeetings && filteredMeetings.length > 0 ? (
-        <motion.div 
-          variants={container}
-          initial="hidden"
-          animate="show"
-          className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 sm:gap-6"
-        >
-          {filteredMeetings.map((meeting) => {
-            const clientName = getClientName(meeting.clientId);
-            return (
-              <motion.div 
-                key={meeting.id} 
-                variants={item}
-                className="group relative bg-white dark:bg-card rounded-2xl border border-slate-200 dark:border-border p-5 sm:p-6 hover:shadow-xl hover:border-primary/20 transition-all duration-300"
-                data-testid={`card-meeting-${meeting.id}`}
-              >
-                <div className="flex justify-between items-start mb-4 gap-2">
-                  <div className="flex items-center gap-2 flex-wrap">
-                    <StatusBadge status={meeting.status as any} />
-                    {clientName && (
-                      <Badge variant="outline" className="rounded-lg text-xs">
-                        {clientName}
-                      </Badge>
-                    )}
+        viewMode === "tile" ? (
+          <motion.div 
+            variants={container}
+            initial="hidden"
+            animate="show"
+            className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 sm:gap-6"
+          >
+            {filteredMeetings.map((meeting) => {
+              const clientName = getClientName(meeting.clientId);
+              return (
+                <motion.div 
+                  key={meeting.id} 
+                  variants={item}
+                  className="group relative bg-white dark:bg-card rounded-2xl border border-slate-200 dark:border-border p-5 sm:p-6 hover-elevate transition-all duration-300"
+                  data-testid={`card-meeting-${meeting.id}`}
+                >
+                  <div className="flex justify-between items-start mb-4 gap-2">
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <StatusBadge status={meeting.status as any} />
+                      {clientName && (
+                        <Badge variant="outline" className="rounded-lg text-xs">
+                          {clientName}
+                        </Badge>
+                      )}
+                    </div>
+                    <DropdownMenu>
+                      <DropdownMenuTrigger asChild>
+                        <Button variant="ghost" size="icon" className="-mr-2 -mt-2 text-slate-400">
+                          <MoreVertical className="w-4 h-4" />
+                        </Button>
+                      </DropdownMenuTrigger>
+                      <DropdownMenuContent align="end" className="w-48 rounded-xl p-1">
+                        <DropdownMenuItem 
+                          className="text-red-600 focus:text-red-700 focus:bg-red-50 rounded-lg cursor-pointer"
+                          onClick={() => deleteMutation.mutate(meeting.id)}
+                        >
+                          <Trash2 className="mr-2 w-4 h-4" />
+                          Delete
+                        </DropdownMenuItem>
+                      </DropdownMenuContent>
+                    </DropdownMenu>
                   </div>
-                  <DropdownMenu>
-                    <DropdownMenuTrigger asChild>
-                      <Button variant="ghost" size="icon" className="-mr-2 -mt-2 text-slate-400">
-                        <MoreVertical className="w-4 h-4" />
-                      </Button>
-                    </DropdownMenuTrigger>
-                    <DropdownMenuContent align="end" className="w-48 rounded-xl p-1">
-                      <DropdownMenuItem 
-                        className="text-red-600 focus:text-red-700 focus:bg-red-50 rounded-lg cursor-pointer"
-                        onClick={() => deleteMutation.mutate(meeting.id)}
-                      >
-                        <Trash2 className="mr-2 w-4 h-4" />
-                        Delete
-                      </DropdownMenuItem>
-                    </DropdownMenuContent>
-                  </DropdownMenu>
-                </div>
 
-                <Link href={`/meeting/${meeting.id}`}>
-                  <div className="block cursor-pointer">
-                    <h3 className="text-xl font-bold text-slate-900 mb-2 group-hover:text-primary transition-colors">
-                      {meeting.title}
-                    </h3>
-                    
-                    <div className="flex flex-col gap-2 mt-4 text-sm text-slate-500">
-                      <div className="flex items-center gap-2">
-                        <Calendar className="w-4 h-4 text-slate-400" />
-                        {format(new Date(meeting.date), "MMM d, yyyy")}
+                  <Link href={`/meeting/${meeting.id}`}>
+                    <div className="block cursor-pointer">
+                      <h3 className="text-xl font-bold text-slate-900 mb-2 group-hover:text-primary transition-colors">
+                        {meeting.title}
+                      </h3>
+                      
+                      <div className="flex flex-col gap-2 mt-4 text-sm text-slate-500">
+                        <div className="flex items-center gap-2">
+                          <Calendar className="w-4 h-4 text-slate-400" />
+                          {format(new Date(meeting.date), "MMM d, yyyy")}
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <Clock className="w-4 h-4 text-slate-400" />
+                          {format(new Date(meeting.date), "h:mm a")}
+                        </div>
                       </div>
-                      <div className="flex items-center gap-2">
-                        <Clock className="w-4 h-4 text-slate-400" />
-                        {format(new Date(meeting.date), "h:mm a")}
+
+                      <div className="mt-6 flex items-center text-primary font-medium text-sm">
+                        View Details
+                        <ChevronRight className="w-4 h-4 ml-1 transition-transform group-hover:translate-x-1" />
                       </div>
                     </div>
-
-                    <div className="mt-6 flex items-center text-primary font-medium text-sm">
-                      View Details
-                      <ChevronRight className="w-4 h-4 ml-1 transition-transform group-hover:translate-x-1" />
-                    </div>
+                  </Link>
+                </motion.div>
+              );
+            })}
+          </motion.div>
+        ) : (
+          <motion.div
+            variants={container}
+            initial="hidden"
+            animate="show"
+            className="space-y-2"
+          >
+            {filteredMeetings.map((meeting) => {
+              const clientName = getClientName(meeting.clientId);
+              return (
+                <motion.div
+                  key={meeting.id}
+                  variants={item}
+                  className="group relative bg-white dark:bg-card rounded-xl border border-slate-200 dark:border-border hover-elevate transition-all duration-200"
+                  data-testid={`row-meeting-${meeting.id}`}
+                >
+                  <div className="flex items-center gap-4 p-4">
+                    <Link href={`/meeting/${meeting.id}`} className="flex-1 min-w-0" data-testid={`link-meeting-${meeting.id}`}>
+                      <div className="flex items-center gap-4 cursor-pointer">
+                        <div className="min-w-0 flex-1">
+                          <h3 className="font-semibold text-slate-900 dark:text-foreground truncate group-hover:text-primary transition-colors" data-testid={`text-meeting-title-${meeting.id}`}>
+                            {meeting.title}
+                          </h3>
+                          <div className="flex items-center gap-3 mt-1 text-sm text-slate-500 flex-wrap">
+                            <span className="flex items-center gap-1.5">
+                              <Calendar className="w-3.5 h-3.5 text-slate-400 shrink-0" />
+                              {format(new Date(meeting.date), "MMM d, yyyy")}
+                            </span>
+                            <span className="flex items-center gap-1.5">
+                              <Clock className="w-3.5 h-3.5 text-slate-400 shrink-0" />
+                              {format(new Date(meeting.date), "h:mm a")}
+                            </span>
+                          </div>
+                        </div>
+                        <div className="flex items-center gap-2 shrink-0 flex-wrap">
+                          <StatusBadge status={meeting.status as any} />
+                          {clientName && (
+                            <Badge variant="outline" className="rounded-lg text-xs">
+                              {clientName}
+                            </Badge>
+                          )}
+                        </div>
+                        <ChevronRight className="w-4 h-4 text-slate-400 shrink-0 transition-transform group-hover:translate-x-1" />
+                      </div>
+                    </Link>
+                    <DropdownMenu>
+                      <DropdownMenuTrigger asChild>
+                        <Button variant="ghost" size="icon" className="text-slate-400 shrink-0">
+                          <MoreVertical className="w-4 h-4" />
+                        </Button>
+                      </DropdownMenuTrigger>
+                      <DropdownMenuContent align="end" className="w-48 rounded-xl p-1">
+                        <DropdownMenuItem
+                          className="text-red-600 focus:text-red-700 focus:bg-red-50 rounded-lg cursor-pointer"
+                          onClick={() => deleteMutation.mutate(meeting.id)}
+                        >
+                          <Trash2 className="mr-2 w-4 h-4" />
+                          Delete
+                        </DropdownMenuItem>
+                      </DropdownMenuContent>
+                    </DropdownMenu>
                   </div>
-                </Link>
-              </motion.div>
-            );
-          })}
-        </motion.div>
+                </motion.div>
+              );
+            })}
+          </motion.div>
+        )
       ) : (
         <div className="flex flex-col items-center justify-center py-20 bg-slate-50 rounded-3xl border-2 border-dashed border-slate-200">
           <div className="w-16 h-16 bg-white rounded-full flex items-center justify-center shadow-sm mb-4">
