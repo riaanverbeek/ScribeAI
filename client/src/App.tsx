@@ -22,6 +22,7 @@ import ForgotPassword from "@/pages/ForgotPassword";
 import ResetPassword from "@/pages/ResetPassword";
 import SuperuserAdmin from "@/pages/SuperuserAdmin";
 import Settings from "@/pages/Settings";
+import QuickRecord from "@/pages/QuickRecord";
 
 function ProtectedRoute({ children }: { children: React.ReactNode }) {
   const { isAuthenticated, isLoading } = useAuth();
@@ -111,6 +112,11 @@ function Router() {
       <Route path="/new">
         <ProtectedRoute>
           <Layout><NewMeeting /></Layout>
+        </ProtectedRoute>
+      </Route>
+      <Route path="/quick-record">
+        <ProtectedRoute>
+          <Layout><QuickRecord /></Layout>
         </ProtectedRoute>
       </Route>
       <Route path="/clients">

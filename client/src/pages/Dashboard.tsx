@@ -7,7 +7,7 @@ import { retrySingle, syncAllPending } from "@/lib/offlineSync";
 import { deleteOfflineRecording } from "@/lib/offlineDb";
 import { StatusBadge } from "@/components/StatusBadge";
 import { format } from "date-fns";
-import { Plus, ChevronRight, MoreVertical, Trash2, Calendar, Clock, Mic, Users, X, WifiOff, RefreshCw, Loader2, CloudUpload } from "lucide-react";
+import { Plus, ChevronRight, MoreVertical, Trash2, Calendar, Clock, Mic, Users, X, WifiOff, RefreshCw, Loader2, CloudUpload, Phone } from "lucide-react";
 import { useViewMode } from "@/hooks/use-view-mode";
 import { ViewToggle } from "@/components/ViewToggle";
 import { motion } from "framer-motion";
@@ -131,16 +131,29 @@ export default function Dashboard() {
           <h1 className="text-2xl sm:text-3xl font-display font-bold text-slate-900 dark:text-foreground" data-testid="text-dashboard-heading">Your Meetings</h1>
           <p className="text-slate-500 mt-1 font-body text-sm sm:text-base">Manage recordings and view AI insights.</p>
         </div>
-        <Link href="/new">
-          <Button 
-            size="lg"
-            className="rounded-xl w-full sm:w-auto"
-            data-testid="button-new-meeting"
-          >
-            <Plus className="mr-2 w-5 h-5" />
-            New Meeting
-          </Button>
-        </Link>
+        <div className="flex gap-3 w-full sm:w-auto">
+          <Link href="/quick-record" className="flex-1 sm:flex-none">
+            <Button 
+              size="lg"
+              variant="outline"
+              className="rounded-xl w-full"
+              data-testid="button-quick-record"
+            >
+              <Phone className="mr-2 w-5 h-5" />
+              Quick Record
+            </Button>
+          </Link>
+          <Link href="/new" className="flex-1 sm:flex-none">
+            <Button 
+              size="lg"
+              className="rounded-xl w-full"
+              data-testid="button-new-meeting"
+            >
+              <Plus className="mr-2 w-5 h-5" />
+              New Meeting
+            </Button>
+          </Link>
+        </div>
       </div>
 
       <div className="flex items-center gap-3 flex-wrap">

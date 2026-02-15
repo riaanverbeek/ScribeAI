@@ -12,6 +12,22 @@ Preferred communication style: Simple, everyday language.
 
 ## Recent Changes
 
+### Feb 15, 2026 - Quick Record Mode
+- New Quick Record page (`client/src/pages/QuickRecord.tsx`) at `/quick-record` for streamlined phone call recording
+- Three-phase UI: ready (large record button with instructions), recording (live waveform + timer), saving (title input + client selector)
+- Title auto-filled with "Phone Call - [date/time]" format on recording stop
+- Optional client assignment before saving
+- Full offline support: saves to IndexedDB when offline, auto-syncs when back online
+- Added Quick Record button to Dashboard header alongside New Meeting
+- Added Quick Record to navigation (Phone icon), available on mobile bottom bar
+- Route registered in App.tsx as protected route with Layout
+
+### Feb 15, 2026 - Tile/List View Toggle
+- Reusable `useViewMode` hook (`client/src/hooks/use-view-mode.ts`) with localStorage persistence per page
+- `ViewToggle` component (`client/src/components/ViewToggle.tsx`) with tile/list buttons
+- Dashboard, Clients, and ClientDetail pages support switching between tile (card grid) and compact list (row) views
+- View preference stored separately per page (dashboard-view, clients-view, client-detail-view)
+
 ### Feb 14, 2026 - Offline Recording & PWA Support
 - Added IndexedDB storage for offline audio recordings (`client/src/lib/offlineDb.ts`)
 - Offline sync manager auto-uploads pending recordings when back online (`client/src/lib/offlineSync.ts`)

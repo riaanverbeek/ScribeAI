@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { Link, useLocation } from "wouter";
-import { LayoutDashboard, PlusCircle, Users, Mic, CreditCard, LogOut, FileText, Menu, X, ShieldCheck, Settings } from "lucide-react";
+import { LayoutDashboard, PlusCircle, Users, Mic, CreditCard, LogOut, FileText, Menu, X, ShieldCheck, Settings, Phone } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useAuth, useLogout, useSubscriptionStatus } from "@/hooks/use-auth";
 import { Badge } from "@/components/ui/badge";
@@ -8,8 +8,9 @@ import { Button } from "@/components/ui/button";
 
 const navItems = [
   { label: "Dashboard", icon: LayoutDashboard, href: "/" },
-  { label: "Clients", icon: Users, href: "/clients", requiresSubscription: true },
   { label: "New Meeting", icon: PlusCircle, href: "/new" },
+  { label: "Quick Record", icon: Phone, href: "/quick-record" },
+  { label: "Clients", icon: Users, href: "/clients", requiresSubscription: true },
   { label: "Subscription", icon: CreditCard, href: "/subscription" },
   { label: "Settings", icon: Settings, href: "/settings" },
   { label: "Templates", icon: FileText, href: "/templates", adminOnly: true },
