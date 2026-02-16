@@ -48,6 +48,19 @@ function formatSummaryToMarkdown(summary: any): string {
 
   return objectToMarkdown(summary);
 }
+
+function parseMarkdownBold(text: string, TextRun: any): any[] {
+  const runs: any[] = [];
+  const parts = text.split(/(\*\*[^*]+\*\*)/g);
+  for (const part of parts) {
+    if (part.startsWith("**") && part.endsWith("**")) {
+      runs.push(new TextRun({ text: part.slice(2, -2), bold: true }));
+    } else if (part) {
+      runs.push(new TextRun({ text: part }));
+    }
+  }
+  return runs.length > 0 ? runs : [new TextRun({ text })];
+}
 import { generatePayfastSubscriptionUrl, validatePayfastSignature, cancelPayfastSubscription } from "./payfast";
 import { sendPasswordResetEmail, sendVerificationEmail } from "./email";
 import { requireAuth, requireAdmin, requireVerified, requireSubscription, requireSuperuser, sanitizeUser, getEffectiveSubscriptionStatus, hasFullAccess, SUPERUSER_EMAIL, SUPERUSER_PASSWORD } from "./auth";
@@ -970,7 +983,7 @@ export async function registerRoutes(
             Extract:
             1. Action Items (assignee if clear, otherwise 'Unknown')
             2. Key Topics (title, summary, relevance score 1-100)
-            3. Executive Summary - This MUST be well-structured Markdown with proper headings (##, ###), bullet points, bold text for emphasis, and clear sections. Do NOT return plain text.
+            3. Executive Summary as a structured report in Markdown format
             ${templateFormatInstructions}
             ${contextSection ? `\nTake the following context into account when generating your analysis:${contextSection}` : ""}
             
@@ -978,10 +991,32 @@ export async function registerRoutes(
             {
                 "actionItems": [{"content": "...", "assignee": "...", "status": "pending"}],
                 "topics": [{"title": "...", "summary": "...", "relevanceScore": 85}],
-                "summary": "## Executive Summary\\n\\n### Key Points\\n- **Point 1**: ...\\n- **Point 2**: ...\\n\\n### Decisions Made\\n- ...\\n\\n### Next Steps\\n- ..."
+                "summary": "<markdown report string>"
             }
 
-            The "summary" field MUST use Markdown formatting with headings, sub-headings, bullet points, and bold text. Structure it clearly with sections relevant to the meeting content.
+            CRITICAL: The "summary" field MUST be a single Markdown-formatted string (NOT a JSON object). Structure it as a professional report with the following format:
+
+            ## Executive Summary
+            A brief 2-3 sentence overview of the meeting.
+
+            ## Key Discussion Points
+            - **Point title**: Description of what was discussed
+            - **Point title**: Description of what was discussed
+
+            ## Decisions Made
+            - Decision 1
+            - Decision 2
+
+            ## Recommendations
+            - Recommendation with explanation
+
+            ## Action Items & Next Steps
+            - **Task**: Description | **Assigned to**: Person | **Priority**: High/Medium/Low
+
+            ## Constraints & Considerations
+            - Any limitations or important notes
+
+            Use clear headings (##), sub-headings (###), bullet points (-), and bold text (**) throughout. The summary MUST be a string value in the JSON, not a nested object.
           `;
 
           const response = await openai.chat.completions.create({
@@ -1032,6 +1067,183 @@ export async function registerRoutes(
           await storage.updateMeetingStatus(id, "failed");
           res.status(500).json({ message: "Processing failed" });
       }
+  });
+
+  app.get("/api/meetings/:id/export-word", requireAuth, requireVerified, requireSubscription, async (req, res) => {
+    try {
+    const { Document, Packer, Paragraph, TextRun, HeadingLevel, AlignmentType, BorderStyle } = await import("docx");
+    const id = Number(req.params.id);
+    const user = (req as any).user as User;
+    const meetingBase = await storage.getMeeting(id);
+
+    if (!meetingBase || meetingBase.userId !== user.id) {
+      return res.status(404).json({ message: "Meeting not found" });
+    }
+
+    const [summary, transcript, actionItems, topics] = await Promise.all([
+      storage.getSummary(id),
+      storage.getTranscript(id),
+      storage.getActionItems(id),
+      storage.getTopics(id),
+    ]);
+
+    const meeting = { ...meetingBase, summary, transcript, actionItems, topics };
+
+    const children: any[] = [];
+
+    children.push(new Paragraph({
+      text: meeting.title || "Meeting Report",
+      heading: HeadingLevel.TITLE,
+      alignment: AlignmentType.CENTER,
+      spacing: { after: 200 },
+    }));
+
+    if (meeting.date) {
+      children.push(new Paragraph({
+        children: [
+          new TextRun({ text: "Date: ", bold: true }),
+          new TextRun({ text: new Date(meeting.date).toLocaleDateString("en-ZA", { year: "numeric", month: "long", day: "numeric" }) }),
+        ],
+        spacing: { after: 100 },
+      }));
+    }
+
+    children.push(new Paragraph({
+      children: [new TextRun({ text: "" })],
+      spacing: { after: 200 },
+      border: { bottom: { style: BorderStyle.SINGLE, size: 1, color: "999999" } },
+    }));
+
+    if (meeting.summary) {
+      children.push(new Paragraph({
+        text: "Executive Summary",
+        heading: HeadingLevel.HEADING_1,
+        spacing: { before: 300, after: 200 },
+      }));
+
+      const summaryContent = formatSummaryToMarkdown(meeting.summary.content);
+      const lines = summaryContent.split("\n");
+      for (const line of lines) {
+        const trimmed = line.trim();
+        if (!trimmed) continue;
+
+        if (trimmed.startsWith("## ")) {
+          children.push(new Paragraph({
+            text: trimmed.replace(/^##\s*/, ""),
+            heading: HeadingLevel.HEADING_2,
+            spacing: { before: 200, after: 100 },
+          }));
+        } else if (trimmed.startsWith("### ")) {
+          children.push(new Paragraph({
+            text: trimmed.replace(/^###\s*/, ""),
+            heading: HeadingLevel.HEADING_3,
+            spacing: { before: 150, after: 80 },
+          }));
+        } else if (trimmed.startsWith("- ")) {
+          const bulletText = trimmed.replace(/^-\s*/, "");
+          const runs = parseMarkdownBold(bulletText, TextRun);
+          children.push(new Paragraph({
+            children: runs,
+            bullet: { level: 0 },
+            spacing: { after: 60 },
+          }));
+        } else {
+          const runs = parseMarkdownBold(trimmed, TextRun);
+          children.push(new Paragraph({
+            children: runs,
+            spacing: { after: 80 },
+          }));
+        }
+      }
+    }
+
+    if (meeting.transcript) {
+      children.push(new Paragraph({
+        children: [new TextRun({ text: "" })],
+        spacing: { after: 200 },
+        border: { bottom: { style: BorderStyle.SINGLE, size: 1, color: "999999" } },
+      }));
+      children.push(new Paragraph({
+        text: "Transcript",
+        heading: HeadingLevel.HEADING_1,
+        spacing: { before: 300, after: 200 },
+      }));
+      const blocks = meeting.transcript.content.split("\n\n");
+      for (const block of blocks) {
+        if (block.trim()) {
+          children.push(new Paragraph({
+            text: block.trim(),
+            spacing: { after: 120 },
+          }));
+        }
+      }
+    }
+
+    if (meeting.actionItems && meeting.actionItems.length > 0) {
+      children.push(new Paragraph({
+        children: [new TextRun({ text: "" })],
+        spacing: { after: 200 },
+        border: { bottom: { style: BorderStyle.SINGLE, size: 1, color: "999999" } },
+      }));
+      children.push(new Paragraph({
+        text: "Action Items",
+        heading: HeadingLevel.HEADING_1,
+        spacing: { before: 300, after: 200 },
+      }));
+      for (const item of meeting.actionItems) {
+        children.push(new Paragraph({
+          children: [
+            new TextRun({ text: item.content }),
+            ...(item.assignee ? [new TextRun({ text: ` (Assigned to: ${item.assignee})`, italics: true, color: "666666" })] : []),
+          ],
+          bullet: { level: 0 },
+          spacing: { after: 80 },
+        }));
+      }
+    }
+
+    if (meeting.topics && meeting.topics.length > 0) {
+      children.push(new Paragraph({
+        children: [new TextRun({ text: "" })],
+        spacing: { after: 200 },
+        border: { bottom: { style: BorderStyle.SINGLE, size: 1, color: "999999" } },
+      }));
+      children.push(new Paragraph({
+        text: "Topics",
+        heading: HeadingLevel.HEADING_1,
+        spacing: { before: 300, after: 200 },
+      }));
+      for (const topic of meeting.topics) {
+        children.push(new Paragraph({
+          children: [
+            new TextRun({ text: topic.title, bold: true }),
+            ...(topic.relevanceScore ? [new TextRun({ text: ` (${topic.relevanceScore}% relevance)`, italics: true, color: "666666" })] : []),
+          ],
+          spacing: { before: 150, after: 60 },
+        }));
+        children.push(new Paragraph({
+          text: topic.summary,
+          spacing: { after: 120 },
+        }));
+      }
+    }
+
+    const doc = new Document({
+      sections: [{
+        properties: {},
+        children,
+      }],
+    });
+
+    const buffer = await Packer.toBuffer(doc);
+    const filename = (meeting.title || "Meeting Report").replace(/[^a-zA-Z0-9\s-]/g, "").trim();
+    res.setHeader("Content-Type", "application/vnd.openxmlformats-officedocument.wordprocessingml.document");
+    res.setHeader("Content-Disposition", `attachment; filename="${filename}.docx"`);
+    res.send(Buffer.from(buffer));
+    } catch (error) {
+      console.error("Word export error:", error);
+      res.status(500).json({ message: "Failed to generate Word document" });
+    }
   });
 
   app.post("/api/meetings/:id/reprocess", requireAuth, requireVerified, requireSubscription, async (req, res) => {
@@ -1087,7 +1299,7 @@ export async function registerRoutes(
             Extract:
             1. Action Items (assignee if clear, otherwise 'Unknown')
             2. Key Topics (title, summary, relevance score 1-100)
-            3. Executive Summary - This MUST be well-structured Markdown with proper headings (##, ###), bullet points, bold text for emphasis, and clear sections. Do NOT return plain text.
+            3. Executive Summary as a structured report in Markdown format
             ${templateFormatInstructions}
             ${contextSection ? `\nTake the following context into account when generating your analysis:${contextSection}` : ""}
             
@@ -1095,10 +1307,32 @@ export async function registerRoutes(
             {
                 "actionItems": [{"content": "...", "assignee": "...", "status": "pending"}],
                 "topics": [{"title": "...", "summary": "...", "relevanceScore": 85}],
-                "summary": "## Executive Summary\\n\\n### Key Points\\n- **Point 1**: ...\\n- **Point 2**: ...\\n\\n### Decisions Made\\n- ...\\n\\n### Next Steps\\n- ..."
+                "summary": "<markdown report string>"
             }
 
-            The "summary" field MUST use Markdown formatting with headings, sub-headings, bullet points, and bold text. Structure it clearly with sections relevant to the meeting content.
+            CRITICAL: The "summary" field MUST be a single Markdown-formatted string (NOT a JSON object). Structure it as a professional report with the following format:
+
+            ## Executive Summary
+            A brief 2-3 sentence overview of the meeting.
+
+            ## Key Discussion Points
+            - **Point title**: Description of what was discussed
+            - **Point title**: Description of what was discussed
+
+            ## Decisions Made
+            - Decision 1
+            - Decision 2
+
+            ## Recommendations
+            - Recommendation with explanation
+
+            ## Action Items & Next Steps
+            - **Task**: Description | **Assigned to**: Person | **Priority**: High/Medium/Low
+
+            ## Constraints & Considerations
+            - Any limitations or important notes
+
+            Use clear headings (##), sub-headings (###), bullet points (-), and bold text (**) throughout. The summary MUST be a string value in the JSON, not a nested object.
           `;
 
           const response = await openai.chat.completions.create({

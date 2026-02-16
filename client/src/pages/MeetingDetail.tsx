@@ -5,7 +5,7 @@ import { useMeeting, useUpdateMeetingClient } from "@/hooks/use-meetings";
 import { useClients, useCreateClient } from "@/hooks/use-clients";
 import { useSubscriptionStatus } from "@/hooks/use-auth";
 import { useRoute, Link } from "wouter";
-import { ChevronLeft, Calendar, User, LayoutList, FileText, CheckSquare, Sparkles, Users, Plus, Loader2, X, Pencil, Lock, CreditCard, Paperclip, MessageSquareText, RefreshCw } from "lucide-react";
+import { ChevronLeft, Calendar, User, LayoutList, FileText, CheckSquare, Sparkles, Users, Plus, Loader2, X, Pencil, Lock, CreditCard, Paperclip, MessageSquareText, RefreshCw, Copy, Check, Download } from "lucide-react";
 import type { Template } from "@shared/schema";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -88,6 +88,34 @@ function jsonToMarkdown(obj: any, depth: number = 2): string {
   return md;
 }
 
+function CopyButton({ getText, label }: { getText: () => string; label: string }) {
+  const [copied, setCopied] = useState(false);
+  const { toast } = useToast();
+
+  const handleCopy = async () => {
+    try {
+      await navigator.clipboard.writeText(getText());
+      setCopied(true);
+      toast({ title: `${label} copied to clipboard` });
+      setTimeout(() => setCopied(false), 2000);
+    } catch {
+      toast({ title: "Failed to copy", variant: "destructive" });
+    }
+  };
+
+  return (
+    <Button
+      variant="outline"
+      size="sm"
+      onClick={handleCopy}
+      data-testid={`button-copy-${label.toLowerCase().replace(/\s/g, "-")}`}
+    >
+      {copied ? <Check className="w-4 h-4 mr-1.5" /> : <Copy className="w-4 h-4 mr-1.5" />}
+      {copied ? "Copied" : "Copy"}
+    </Button>
+  );
+}
+
 export default function MeetingDetail() {
   const [, params] = useRoute("/meeting/:id");
   const id = params ? parseInt(params.id) : null;
@@ -97,6 +125,7 @@ export default function MeetingDetail() {
   const createClientMutation = useCreateClient();
   const { toast } = useToast();
   const { hasFullAccess } = useSubscriptionStatus();
+  const [isExporting, setIsExporting] = useState(false);
 
   const queryClient = useQueryClient();
 
@@ -120,6 +149,53 @@ export default function MeetingDetail() {
   const [editTemplateId, setEditTemplateId] = useState<string>("");
   const [editContextText, setEditContextText] = useState("");
   const [editContextFile, setEditContextFile] = useState<File | null>(null);
+
+  const getSummaryText = () => {
+    if (!meeting?.summary?.content) return "";
+    return formatSummaryContent(meeting.summary.content);
+  };
+
+  const getTranscriptText = () => {
+    if (!meeting?.transcript?.content) return "";
+    return meeting.transcript.content;
+  };
+
+  const getActionItemsText = () => {
+    if (!meeting?.actionItems?.length) return "";
+    return meeting.actionItems
+      .map((item, i) => `${i + 1}. ${item.content}${item.assignee ? ` (Assigned to: ${item.assignee})` : ""}`)
+      .join("\n");
+  };
+
+  const getTopicsText = () => {
+    if (!meeting?.topics?.length) return "";
+    return meeting.topics
+      .map((topic) => `${topic.title}${topic.relevanceScore ? ` (${topic.relevanceScore}%)` : ""}\n${topic.summary}`)
+      .join("\n\n");
+  };
+
+  const handleExportWord = async () => {
+    if (!meeting || !id) return;
+    setIsExporting(true);
+    try {
+      const res = await fetch(`/api/meetings/${id}/export-word`, { credentials: "include" });
+      if (!res.ok) throw new Error("Export failed");
+      const blob = await res.blob();
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `${meeting.title || "Meeting Report"}.docx`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      window.URL.revokeObjectURL(url);
+      toast({ title: "Report exported successfully" });
+    } catch {
+      toast({ title: "Export failed", variant: "destructive" });
+    } finally {
+      setIsExporting(false);
+    }
+  };
 
   const reprocessMutation = useMutation({
     mutationFn: async (meetingId: number) => {
@@ -613,6 +689,19 @@ export default function MeetingDetail() {
                 <TabsContent value="summary" className="outline-none">
                   {meeting.summary ? (
                     <motion.div {...fadeIn} className="bg-card rounded-2xl border p-4 sm:p-6 md:p-8">
+                      <div className="flex justify-end gap-2 mb-4">
+                        <CopyButton getText={getSummaryText} label="Summary" />
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={handleExportWord}
+                          disabled={isExporting}
+                          data-testid="button-export-word"
+                        >
+                          {isExporting ? <Loader2 className="w-4 h-4 mr-1.5 animate-spin" /> : <Download className="w-4 h-4 mr-1.5" />}
+                          Export Word
+                        </Button>
+                      </div>
                       <div className="prose prose-sm sm:prose-base prose-slate dark:prose-invert max-w-none prose-headings:font-display" data-testid="text-summary-content">
                         <ReactMarkdown>{formatSummaryContent(meeting.summary.content)}</ReactMarkdown>
                       </div>
@@ -625,6 +714,9 @@ export default function MeetingDetail() {
                 <TabsContent value="transcript" className="outline-none">
                   {meeting.transcript ? (
                     <motion.div {...fadeIn} className="bg-card rounded-2xl border overflow-hidden">
+                      <div className="flex justify-end gap-2 p-4 sm:p-6 pb-0">
+                        <CopyButton getText={getTranscriptText} label="Transcript" />
+                      </div>
                       <div className="p-4 sm:p-6 space-y-4 sm:space-y-6">
                         {meeting.transcript.content.split('\n\n').map((block, idx) => (
                           <div key={idx} className="flex gap-3 sm:gap-4">
@@ -649,6 +741,9 @@ export default function MeetingDetail() {
                 <TabsContent value="actions" className="outline-none">
                   {meeting.actionItems && meeting.actionItems.length > 0 ? (
                     <div className="grid grid-cols-1 gap-4">
+                      <div className="flex justify-end">
+                        <CopyButton getText={getActionItemsText} label="Action Items" />
+                      </div>
                       {meeting.actionItems.map((item, idx) => (
                         <motion.div 
                           key={item.id} 
@@ -682,7 +777,11 @@ export default function MeetingDetail() {
 
                 <TabsContent value="topics" className="outline-none">
                   {meeting.topics && meeting.topics.length > 0 ? (
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                    <div className="space-y-4">
+                      <div className="flex justify-end">
+                        <CopyButton getText={getTopicsText} label="Topics" />
+                      </div>
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                       {meeting.topics.map((topic, idx) => (
                          <motion.div 
                            key={topic.id}
@@ -707,6 +806,7 @@ export default function MeetingDetail() {
                            </Card>
                          </motion.div>
                       ))}
+                      </div>
                     </div>
                   ) : (
                     <EmptyState type="topics" status={meeting.status} />
