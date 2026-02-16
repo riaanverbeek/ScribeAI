@@ -5,7 +5,7 @@ import { useMeeting, useUpdateMeetingClient } from "@/hooks/use-meetings";
 import { useClients, useCreateClient } from "@/hooks/use-clients";
 import { useSubscriptionStatus } from "@/hooks/use-auth";
 import { useRoute, Link } from "wouter";
-import { ChevronLeft, Calendar, User, LayoutList, FileText, CheckSquare, Sparkles, Users, Plus, Loader2, X, Pencil, Lock, CreditCard, Paperclip, MessageSquareText, RefreshCw, Copy, Check, Download } from "lucide-react";
+import { ChevronLeft, Calendar, User, LayoutList, FileText, CheckSquare, Sparkles, Users, Plus, Loader2, X, Pencil, Lock, CreditCard, Paperclip, MessageSquareText, RefreshCw, Copy, Check, Download, Mail } from "lucide-react";
 import type { Template } from "@shared/schema";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -227,6 +227,19 @@ export default function MeetingDetail() {
     },
     onError: (err: any) => {
       toast({ title: "Regeneration failed", description: err.message, variant: "destructive" });
+    },
+  });
+
+  const sendEmailMutation = useMutation({
+    mutationFn: async (meetingId: number) => {
+      const res = await apiRequest("POST", `/api/meetings/${meetingId}/send-email`);
+      return res.json();
+    },
+    onSuccess: () => {
+      toast({ title: "Email sent", description: "The meeting report has been sent to your email." });
+    },
+    onError: (err: any) => {
+      toast({ title: "Failed to send email", description: err.message, variant: "destructive" });
     },
   });
 
@@ -780,6 +793,16 @@ export default function MeetingDetail() {
                             </div>
                           </DialogContent>
                         </Dialog>
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          disabled={sendEmailMutation.isPending}
+                          onClick={() => id && sendEmailMutation.mutate(id)}
+                          data-testid="button-send-email"
+                        >
+                          {sendEmailMutation.isPending ? <Loader2 className="w-4 h-4 mr-1.5 animate-spin" /> : <Mail className="w-4 h-4 mr-1.5" />}
+                          Email Report
+                        </Button>
                       </div>
                       <div className="prose prose-sm sm:prose-base prose-slate dark:prose-invert max-w-none prose-headings:font-display" data-testid="text-summary-content">
                         <ReactMarkdown>{formatSummaryContent(meeting.summary.content)}</ReactMarkdown>

@@ -1269,6 +1269,37 @@ export async function registerRoutes(
     }
   });
 
+  app.post("/api/meetings/:id/send-email", requireAuth, requireVerified, async (req, res) => {
+    const id = Number(req.params.id);
+    const user = (req as any).user as User;
+    const meeting = await storage.getMeeting(id);
+    if (!meeting || meeting.userId !== user.id) {
+      return res.status(404).json({ message: "Meeting not found" });
+    }
+    if (meeting.status !== "completed") {
+      return res.status(400).json({ message: "Meeting has not been processed yet" });
+    }
+    const meetingOwner = await storage.getUserById(user.id);
+    if (!meetingOwner) {
+      return res.status(404).json({ message: "User not found" });
+    }
+    const actionItems = await storage.getActionItems(id);
+    try {
+      await sendMeetingCompletedEmail(
+        meetingOwner.email,
+        meetingOwner.firstName || meetingOwner.email,
+        meeting.title || "Untitled Meeting",
+        meeting.date,
+        id,
+        actionItems.map(a => ({ content: a.content, assignee: a.assignee }))
+      );
+      res.json({ message: "Email sent successfully" });
+    } catch (err) {
+      console.error("[email] Manual send failed:", err);
+      res.status(500).json({ message: "Failed to send email" });
+    }
+  });
+
   app.post("/api/meetings/:id/reprocess", requireAuth, requireVerified, requireSubscription, async (req, res) => {
       const id = Number(req.params.id);
       const user = (req as any).user as User;
