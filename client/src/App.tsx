@@ -23,9 +23,11 @@ import ResetPassword from "@/pages/ResetPassword";
 import SuperuserAdmin from "@/pages/SuperuserAdmin";
 import Settings from "@/pages/Settings";
 import QuickRecord from "@/pages/QuickRecord";
+import VerifyEmail from "@/pages/VerifyEmail";
+import VerifyEmailPending from "@/pages/VerifyEmailPending";
 
 function ProtectedRoute({ children }: { children: React.ReactNode }) {
-  const { isAuthenticated, isLoading } = useAuth();
+  const { user, isAuthenticated, isLoading } = useAuth();
 
   if (isLoading) {
     return (
@@ -37,6 +39,10 @@ function ProtectedRoute({ children }: { children: React.ReactNode }) {
 
   if (!isAuthenticated) {
     return <Redirect to="/login" />;
+  }
+
+  if (user && !user.isVerified) {
+    return <VerifyEmailPending />;
   }
 
   return <>{children}</>;
@@ -97,6 +103,7 @@ function Router() {
       <Route path="/reset-password">
         <PublicOnlyRoute><ResetPassword /></PublicOnlyRoute>
       </Route>
+      <Route path="/verify-email" component={VerifyEmail} />
       <Route path="/subscription/success">
         <ProtectedRoute><SubscriptionSuccess /></ProtectedRoute>
       </Route>

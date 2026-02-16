@@ -7,6 +7,8 @@ import { Label } from "@/components/ui/label";
 import { useToast } from "@/hooks/use-toast";
 import { Lock, ArrowLeft, CheckCircle2, AlertCircle } from "lucide-react";
 import { apiRequest } from "@/lib/queryClient";
+import PasswordRequirements from "@/components/PasswordRequirements";
+import { validatePassword } from "@shared/passwordValidation";
 
 export default function ResetPassword() {
   const searchString = useSearch();
@@ -49,13 +51,14 @@ export default function ResetPassword() {
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
 
-    if (password !== confirmPassword) {
-      toast({ title: "Passwords don't match", description: "Please make sure both passwords are the same.", variant: "destructive" });
+    const { valid, errors } = validatePassword(password);
+    if (!valid) {
+      toast({ title: "Password does not meet requirements", description: errors[0], variant: "destructive" });
       return;
     }
 
-    if (password.length < 6) {
-      toast({ title: "Password too short", description: "Password must be at least 6 characters.", variant: "destructive" });
+    if (password !== confirmPassword) {
+      toast({ title: "Passwords don't match", description: "Please make sure both passwords are the same.", variant: "destructive" });
       return;
     }
 
@@ -115,7 +118,7 @@ export default function ResetPassword() {
         <Card>
           <CardHeader>
             <CardTitle>Choose a new password</CardTitle>
-            <CardDescription>Enter your new password below. Must be at least 6 characters.</CardDescription>
+            <CardDescription>Enter a strong password that meets all the requirements below.</CardDescription>
           </CardHeader>
           <form onSubmit={handleSubmit}>
             <CardContent className="space-y-4">
@@ -126,15 +129,15 @@ export default function ResetPassword() {
                   <Input
                     id="password"
                     type="password"
-                    placeholder="New password"
+                    placeholder="Create a strong password"
                     value={password}
                     onChange={e => setPassword(e.target.value)}
                     className="pl-10"
                     required
-                    minLength={6}
                     data-testid="input-new-password"
                   />
                 </div>
+                <PasswordRequirements password={password} />
               </div>
               <div className="space-y-2">
                 <Label htmlFor="confirm-password">Confirm Password</Label>
@@ -148,7 +151,6 @@ export default function ResetPassword() {
                     onChange={e => setConfirmPassword(e.target.value)}
                     className="pl-10"
                     required
-                    minLength={6}
                     data-testid="input-confirm-password"
                   />
                 </div>

@@ -14,6 +14,7 @@ export interface IStorage {
     getUserByResetToken(token: string): Promise<User | undefined>;
     createUser(user: InsertUser): Promise<User>;
     verifyUser(id: number): Promise<User>;
+    setVerificationToken(id: number, token: string, expiry: Date): Promise<void>;
     setResetToken(id: number, token: string, expiry: Date): Promise<void>;
     updatePassword(id: number, passwordHash: string): Promise<void>;
     clearResetToken(id: number): Promise<void>;
@@ -122,6 +123,10 @@ export class DatabaseStorage implements IStorage {
     async getUserByResetToken(token: string): Promise<User | undefined> {
         const [user] = await db.select().from(users).where(eq(users.resetToken, token));
         return user;
+    }
+
+    async setVerificationToken(id: number, token: string, expiry: Date): Promise<void> {
+        await db.update(users).set({ verificationToken: token, verificationTokenExpiry: expiry }).where(eq(users.id, id));
     }
 
     async setResetToken(id: number, token: string, expiry: Date): Promise<void> {

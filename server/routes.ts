@@ -14,8 +14,9 @@ import fs from "fs";
 import path from "path";
 import crypto from "crypto";
 import { generatePayfastSubscriptionUrl, validatePayfastSignature, cancelPayfastSubscription } from "./payfast";
-import { sendPasswordResetEmail } from "./email";
-import { requireAuth, requireAdmin, requireSubscription, requireSuperuser, sanitizeUser, getEffectiveSubscriptionStatus, hasFullAccess, SUPERUSER_EMAIL, SUPERUSER_PASSWORD } from "./auth";
+import { sendPasswordResetEmail, sendVerificationEmail } from "./email";
+import { requireAuth, requireAdmin, requireVerified, requireSubscription, requireSuperuser, sanitizeUser, getEffectiveSubscriptionStatus, hasFullAccess, SUPERUSER_EMAIL, SUPERUSER_PASSWORD } from "./auth";
+import { passwordSchema } from "@shared/passwordValidation";
 import type { User } from "@shared/schema";
 
 const upload = multer({ dest: "uploads/" });
@@ -61,12 +62,13 @@ export async function registerRoutes(
 
   app.post("/api/auth/register", async (req, res) => {
     try {
-      const { email, password, firstName, lastName } = z.object({
+      const { email, firstName, lastName } = z.object({
         email: z.string().email(),
-        password: z.string().min(6),
         firstName: z.string().min(1),
         lastName: z.string().min(1),
       }).parse(req.body);
+
+      const password = passwordSchema.parse(req.body.password);
 
       const existing = await storage.getUserByEmail(email);
       if (existing) {
@@ -82,11 +84,18 @@ export async function registerRoutes(
         lastName,
       });
 
-      await storage.verifyUser(user.id);
+      const verificationToken = crypto.randomBytes(32).toString("hex");
+      const expiry = new Date(Date.now() + 24 * 60 * 60 * 1000);
+      await storage.setVerificationToken(user.id, verificationToken, expiry);
+
+      try {
+        await sendVerificationEmail(user.email, user.firstName, verificationToken);
+      } catch (emailErr) {
+        console.error("Failed to send verification email:", emailErr);
+      }
 
       req.session.userId = user.id;
-      const freshUser = await storage.getUserById(user.id);
-      res.status(201).json({ user: sanitizeUser(freshUser!) });
+      res.status(201).json({ user: sanitizeUser(user), message: "Account created. Please check your email to verify your account." });
     } catch (err) {
       if (err instanceof z.ZodError) {
         return res.status(400).json({ message: err.errors[0].message });
@@ -151,6 +160,63 @@ export async function registerRoutes(
     req.session.destroy(() => {
       res.json({ message: "Logged out" });
     });
+  });
+
+  app.get("/api/auth/verify", async (req, res) => {
+    try {
+      const token = req.query.token as string;
+      if (!token) {
+        return res.status(400).json({ message: "No verification token provided." });
+      }
+
+      const user = await storage.getUserByVerificationToken(token);
+      if (!user) {
+        return res.status(400).json({ message: "This verification link is invalid or has already been used." });
+      }
+
+      if (user.verificationTokenExpiry && new Date(user.verificationTokenExpiry) < new Date()) {
+        return res.status(400).json({ message: "This verification link has expired. Please request a new one." });
+      }
+
+      await storage.verifyUser(user.id);
+      res.json({ message: "Your email has been verified! You can now sign in to your account." });
+    } catch (err) {
+      console.error("Verification error:", err);
+      res.status(500).json({ message: "Verification failed. Please try again." });
+    }
+  });
+
+  app.post("/api/auth/resend-verification", async (req, res) => {
+    try {
+      if (!req.session.userId) {
+        return res.status(401).json({ message: "Not authenticated" });
+      }
+
+      const user = await storage.getUserById(req.session.userId);
+      if (!user) {
+        return res.status(401).json({ message: "User not found" });
+      }
+
+      if (user.isVerified) {
+        return res.json({ message: "Your email is already verified." });
+      }
+
+      const verificationToken = crypto.randomBytes(32).toString("hex");
+      const expiry = new Date(Date.now() + 24 * 60 * 60 * 1000);
+      await storage.setVerificationToken(user.id, verificationToken, expiry);
+
+      try {
+        await sendVerificationEmail(user.email, user.firstName, verificationToken);
+      } catch (emailErr) {
+        console.error("Failed to resend verification email:", emailErr);
+        return res.status(500).json({ message: "Failed to send verification email. Please try again later." });
+      }
+
+      res.json({ message: "Verification email sent. Please check your inbox." });
+    } catch (err) {
+      console.error("Resend verification error:", err);
+      res.status(500).json({ message: "Something went wrong" });
+    }
   });
 
   app.get("/api/auth/me", async (req, res) => {
@@ -219,10 +285,11 @@ export async function registerRoutes(
 
   app.post("/api/auth/reset-password", async (req, res) => {
     try {
-      const { token, password } = z.object({
+      const { token } = z.object({
         token: z.string().min(1),
-        password: z.string().min(6, "Password must be at least 6 characters"),
       }).parse(req.body);
+
+      const password = passwordSchema.parse(req.body.password);
 
       const user = await storage.getUserByResetToken(token);
       if (!user || !user.resetTokenExpiry || new Date(user.resetTokenExpiry) < new Date()) {
@@ -244,7 +311,7 @@ export async function registerRoutes(
 
   // ========== PAYFAST ROUTES ==========
 
-  app.post("/api/payfast/checkout", requireAuth, async (req, res) => {
+  app.post("/api/payfast/checkout", requireAuth, requireVerified, async (req, res) => {
     const user = (req as any).user as User;
     const url = generatePayfastSubscriptionUrl({
       email: user.email,
@@ -307,7 +374,7 @@ export async function registerRoutes(
     }
   });
 
-  app.post("/api/payfast/cancel", requireAuth, async (req, res) => {
+  app.post("/api/payfast/cancel", requireAuth, requireVerified, async (req, res) => {
     const user = (req as any).user as User;
     if (!user.payfastToken) {
       return res.status(400).json({ message: "No active subscription to cancel" });
@@ -343,7 +410,7 @@ export async function registerRoutes(
 
   // ========== SUPERUSER ROUTES ==========
 
-  app.get("/api/superuser/users", requireAuth, requireSuperuser, async (req, res) => {
+  app.get("/api/superuser/users", requireAuth, requireVerified, requireSuperuser, async (req, res) => {
     const allUsers = await storage.getAllUsers();
     const safeUsers = allUsers.map(u => {
       const { passwordHash, resetToken, resetTokenExpiry, ...safe } = u;
@@ -352,7 +419,7 @@ export async function registerRoutes(
     res.json(safeUsers);
   });
 
-  app.patch("/api/superuser/users/:id", requireAuth, requireSuperuser, async (req, res) => {
+  app.patch("/api/superuser/users/:id", requireAuth, requireVerified, requireSuperuser, async (req, res) => {
     const id = Number(req.params.id);
     const target = await storage.getUserById(id);
     if (!target) return res.status(404).json({ message: "User not found" });
@@ -374,7 +441,7 @@ export async function registerRoutes(
     }
   });
 
-  app.delete("/api/superuser/users/:id", requireAuth, requireSuperuser, async (req, res) => {
+  app.delete("/api/superuser/users/:id", requireAuth, requireVerified, requireSuperuser, async (req, res) => {
     const id = Number(req.params.id);
     const currentUser = (req as any).user as User;
     if (id === currentUser.id) return res.status(400).json({ message: "Cannot delete your own account" });
@@ -384,12 +451,12 @@ export async function registerRoutes(
     res.status(204).send();
   });
 
-  app.get("/api/superuser/clients", requireAuth, requireSuperuser, async (req, res) => {
+  app.get("/api/superuser/clients", requireAuth, requireVerified, requireSuperuser, async (req, res) => {
     const allClients = await storage.getAllClients();
     res.json(allClients);
   });
 
-  app.patch("/api/superuser/clients/:id", requireAuth, requireSuperuser, async (req, res) => {
+  app.patch("/api/superuser/clients/:id", requireAuth, requireVerified, requireSuperuser, async (req, res) => {
     const id = Number(req.params.id);
     const client = await storage.getClient(id);
     if (!client) return res.status(404).json({ message: "Client not found" });
@@ -407,7 +474,7 @@ export async function registerRoutes(
     }
   });
 
-  app.delete("/api/superuser/clients/:id", requireAuth, requireSuperuser, async (req, res) => {
+  app.delete("/api/superuser/clients/:id", requireAuth, requireVerified, requireSuperuser, async (req, res) => {
     const id = Number(req.params.id);
     const client = await storage.getClient(id);
     if (!client) return res.status(404).json({ message: "Client not found" });
@@ -415,12 +482,12 @@ export async function registerRoutes(
     res.status(204).send();
   });
 
-  app.get("/api/superuser/meetings", requireAuth, requireSuperuser, async (req, res) => {
+  app.get("/api/superuser/meetings", requireAuth, requireVerified, requireSuperuser, async (req, res) => {
     const allMeetings = await storage.getAllMeetings();
     res.json(allMeetings);
   });
 
-  app.get("/api/superuser/meetings/:id", requireAuth, requireSuperuser, async (req, res) => {
+  app.get("/api/superuser/meetings/:id", requireAuth, requireVerified, requireSuperuser, async (req, res) => {
     const id = Number(req.params.id);
     const meeting = await storage.getMeeting(id);
     if (!meeting) return res.status(404).json({ message: "Meeting not found" });
@@ -431,7 +498,7 @@ export async function registerRoutes(
     res.json({ ...meeting, transcript, actionItems: actionItemsList, topics: topicsList, summary });
   });
 
-  app.delete("/api/superuser/meetings/:id", requireAuth, requireSuperuser, async (req, res) => {
+  app.delete("/api/superuser/meetings/:id", requireAuth, requireVerified, requireSuperuser, async (req, res) => {
     const id = Number(req.params.id);
     const meeting = await storage.getMeeting(id);
     if (!meeting) return res.status(404).json({ message: "Meeting not found" });
@@ -439,12 +506,12 @@ export async function registerRoutes(
     res.status(204).send();
   });
 
-  app.get("/api/superuser/templates", requireAuth, requireSuperuser, async (req, res) => {
+  app.get("/api/superuser/templates", requireAuth, requireVerified, requireSuperuser, async (req, res) => {
     const templateList = await storage.getTemplates();
     res.json(templateList);
   });
 
-  app.post("/api/superuser/templates", requireAuth, requireSuperuser, async (req, res) => {
+  app.post("/api/superuser/templates", requireAuth, requireVerified, requireSuperuser, async (req, res) => {
     try {
       const { name, description, formatPrompt, isDefault } = z.object({
         name: z.string().min(1),
@@ -463,7 +530,7 @@ export async function registerRoutes(
     }
   });
 
-  app.patch("/api/superuser/templates/:id", requireAuth, requireSuperuser, async (req, res) => {
+  app.patch("/api/superuser/templates/:id", requireAuth, requireVerified, requireSuperuser, async (req, res) => {
     const id = Number(req.params.id);
     const existing = await storage.getTemplate(id);
     if (!existing) return res.status(404).json({ message: "Template not found" });
@@ -482,7 +549,7 @@ export async function registerRoutes(
     }
   });
 
-  app.delete("/api/superuser/templates/:id", requireAuth, requireSuperuser, async (req, res) => {
+  app.delete("/api/superuser/templates/:id", requireAuth, requireVerified, requireSuperuser, async (req, res) => {
     const id = Number(req.params.id);
     const existing = await storage.getTemplate(id);
     if (!existing) return res.status(404).json({ message: "Template not found" });
@@ -492,12 +559,12 @@ export async function registerRoutes(
 
   // ========== SUPERUSER ROLES ROUTES ==========
 
-  app.get("/api/superuser/roles", requireAuth, requireSuperuser, async (req, res) => {
+  app.get("/api/superuser/roles", requireAuth, requireVerified, requireSuperuser, async (req, res) => {
     const roleList = await storage.getRoles();
     res.json(roleList);
   });
 
-  app.post("/api/superuser/roles", requireAuth, requireSuperuser, async (req, res) => {
+  app.post("/api/superuser/roles", requireAuth, requireVerified, requireSuperuser, async (req, res) => {
     try {
       const { name } = z.object({
         name: z.string().min(1, "Role name is required"),
@@ -511,7 +578,7 @@ export async function registerRoutes(
     }
   });
 
-  app.patch("/api/superuser/roles/:id", requireAuth, requireSuperuser, async (req, res) => {
+  app.patch("/api/superuser/roles/:id", requireAuth, requireVerified, requireSuperuser, async (req, res) => {
     const id = Number(req.params.id);
     const existing = await storage.getRole(id);
     if (!existing) return res.status(404).json({ message: "Role not found" });
@@ -528,7 +595,7 @@ export async function registerRoutes(
     }
   });
 
-  app.delete("/api/superuser/roles/:id", requireAuth, requireSuperuser, async (req, res) => {
+  app.delete("/api/superuser/roles/:id", requireAuth, requireVerified, requireSuperuser, async (req, res) => {
     const id = Number(req.params.id);
     const existing = await storage.getRole(id);
     if (!existing) return res.status(404).json({ message: "Role not found" });
@@ -538,14 +605,14 @@ export async function registerRoutes(
 
   // ========== ROLES (PUBLIC) ==========
 
-  app.get("/api/roles", requireAuth, async (req, res) => {
+  app.get("/api/roles", requireAuth, requireVerified, async (req, res) => {
     const roleList = await storage.getRoles();
     res.json(roleList);
   });
 
   // ========== USER ROLE UPDATE ==========
 
-  app.patch("/api/users/me/role", requireAuth, async (req, res) => {
+  app.patch("/api/users/me/role", requireAuth, requireVerified, async (req, res) => {
     try {
       const user = (req as any).user as User;
       const { roleId, customRole } = z.object({
@@ -562,12 +629,12 @@ export async function registerRoutes(
 
   // ========== TEMPLATE ROUTES ==========
 
-  app.get("/api/templates", requireAuth, async (req, res) => {
+  app.get("/api/templates", requireAuth, requireVerified, async (req, res) => {
     const templateList = await storage.getTemplates();
     res.json(templateList);
   });
 
-  app.get("/api/templates/:id", requireAuth, async (req, res) => {
+  app.get("/api/templates/:id", requireAuth, requireVerified, async (req, res) => {
     const id = Number(req.params.id);
     const template = await storage.getTemplate(id);
     if (!template) {
@@ -576,7 +643,7 @@ export async function registerRoutes(
     res.json(template);
   });
 
-  app.post("/api/templates", requireAuth, requireAdmin, async (req, res) => {
+  app.post("/api/templates", requireAuth, requireVerified, requireAdmin, async (req, res) => {
     try {
       const { name, description, formatPrompt, isDefault } = z.object({
         name: z.string().min(1, "Name is required"),
@@ -602,7 +669,7 @@ export async function registerRoutes(
     }
   });
 
-  app.patch("/api/templates/:id", requireAuth, requireAdmin, async (req, res) => {
+  app.patch("/api/templates/:id", requireAuth, requireVerified, requireAdmin, async (req, res) => {
     const id = Number(req.params.id);
     const existing = await storage.getTemplate(id);
     if (!existing) {
@@ -626,7 +693,7 @@ export async function registerRoutes(
     }
   });
 
-  app.delete("/api/templates/:id", requireAuth, requireAdmin, async (req, res) => {
+  app.delete("/api/templates/:id", requireAuth, requireVerified, requireAdmin, async (req, res) => {
     const id = Number(req.params.id);
     const existing = await storage.getTemplate(id);
     if (!existing) {
@@ -638,7 +705,7 @@ export async function registerRoutes(
 
   // ========== MEETING CONTEXT ROUTES ==========
 
-  app.patch("/api/meetings/:id/context", requireAuth, async (req, res) => {
+  app.patch("/api/meetings/:id/context", requireAuth, requireVerified, async (req, res) => {
     const id = Number(req.params.id);
     const user = (req as any).user as User;
     const meeting = await storage.getMeeting(id);
@@ -661,7 +728,7 @@ export async function registerRoutes(
     }
   });
 
-  app.post("/api/meetings/:id/context-file", requireAuth, upload.single('file'), async (req, res) => {
+  app.post("/api/meetings/:id/context-file", requireAuth, requireVerified, upload.single('file'), async (req, res) => {
     const id = Number(req.params.id);
     const user = (req as any).user as User;
     const meeting = await storage.getMeeting(id);
@@ -679,13 +746,13 @@ export async function registerRoutes(
 
   // ========== CLIENT ROUTES ==========
 
-  app.get(api.clients.list.path, requireAuth, requireSubscription, async (req, res) => {
+  app.get(api.clients.list.path, requireAuth, requireVerified, requireSubscription, async (req, res) => {
     const user = (req as any).user as User;
     const clientList = await storage.getClients(user.id);
     res.json(clientList);
   });
 
-  app.get(api.clients.get.path, requireAuth, requireSubscription, async (req, res) => {
+  app.get(api.clients.get.path, requireAuth, requireVerified, requireSubscription, async (req, res) => {
     const id = Number(req.params.id);
     const user = (req as any).user as User;
     const client = await storage.getClient(id);
@@ -696,7 +763,7 @@ export async function registerRoutes(
     res.json({ ...client, meetings: clientMeetings });
   });
 
-  app.post(api.clients.create.path, requireAuth, requireSubscription, async (req, res) => {
+  app.post(api.clients.create.path, requireAuth, requireVerified, requireSubscription, async (req, res) => {
     try {
       const user = (req as any).user as User;
       const input = api.clients.create.input.parse(req.body);
@@ -710,7 +777,7 @@ export async function registerRoutes(
     }
   });
 
-  app.delete(api.clients.delete.path, requireAuth, requireSubscription, async (req, res) => {
+  app.delete(api.clients.delete.path, requireAuth, requireVerified, requireSubscription, async (req, res) => {
     const id = Number(req.params.id);
     const user = (req as any).user as User;
     const client = await storage.getClient(id);
@@ -723,7 +790,7 @@ export async function registerRoutes(
 
   // ========== MEETING ROUTES ==========
 
-  app.get(api.meetings.list.path, requireAuth, async (req, res) => {
+  app.get(api.meetings.list.path, requireAuth, requireVerified, async (req, res) => {
     const user = (req as any).user as User;
     const clientId = req.query.clientId ? Number(req.query.clientId) : undefined;
     if (clientId) {
@@ -734,7 +801,7 @@ export async function registerRoutes(
     res.json(allMeetings);
   });
 
-  app.get(api.meetings.get.path, requireAuth, async (req, res) => {
+  app.get(api.meetings.get.path, requireAuth, requireVerified, async (req, res) => {
     const id = Number(req.params.id);
     const user = (req as any).user as User;
     const meeting = await storage.getMeeting(id);
@@ -758,7 +825,7 @@ export async function registerRoutes(
     });
   });
 
-  app.post(api.meetings.create.path, requireAuth, async (req, res) => {
+  app.post(api.meetings.create.path, requireAuth, requireVerified, async (req, res) => {
     try {
       const user = (req as any).user as User;
       const input = api.meetings.create.input.parse(req.body);
@@ -779,7 +846,7 @@ export async function registerRoutes(
     }
   });
 
-  app.post("/api/meetings/:id/audio", requireAuth, upload.single('audio'), async (req, res) => {
+  app.post("/api/meetings/:id/audio", requireAuth, requireVerified, upload.single('audio'), async (req, res) => {
       const id = Number(req.params.id);
       const user = (req as any).user as User;
       const existingMeeting = await storage.getMeeting(id);
@@ -808,7 +875,7 @@ export async function registerRoutes(
       res.json({ message: "Audio uploaded successfully" });
   });
 
-  app.post("/api/meetings/:id/process", requireAuth, requireSubscription, async (req, res) => {
+  app.post("/api/meetings/:id/process", requireAuth, requireVerified, requireSubscription, async (req, res) => {
       const id = Number(req.params.id);
       const user = (req as any).user as User;
       const meeting = await storage.getMeeting(id);
@@ -926,7 +993,7 @@ export async function registerRoutes(
       }
   });
 
-  app.post("/api/meetings/:id/reprocess", requireAuth, requireSubscription, async (req, res) => {
+  app.post("/api/meetings/:id/reprocess", requireAuth, requireVerified, requireSubscription, async (req, res) => {
       const id = Number(req.params.id);
       const user = (req as any).user as User;
       const meeting = await storage.getMeeting(id);
@@ -1039,7 +1106,7 @@ export async function registerRoutes(
       }
   });
 
-  app.patch(api.meetings.updateClient.path, requireAuth, requireSubscription, async (req, res) => {
+  app.patch(api.meetings.updateClient.path, requireAuth, requireVerified, requireSubscription, async (req, res) => {
     const id = Number(req.params.id);
     const user = (req as any).user as User;
     const meeting = await storage.getMeeting(id);
@@ -1064,7 +1131,7 @@ export async function registerRoutes(
     }
   });
 
-  app.delete(api.meetings.delete.path, requireAuth, async (req, res) => {
+  app.delete(api.meetings.delete.path, requireAuth, requireVerified, async (req, res) => {
     const id = Number(req.params.id);
     const user = (req as any).user as User;
     const meeting = await storage.getMeeting(id);

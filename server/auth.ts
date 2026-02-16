@@ -53,6 +53,14 @@ export async function requireAuth(req: Request, res: Response, next: NextFunctio
   next();
 }
 
+export async function requireVerified(req: Request, res: Response, next: NextFunction) {
+  const user = (req as any).user as User;
+  if (!user.isVerified) {
+    return res.status(403).json({ message: "Please verify your email address before accessing this feature", code: "EMAIL_NOT_VERIFIED" });
+  }
+  next();
+}
+
 export async function requireAdmin(req: Request, res: Response, next: NextFunction) {
   const user = (req as any).user as User;
   if (!user.isAdmin) {

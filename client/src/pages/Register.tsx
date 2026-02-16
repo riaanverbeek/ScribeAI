@@ -8,6 +8,8 @@ import { Label } from "@/components/ui/label";
 import { useToast } from "@/hooks/use-toast";
 import { UserPlus, Mail, Lock, User } from "lucide-react";
 import { queryClient } from "@/lib/queryClient";
+import PasswordRequirements from "@/components/PasswordRequirements";
+import { validatePassword } from "@shared/passwordValidation";
 
 export default function Register() {
   const [firstName, setFirstName] = useState("");
@@ -21,6 +23,13 @@ export default function Register() {
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
+
+    const { valid, errors } = validatePassword(password);
+    if (!valid) {
+      toast({ title: "Password does not meet requirements", description: errors[0], variant: "destructive" });
+      return;
+    }
+
     if (password !== confirmPassword) {
       toast({ title: "Passwords don't match", variant: "destructive" });
       return;
@@ -110,15 +119,15 @@ export default function Register() {
                   <Input
                     id="password"
                     type="password"
-                    placeholder="Min 6 characters"
+                    placeholder="Create a strong password"
                     value={password}
                     onChange={e => setPassword(e.target.value)}
                     className="pl-10"
                     required
-                    minLength={6}
                     data-testid="input-password"
                   />
                 </div>
+                <PasswordRequirements password={password} />
               </div>
               <div className="space-y-2">
                 <Label htmlFor="confirmPassword">Confirm password</Label>
@@ -132,7 +141,6 @@ export default function Register() {
                     onChange={e => setConfirmPassword(e.target.value)}
                     className="pl-10"
                     required
-                    minLength={6}
                     data-testid="input-confirm-password"
                   />
                 </div>

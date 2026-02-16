@@ -12,6 +12,20 @@ Preferred communication style: Simple, everyday language.
 
 ## Recent Changes
 
+### Feb 16, 2026 - Strict Password Requirements & Email Verification
+- Shared password validation utility (`shared/passwordValidation.ts`) with industry-standard requirements: 12+ chars, uppercase, lowercase, number, special character
+- `PasswordRequirements` component (`client/src/components/PasswordRequirements.tsx`) shows real-time validation checklist
+- Registration now requires email verification before account access (no more auto-verify)
+- Verification email sent from `noreply@email.fant-app.com` (Resend verified domain)
+- New routes: `GET /api/auth/verify` (token verification), `POST /api/auth/resend-verification`
+- `requireVerified` middleware in `server/auth.ts` for backend enforcement
+- `VerifyEmailPending` page (`client/src/pages/VerifyEmailPending.tsx`) shown to logged-in unverified users
+- `VerifyEmail` page (`client/src/pages/VerifyEmail.tsx`) handles token verification from email links
+- `ProtectedRoute` in App.tsx redirects unverified users to verification pending page
+- Password validation enforced on both Register and ResetPassword pages (frontend + backend)
+- `setVerificationToken` method added to storage interface and implementation
+- `APP_BASE_URL` environment variable (production) for correct email link URLs
+
 ### Feb 15, 2026 - Quick Record Mode
 - New Quick Record page (`client/src/pages/QuickRecord.tsx`) at `/quick-record` for streamlined phone call recording
 - Three-phase UI: ready (large record button with instructions), recording (live waveform + timer), saving (title input + client selector)
@@ -134,7 +148,11 @@ Preferred communication style: Simple, everyday language.
   - `conversations`/`messages` - Chat functionality for Replit integrations
 
 ### Auth & Subscription Flow
-- Registration creates user with auto-login and immediate 7-day trial (no email verification required)
+- Registration creates user with auto-login, sends verification email, user must verify before accessing app
+- Password requirements: 12+ characters, uppercase, lowercase, number, special character (shared validation in `shared/passwordValidation.ts`)
+- Email verification: token sent via Resend (from `noreply@email.fant-app.com`), 24hr expiry, resend available
+- Unverified users see VerifyEmailPending page; ProtectedRoute blocks access until verified
+- On verification, user gets 7-day free trial (subscriptionStatus: trialing)
 - Trial expiry check on login and /api/auth/me
 - PayFast subscription checkout redirects to PayFast payment page
 - ITN webhook receives payment status (COMPLETE/CANCELLED) and updates user
