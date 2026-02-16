@@ -36,6 +36,58 @@ import {
 import { useToast } from "@/hooks/use-toast";
 import { motion } from "framer-motion";
 
+function formatSummaryContent(content: string): string {
+  if (!content) return "";
+  const trimmed = content.trim();
+  if (trimmed.startsWith("{") || trimmed.startsWith("[")) {
+    try {
+      const parsed = JSON.parse(trimmed);
+      return jsonToMarkdown(parsed);
+    } catch {
+      return content;
+    }
+  }
+  return content;
+}
+
+function jsonToMarkdown(obj: any, depth: number = 2): string {
+  if (typeof obj === "string") return obj;
+  if (typeof obj !== "object" || obj === null) return String(obj);
+
+  let md = "";
+  const heading = "#".repeat(Math.min(depth, 4));
+
+  for (const [key, value] of Object.entries(obj)) {
+    const title = key
+      .replace(/([A-Z])/g, " $1")
+      .replace(/^./, (s) => s.toUpperCase())
+      .trim();
+
+    if (typeof value === "string") {
+      md += `${heading} ${title}\n\n${value}\n\n`;
+    } else if (Array.isArray(value)) {
+      md += `${heading} ${title}\n\n`;
+      for (const item of value) {
+        if (typeof item === "string") {
+          md += `- ${item}\n`;
+        } else if (typeof item === "object" && item !== null) {
+          const parts = Object.entries(item).map(
+            ([k, v]) => `**${k.replace(/([A-Z])/g, " $1").trim()}**: ${v}`
+          );
+          md += `- ${parts.join(" | ")}\n`;
+        }
+      }
+      md += "\n";
+    } else if (typeof value === "object" && value !== null) {
+      md += `${heading} ${title}\n\n`;
+      md += jsonToMarkdown(value, depth + 1);
+    } else {
+      md += `${heading} ${title}\n\n${String(value)}\n\n`;
+    }
+  }
+  return md;
+}
+
 export default function MeetingDetail() {
   const [, params] = useRoute("/meeting/:id");
   const id = params ? parseInt(params.id) : null;
@@ -562,7 +614,7 @@ export default function MeetingDetail() {
                   {meeting.summary ? (
                     <motion.div {...fadeIn} className="bg-card rounded-2xl border p-4 sm:p-6 md:p-8">
                       <div className="prose prose-sm sm:prose-base prose-slate dark:prose-invert max-w-none prose-headings:font-display" data-testid="text-summary-content">
-                        <ReactMarkdown>{meeting.summary.content}</ReactMarkdown>
+                        <ReactMarkdown>{formatSummaryContent(meeting.summary.content)}</ReactMarkdown>
                       </div>
                     </motion.div>
                   ) : (

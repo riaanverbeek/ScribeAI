@@ -13,6 +13,41 @@ import OpenAI from "openai";
 import fs from "fs";
 import path from "path";
 import crypto from "crypto";
+
+function formatSummaryToMarkdown(summary: any): string {
+  if (typeof summary === "string") return summary;
+  if (typeof summary !== "object" || summary === null) return String(summary);
+
+  function objectToMarkdown(obj: any, depth: number = 2): string {
+    let md = "";
+    const heading = "#".repeat(Math.min(depth, 4));
+    for (const [key, value] of Object.entries(obj)) {
+      const title = key.replace(/([A-Z])/g, " $1").replace(/^./, (s: string) => s.toUpperCase()).trim();
+      if (typeof value === "string") {
+        md += `${heading} ${title}\n\n${value}\n\n`;
+      } else if (Array.isArray(value)) {
+        md += `${heading} ${title}\n\n`;
+        for (const item of value) {
+          if (typeof item === "string") {
+            md += `- ${item}\n`;
+          } else if (typeof item === "object" && item !== null) {
+            const parts = Object.entries(item).map(([k, v]) => `**${k.replace(/([A-Z])/g, " $1").trim()}**: ${v}`);
+            md += `- ${parts.join(" | ")}\n`;
+          }
+        }
+        md += "\n";
+      } else if (typeof value === "object" && value !== null) {
+        md += `${heading} ${title}\n\n`;
+        md += objectToMarkdown(value, depth + 1);
+      } else {
+        md += `${heading} ${title}\n\n${String(value)}\n\n`;
+      }
+    }
+    return md;
+  }
+
+  return objectToMarkdown(summary);
+}
 import { generatePayfastSubscriptionUrl, validatePayfastSignature, cancelPayfastSubscription } from "./payfast";
 import { sendPasswordResetEmail, sendVerificationEmail } from "./email";
 import { requireAuth, requireAdmin, requireVerified, requireSubscription, requireSuperuser, sanitizeUser, getEffectiveSubscriptionStatus, hasFullAccess, SUPERUSER_EMAIL, SUPERUSER_PASSWORD } from "./auth";
@@ -985,7 +1020,7 @@ export async function registerRoutes(
           if (analysis.summary) {
               await storage.createSummary({
                   meetingId: id,
-                  content: analysis.summary
+                  content: formatSummaryToMarkdown(analysis.summary)
               });
           }
 
@@ -1102,7 +1137,7 @@ export async function registerRoutes(
           if (analysis.summary) {
               await storage.createSummary({
                   meetingId: id,
-                  content: analysis.summary
+                  content: formatSummaryToMarkdown(analysis.summary)
               });
           }
 
