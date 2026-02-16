@@ -43,7 +43,7 @@ export async function sendVerificationEmail(toEmail: string, firstName: string, 
 
   const baseUrl = getBaseUrl();
   const verificationUrl = `${baseUrl}/verify-email?token=${verificationToken}`;
-  const sender = fromEmail || 'ScribeAI <noreply@resend.dev>';
+  const sender = 'ScribeAI <noreply@email.fant-app.com>';
 
   console.log(`[email] Sending verification email to=${toEmail}, from=${sender}, baseUrl=${baseUrl}`);
 
@@ -78,7 +78,7 @@ export async function sendPasswordResetEmail(toEmail: string, firstName: string,
 
   const baseUrl = getBaseUrl();
   const resetUrl = `${baseUrl}/reset-password?token=${resetToken}`;
-  const sender = fromEmail || 'ScribeAI <noreply@resend.dev>';
+  const sender = 'ScribeAI <noreply@email.fant-app.com>';
 
   console.log(`[email] Sending password reset email to=${toEmail}, from=${sender}, baseUrl=${baseUrl}`);
 
