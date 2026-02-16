@@ -35,6 +35,10 @@ export async function registerRoutes(
 
   await seedDatabase();
 
+  if (process.env.NODE_ENV === "production") {
+    app.set("trust proxy", 1);
+  }
+
   const PgSession = connectPgSimple(session);
   const sessionSecret = process.env.SESSION_SECRET;
   if (!sessionSecret) {

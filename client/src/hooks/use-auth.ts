@@ -30,9 +30,6 @@ export function useLogin() {
       const res = await apiRequest("POST", "/api/auth/login", data);
       return res.json();
     },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["/api/auth/me"] });
-    },
   });
 }
 
