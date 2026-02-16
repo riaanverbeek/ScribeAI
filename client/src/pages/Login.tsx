@@ -82,6 +82,9 @@ export default function Login() {
                     data-testid="input-password"
                   />
                 </div>
+                <p className="text-xs text-muted-foreground" data-testid="text-password-hint">
+                  Must be 12+ characters with uppercase, lowercase, number, and special character.
+                </p>
               </div>
             </CardContent>
             <CardFooter className="flex flex-col gap-3">
