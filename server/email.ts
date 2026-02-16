@@ -108,6 +108,89 @@ export async function sendPasswordResetEmail(toEmail: string, firstName: string,
   console.log(`[email] Password reset email result:`, JSON.stringify(result));
 }
 
+export async function sendMeetingCompletedEmail(
+  toEmail: string,
+  firstName: string,
+  meetingTitle: string,
+  meetingDate: string | Date | null,
+  meetingId: number,
+  actionItems: { content: string; assignee: string | null }[]
+) {
+  try {
+    const { client } = await getUncachableResendClient();
+    const baseUrl = getBaseUrl();
+    const meetingUrl = `${baseUrl}/meeting/${meetingId}`;
+    const sender = 'ScribeAI <noreply@email.fant-app.com>';
+
+    const dateStr = meetingDate
+      ? new Date(meetingDate).toLocaleDateString("en-ZA", { year: "numeric", month: "long", day: "numeric" })
+      : "Not specified";
+
+    let actionItemsHtml = "";
+    if (actionItems.length > 0) {
+      const items = actionItems
+        .map(
+          (item, i) =>
+            `<tr>
+              <td style="padding: 10px 12px; border-bottom: 1px solid #eee; font-size: 14px; color: #333;">${i + 1}. ${item.content}</td>
+              <td style="padding: 10px 12px; border-bottom: 1px solid #eee; font-size: 14px; color: #666; white-space: nowrap;">${item.assignee || "Unassigned"}</td>
+            </tr>`
+        )
+        .join("");
+
+      actionItemsHtml = `
+        <h2 style="font-size: 18px; color: #1a1a1a; margin: 28px 0 12px;">Action Items</h2>
+        <table style="width: 100%; border-collapse: collapse; border: 1px solid #eee; border-radius: 8px;">
+          <thead>
+            <tr style="background: #f9f9f9;">
+              <th style="padding: 10px 12px; text-align: left; font-size: 13px; color: #666; border-bottom: 2px solid #eee;">Task</th>
+              <th style="padding: 10px 12px; text-align: left; font-size: 13px; color: #666; border-bottom: 2px solid #eee;">Assigned To</th>
+            </tr>
+          </thead>
+          <tbody>${items}</tbody>
+        </table>
+      `;
+    } else {
+      actionItemsHtml = `<p style="font-size: 14px; color: #888; margin-top: 20px;">No action items were identified for this meeting.</p>`;
+    }
+
+    const result = await client.emails.send({
+      from: sender,
+      to: toEmail,
+      subject: `Meeting Ready: ${meetingTitle}`,
+      html: `
+        <div style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; max-width: 600px; margin: 0 auto; padding: 40px 20px;">
+          <h1 style="font-size: 24px; color: #1a1a1a; margin-bottom: 8px;">Your meeting has been processed</h1>
+          <p style="font-size: 16px; color: #4a4a4a; line-height: 1.6; margin-bottom: 24px;">
+            Hi ${firstName}, your meeting analysis is ready to review.
+          </p>
+
+          <div style="background: #f9f9f9; border-radius: 8px; padding: 16px 20px; margin-bottom: 24px;">
+            <p style="margin: 0 0 8px; font-size: 14px;"><strong>Meeting:</strong> ${meetingTitle}</p>
+            <p style="margin: 0; font-size: 14px;"><strong>Date:</strong> ${dateStr}</p>
+          </div>
+
+          ${actionItemsHtml}
+
+          <div style="margin-top: 32px;">
+            <a href="${meetingUrl}" style="display: inline-block; background: #18181b; color: #ffffff; padding: 12px 32px; border-radius: 8px; text-decoration: none; font-size: 16px; font-weight: 600;">
+              View Full Report
+            </a>
+          </div>
+
+          <p style="font-size: 12px; color: #aaa; margin-top: 40px; border-top: 1px solid #eee; padding-top: 20px;">
+            ScribeAI - Meeting Transcription & Analysis
+          </p>
+        </div>
+      `,
+    });
+
+    console.log(`[email] Meeting completed email sent to=${toEmail}, result:`, JSON.stringify(result));
+  } catch (err) {
+    console.error("[email] Failed to send meeting completed email:", err);
+  }
+}
+
 function getBaseUrl(): string {
   if (process.env.APP_BASE_URL) {
     return process.env.APP_BASE_URL;

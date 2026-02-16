@@ -62,7 +62,7 @@ function parseMarkdownBold(text: string, TextRun: any): any[] {
   return runs.length > 0 ? runs : [new TextRun({ text })];
 }
 import { generatePayfastSubscriptionUrl, validatePayfastSignature, cancelPayfastSubscription } from "./payfast";
-import { sendPasswordResetEmail, sendVerificationEmail } from "./email";
+import { sendPasswordResetEmail, sendVerificationEmail, sendMeetingCompletedEmail } from "./email";
 import { requireAuth, requireAdmin, requireVerified, requireSubscription, requireSuperuser, sanitizeUser, getEffectiveSubscriptionStatus, hasFullAccess, SUPERUSER_EMAIL, SUPERUSER_PASSWORD } from "./auth";
 import { passwordSchema } from "@shared/passwordValidation";
 import type { User } from "@shared/schema";
@@ -1060,6 +1060,20 @@ export async function registerRoutes(
           }
 
           await storage.updateMeetingStatus(id, "completed");
+
+          const completedActionItems = await storage.getActionItems(id);
+          const meetingOwner = await storage.getUser(user.id);
+          if (meetingOwner) {
+            sendMeetingCompletedEmail(
+              meetingOwner.email,
+              meetingOwner.firstName || meetingOwner.email,
+              meeting.title || "Untitled Meeting",
+              meeting.date,
+              id,
+              completedActionItems.map(a => ({ content: a.content, assignee: a.assignee }))
+            ).catch(err => console.error("[email] Meeting completed email failed:", err));
+          }
+
           res.json({ message: "Processing completed", status: "completed" });
 
       } catch (error) {
@@ -1385,6 +1399,19 @@ export async function registerRoutes(
           }
 
           await storage.updateMeetingStatus(id, "completed");
+
+          const reprocessedActionItems = await storage.getActionItems(id);
+          const meetingOwner = await storage.getUser(user.id);
+          if (meetingOwner) {
+            sendMeetingCompletedEmail(
+              meetingOwner.email,
+              meetingOwner.firstName || meetingOwner.email,
+              meeting.title || "Untitled Meeting",
+              meeting.date,
+              id,
+              reprocessedActionItems.map(a => ({ content: a.content, assignee: a.assignee }))
+            ).catch(err => console.error("[email] Reprocess email failed:", err));
+          }
 
       } catch (error) {
           console.error("Reprocessing error:", error);
