@@ -935,7 +935,7 @@ export async function registerRoutes(
             Extract:
             1. Action Items (assignee if clear, otherwise 'Unknown')
             2. Key Topics (title, summary, relevance score 1-100)
-            3. Executive Summary (concise overview)
+            3. Executive Summary - This MUST be well-structured Markdown with proper headings (##, ###), bullet points, bold text for emphasis, and clear sections. Do NOT return plain text.
             ${templateFormatInstructions}
             ${contextSection ? `\nTake the following context into account when generating your analysis:${contextSection}` : ""}
             
@@ -943,8 +943,10 @@ export async function registerRoutes(
             {
                 "actionItems": [{"content": "...", "assignee": "...", "status": "pending"}],
                 "topics": [{"title": "...", "summary": "...", "relevanceScore": 85}],
-                "summary": "..."
+                "summary": "## Executive Summary\\n\\n### Key Points\\n- **Point 1**: ...\\n- **Point 2**: ...\\n\\n### Decisions Made\\n- ...\\n\\n### Next Steps\\n- ..."
             }
+
+            The "summary" field MUST use Markdown formatting with headings, sub-headings, bullet points, and bold text. Structure it clearly with sections relevant to the meeting content.
           `;
 
           const response = await openai.chat.completions.create({
@@ -1050,7 +1052,7 @@ export async function registerRoutes(
             Extract:
             1. Action Items (assignee if clear, otherwise 'Unknown')
             2. Key Topics (title, summary, relevance score 1-100)
-            3. Executive Summary (concise overview)
+            3. Executive Summary - This MUST be well-structured Markdown with proper headings (##, ###), bullet points, bold text for emphasis, and clear sections. Do NOT return plain text.
             ${templateFormatInstructions}
             ${contextSection ? `\nTake the following context into account when generating your analysis:${contextSection}` : ""}
             
@@ -1058,8 +1060,10 @@ export async function registerRoutes(
             {
                 "actionItems": [{"content": "...", "assignee": "...", "status": "pending"}],
                 "topics": [{"title": "...", "summary": "...", "relevanceScore": 85}],
-                "summary": "..."
+                "summary": "## Executive Summary\\n\\n### Key Points\\n- **Point 1**: ...\\n- **Point 2**: ...\\n\\n### Decisions Made\\n- ...\\n\\n### Next Steps\\n- ..."
             }
+
+            The "summary" field MUST use Markdown formatting with headings, sub-headings, bullet points, and bold text. Structure it clearly with sections relevant to the meeting content.
           `;
 
           const response = await openai.chat.completions.create({

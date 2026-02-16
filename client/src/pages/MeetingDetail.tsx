@@ -16,6 +16,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { format } from "date-fns";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { ScrollArea } from "@/components/ui/scroll-area";
+import ReactMarkdown from "react-markdown";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import {
@@ -560,8 +561,8 @@ export default function MeetingDetail() {
                 <TabsContent value="summary" className="outline-none">
                   {meeting.summary ? (
                     <motion.div {...fadeIn} className="bg-card rounded-2xl border p-4 sm:p-6 md:p-8">
-                      <div className="prose prose-sm sm:prose-base prose-slate dark:prose-invert max-w-none prose-headings:font-display">
-                        <div dangerouslySetInnerHTML={{ __html: meeting.summary.content }} />
+                      <div className="prose prose-sm sm:prose-base prose-slate dark:prose-invert max-w-none prose-headings:font-display" data-testid="text-summary-content">
+                        <ReactMarkdown>{meeting.summary.content}</ReactMarkdown>
                       </div>
                     </motion.div>
                   ) : (
