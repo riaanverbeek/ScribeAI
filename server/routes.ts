@@ -13,6 +13,8 @@ import OpenAI from "openai";
 import fs from "fs";
 import path from "path";
 import crypto from "crypto";
+import { uploadBufferToObjectStorage, downloadBufferFromObjectStorage, streamObjectToResponse } from "./objectStorageHelper";
+import { registerObjectStorageRoutes } from "./replit_integrations/object_storage";
 
 function formatSummaryToMarkdown(summary: any): string {
   if (typeof summary === "string") return summary;
@@ -109,6 +111,35 @@ export async function registerRoutes(
   }));
 
   app.use("/uploads", express.static(path.resolve("uploads")));
+
+  registerObjectStorageRoutes(app);
+
+  app.get("/api/audio/:meetingId", requireAuth, async (req, res) => {
+    try {
+      const meetingId = Number(req.params.meetingId);
+      const user = (req as any).user as User;
+      const meeting = await storage.getMeeting(meetingId);
+      if (!meeting || meeting.userId !== user.id) {
+        return res.status(404).json({ message: "Meeting not found" });
+      }
+      if (!meeting.audioUrl) {
+        return res.status(404).json({ message: "No audio available" });
+      }
+      if (meeting.audioUrl.startsWith("/objects/")) {
+        await streamObjectToResponse(meeting.audioUrl, res);
+      } else {
+        const filePath = path.resolve(meeting.audioUrl);
+        if (fs.existsSync(filePath)) {
+          res.sendFile(filePath);
+        } else {
+          return res.status(404).json({ message: "Audio file not found on disk" });
+        }
+      }
+    } catch (error) {
+      console.error("Error serving audio:", error);
+      res.status(500).json({ message: "Failed to serve audio" });
+    }
+  });
 
   // ========== AUTH ROUTES ==========
 
@@ -790,10 +821,20 @@ export async function registerRoutes(
     if (!req.file) {
       return res.status(400).json({ message: "No file uploaded" });
     }
-    const filePath = req.file.path;
-    const fileName = req.file.originalname;
-    const updated = await storage.updateMeetingContextFile(id, filePath, fileName);
-    res.json(updated);
+    try {
+      const fileBuffer = fs.readFileSync(req.file.path);
+      const ext = path.extname(req.file.originalname).toLowerCase() || ".txt";
+      const contentType = req.file.mimetype || "text/plain";
+      const objectPath = await uploadBufferToObjectStorage(fileBuffer, ext, contentType);
+      try { fs.unlinkSync(req.file.path); } catch {}
+      const fileName = req.file.originalname;
+      const updated = await storage.updateMeetingContextFile(id, objectPath, fileName);
+      res.json(updated);
+    } catch (error) {
+      console.error("Error uploading context file:", error);
+      try { fs.unlinkSync(req.file.path); } catch {}
+      res.status(500).json({ message: "Failed to upload context file" });
+    }
   });
 
   // ========== CLIENT ROUTES ==========
@@ -909,22 +950,32 @@ export async function registerRoutes(
           return res.status(400).json({ message: "No file uploaded" });
       }
       
-      const originalName = req.file.originalname || "";
-      const mimetype = req.file.mimetype || "";
-      const ext = path.extname(originalName).toLowerCase();
-      
-      let finalPath = req.file.path;
-      
-      if (mimetype.includes("webm") || ext === ".webm") {
-          const webmBuffer = fs.readFileSync(req.file.path);
-          const wavBuffer = await convertWebmToWav(webmBuffer);
-          finalPath = req.file.path + ".wav";
-          fs.writeFileSync(finalPath, wavBuffer);
-          fs.unlinkSync(req.file.path);
+      try {
+        const originalName = req.file.originalname || "";
+        const mimetype = req.file.mimetype || "";
+        const ext = path.extname(originalName).toLowerCase();
+        
+        let audioBuffer = fs.readFileSync(req.file.path);
+        let finalExt = ext || ".wav";
+        let contentType = mimetype || "audio/wav";
+        
+        if (mimetype.includes("webm") || ext === ".webm") {
+            audioBuffer = await convertWebmToWav(audioBuffer);
+            finalExt = ".wav";
+            contentType = "audio/wav";
+        }
+        
+        const objectPath = await uploadBufferToObjectStorage(audioBuffer, finalExt, contentType);
+        
+        try { fs.unlinkSync(req.file.path); } catch {}
+        
+        await storage.updateMeetingAudioUrl(id, objectPath);
+        res.json({ message: "Audio uploaded successfully" });
+      } catch (error) {
+        console.error("Error uploading audio to Object Storage:", error);
+        try { fs.unlinkSync(req.file.path); } catch {}
+        res.status(500).json({ message: "Failed to upload audio" });
       }
-      
-      const meeting = await storage.updateMeetingAudioUrl(id, finalPath);
-      res.json({ message: "Audio uploaded successfully" });
   });
 
   app.post("/api/meetings/:id/process", requireAuth, requireVerified, requireSubscription, async (req, res) => {
@@ -942,7 +993,12 @@ export async function registerRoutes(
       try {
           await storage.updateMeetingStatus(id, "processing");
 
-          const audioBuffer = fs.readFileSync(meeting.audioUrl);
+          let audioBuffer: Buffer;
+          if (meeting.audioUrl.startsWith("/objects/")) {
+            audioBuffer = await downloadBufferFromObjectStorage(meeting.audioUrl);
+          } else {
+            audioBuffer = fs.readFileSync(meeting.audioUrl);
+          }
           const audioExt = path.extname(meeting.audioUrl).toLowerCase();
           const format: "wav" | "mp3" | "webm" = audioExt === ".mp3" ? "mp3" : audioExt === ".webm" ? "webm" : "wav";
           const transcriptText = await speechToText(audioBuffer, format);
@@ -970,7 +1026,13 @@ export async function registerRoutes(
           }
           if (meeting.contextFileUrl && meeting.contextFileName) {
             try {
-              const fileContent = fs.readFileSync(meeting.contextFileUrl, "utf-8");
+              let fileContent: string;
+              if (meeting.contextFileUrl.startsWith("/objects/")) {
+                const buf = await downloadBufferFromObjectStorage(meeting.contextFileUrl);
+                fileContent = buf.toString("utf-8");
+              } else {
+                fileContent = fs.readFileSync(meeting.contextFileUrl, "utf-8");
+              }
               contextSection += `\n\nContent from attached file (${meeting.contextFileName}):\n${fileContent}`;
             } catch (fileErr) {
               console.error("Failed to read context file:", fileErr);
@@ -1340,7 +1402,13 @@ export async function registerRoutes(
           }
           if (freshMeeting.contextFileUrl && freshMeeting.contextFileName) {
             try {
-              const fileContent = fs.readFileSync(freshMeeting.contextFileUrl, "utf-8");
+              let fileContent: string;
+              if (freshMeeting.contextFileUrl.startsWith("/objects/")) {
+                const buf = await downloadBufferFromObjectStorage(freshMeeting.contextFileUrl);
+                fileContent = buf.toString("utf-8");
+              } else {
+                fileContent = fs.readFileSync(freshMeeting.contextFileUrl, "utf-8");
+              }
               contextSection += `\n\nContent from attached file (${freshMeeting.contextFileName}):\n${fileContent}`;
             } catch (fileErr) {
               console.error("Failed to read context file:", fileErr);
