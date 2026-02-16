@@ -1062,7 +1062,7 @@ export async function registerRoutes(
           await storage.updateMeetingStatus(id, "completed");
 
           const completedActionItems = await storage.getActionItems(id);
-          const meetingOwner = await storage.getUser(user.id);
+          const meetingOwner = await storage.getUserById(user.id);
           if (meetingOwner) {
             sendMeetingCompletedEmail(
               meetingOwner.email,
@@ -1401,7 +1401,7 @@ export async function registerRoutes(
           await storage.updateMeetingStatus(id, "completed");
 
           const reprocessedActionItems = await storage.getActionItems(id);
-          const meetingOwner = await storage.getUser(user.id);
+          const meetingOwner = await storage.getUserById(user.id);
           if (meetingOwner) {
             sendMeetingCompletedEmail(
               meetingOwner.email,
