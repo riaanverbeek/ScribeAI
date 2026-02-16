@@ -479,7 +479,7 @@ export default function MeetingDetail() {
               </Card>
             </motion.section>
 
-            {hasFullAccess && meeting.status === "completed" && (
+            {hasFullAccess && (meeting.status === "completed" || meeting.status === "failed") && (
               <motion.section {...fadeIn}>
                 <Card>
                   <CardContent className="p-5">
