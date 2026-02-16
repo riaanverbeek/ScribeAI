@@ -7,6 +7,7 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription, CardFooter }
 import { Label } from "@/components/ui/label";
 import { useToast } from "@/hooks/use-toast";
 import { LogIn, Mail, Lock } from "lucide-react";
+import { queryClient } from "@/lib/queryClient";
 
 export default function Login() {
   const [email, setEmail] = useState("");
@@ -18,7 +19,8 @@ export default function Login() {
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     try {
-      await login.mutateAsync({ email, password });
+      const result = await login.mutateAsync({ email, password });
+      queryClient.setQueryData(["/api/auth/me"], result);
       setLocation("/");
     } catch (err: any) {
       const msg = err.message || "Login failed";
