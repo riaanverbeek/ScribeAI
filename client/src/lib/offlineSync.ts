@@ -43,6 +43,7 @@ async function uploadSingleRecording(rec: OfflineRecording): Promise<void> {
   const contextPayload: Record<string, unknown> = {};
   if (rec.templateId) contextPayload.templateId = rec.templateId;
   if (rec.contextText.trim()) contextPayload.contextText = rec.contextText.trim();
+  if (rec.includePreviousContext) contextPayload.includePreviousContext = true;
 
   if (Object.keys(contextPayload).length > 0) {
     await fetch(`/api/meetings/${meeting.id}/context`, {

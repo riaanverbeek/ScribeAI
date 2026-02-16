@@ -156,6 +156,7 @@ export default function MeetingDetail() {
   const [editTemplateId, setEditTemplateId] = useState<string>("");
   const [editContextText, setEditContextText] = useState("");
   const [editContextFile, setEditContextFile] = useState<File | null>(null);
+  const [editIncludePreviousContext, setEditIncludePreviousContext] = useState(false);
 
   const getSummaryText = () => {
     if (!meeting?.summary?.content) return "";
@@ -253,6 +254,7 @@ export default function MeetingDetail() {
     setEditTemplateId(meeting.templateId ? String(meeting.templateId) : "");
     setEditContextText(meeting.contextText || "");
     setEditContextFile(null);
+    setEditIncludePreviousContext(meeting.includePreviousContext ?? false);
     setIsEditingContext(true);
   };
 
@@ -262,6 +264,7 @@ export default function MeetingDetail() {
       const contextPayload: any = {
         templateId: editTemplateId ? Number(editTemplateId) : null,
         contextText: editContextText.trim() || null,
+        includePreviousContext: editIncludePreviousContext,
       };
       await apiRequest("PATCH", `/api/meetings/${id}/context`, contextPayload);
 
@@ -543,7 +546,18 @@ export default function MeetingDetail() {
                             </div>
                           </div>
                         )}
-                        {!linkedTemplate && !meeting.contextText && !meeting.contextFileName && (
+                        {meeting.includePreviousContext && (
+                          <div className="flex items-center gap-3">
+                            <div className="w-9 h-9 rounded-md bg-muted flex items-center justify-center shrink-0">
+                              <RefreshCw className="w-4 h-4 text-muted-foreground" />
+                            </div>
+                            <div>
+                              <p className="text-xs text-muted-foreground">Client History</p>
+                              <p className="text-sm font-semibold" data-testid="text-include-previous-context">Including previous meeting summaries</p>
+                            </div>
+                          </div>
+                        )}
+                        {!linkedTemplate && !meeting.contextText && !meeting.contextFileName && !meeting.includePreviousContext && (
                           <p className="text-sm text-muted-foreground">No template or context set. Edit to add one and regenerate the analysis.</p>
                         )}
                       </div>
@@ -622,6 +636,25 @@ export default function MeetingDetail() {
                             )}
                           </div>
                         </div>
+
+                        {meeting.clientId && (
+                          <div className="flex items-start gap-3 pt-1">
+                            <input
+                              type="checkbox"
+                              id="edit-include-previous"
+                              checked={editIncludePreviousContext}
+                              onChange={(e) => setEditIncludePreviousContext(e.target.checked)}
+                              className="mt-1 h-4 w-4 rounded border-input accent-primary cursor-pointer"
+                              data-testid="checkbox-include-previous-context"
+                            />
+                            <label htmlFor="edit-include-previous" className="text-sm cursor-pointer select-none">
+                              <span className="font-medium">Include previous meeting summaries</span>
+                              <p className="text-xs text-muted-foreground mt-0.5">
+                                When checked, AI analysis will reference summaries from earlier meetings with the same client for better continuity.
+                              </p>
+                            </label>
+                          </div>
+                        )}
 
                         <div className="flex items-center gap-2 pt-2">
                           <Button

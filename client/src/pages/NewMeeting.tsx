@@ -42,6 +42,7 @@ export default function NewMeeting() {
   const [selectedTemplateId, setSelectedTemplateId] = useState<string>("");
   const [contextText, setContextText] = useState("");
   const [contextFile, setContextFile] = useState<File | null>(null);
+  const [includePreviousContext, setIncludePreviousContext] = useState(false);
   const [newClientName, setNewClientName] = useState("");
   const [newClientEmail, setNewClientEmail] = useState("");
   const [newClientCompany, setNewClientCompany] = useState("");
@@ -121,6 +122,7 @@ export default function NewMeeting() {
         contextText: contextText,
         contextFile: ctxBlob,
         contextFileName: ctxFileName,
+        includePreviousContext: includePreviousContext,
         createdAt: new Date().toISOString(),
         status: "pending",
       });
@@ -169,6 +171,9 @@ export default function NewMeeting() {
       }
       if (contextText.trim()) {
         contextPayload.contextText = contextText.trim();
+      }
+      if (includePreviousContext) {
+        contextPayload.includePreviousContext = true;
       }
       if (Object.keys(contextPayload).length > 0) {
         await fetch(`/api/meetings/${meeting.id}/context`, {
@@ -405,6 +410,25 @@ export default function NewMeeting() {
             )}
           </div>
         </div>
+
+        {selectedClientId && (
+          <div className="flex items-start gap-3">
+            <input
+              type="checkbox"
+              id="include-previous-context"
+              checked={includePreviousContext}
+              onChange={(e) => setIncludePreviousContext(e.target.checked)}
+              className="mt-1 h-4 w-4 rounded border-input accent-primary cursor-pointer"
+              data-testid="checkbox-include-previous-context"
+            />
+            <label htmlFor="include-previous-context" className="text-sm cursor-pointer select-none">
+              <span className="font-medium">Include previous meeting summaries</span>
+              <p className="text-xs text-muted-foreground mt-0.5">
+                AI analysis will reference summaries from earlier meetings with this client for better continuity.
+              </p>
+            </label>
+          </div>
+        )}
 
         <div className="space-y-3">
           <Label className="text-base font-semibold text-slate-900">Audio Source</Label>

@@ -4,7 +4,7 @@ import {
     type InsertUser, type InsertClient, type InsertMeeting, type InsertTranscript, type InsertActionItem, type InsertTopic, type InsertMeetingSummary, type InsertTemplate, type InsertRole,
     type User, type Client, type Meeting, type Transcript, type ActionItem, type Topic, type MeetingSummary, type Template, type Role
 } from "@shared/schema";
-import { eq, and, desc } from "drizzle-orm";
+import { eq, and, desc, lt, ne } from "drizzle-orm";
 
 export interface IStorage {
     // Users
@@ -43,7 +43,7 @@ export interface IStorage {
     deleteTemplate(id: number): Promise<void>;
 
     // Meetings - context
-    updateMeetingContext(id: number, data: { contextText?: string | null; templateId?: number | null }): Promise<Meeting>;
+    updateMeetingContext(id: number, data: { contextText?: string | null; templateId?: number | null; includePreviousContext?: boolean }): Promise<Meeting>;
     updateMeetingContextFile(id: number, contextFileUrl: string, contextFileName: string): Promise<Meeting>;
 
     // Clients
@@ -60,6 +60,8 @@ export interface IStorage {
     updateMeetingStatus(id: number, status: "uploading" | "processing" | "completed" | "failed"): Promise<Meeting>;
     updateMeetingAudioUrl(id: number, audioUrl: string): Promise<Meeting>;
     updateMeetingClient(id: number, clientId: number | null): Promise<Meeting>;
+    updateMeetingIncludePreviousContext(id: number, includePreviousContext: boolean): Promise<Meeting>;
+    getPreviousClientMeetingSummaries(clientId: number, beforeMeetingId: number): Promise<{ title: string; summary: string; date: Date }[]>;
     deleteMeeting(id: number): Promise<void>;
 
     // Transcripts
@@ -231,7 +233,7 @@ export class DatabaseStorage implements IStorage {
     }
 
     // Meetings - context
-    async updateMeetingContext(id: number, data: { contextText?: string | null; templateId?: number | null }): Promise<Meeting> {
+    async updateMeetingContext(id: number, data: { contextText?: string | null; templateId?: number | null; includePreviousContext?: boolean }): Promise<Meeting> {
         const [meeting] = await db.update(meetings).set(data).where(eq(meetings.id, id)).returning();
         return meeting;
     }
@@ -307,6 +309,42 @@ export class DatabaseStorage implements IStorage {
             .where(eq(meetings.id, id))
             .returning();
         return meeting;
+    }
+
+    async updateMeetingIncludePreviousContext(id: number, includePreviousContext: boolean): Promise<Meeting> {
+        const [meeting] = await db.update(meetings)
+            .set({ includePreviousContext })
+            .where(eq(meetings.id, id))
+            .returning();
+        return meeting;
+    }
+
+    async getPreviousClientMeetingSummaries(clientId: number, currentMeetingId: number): Promise<{ title: string; summary: string; date: Date }[]> {
+        const currentMeeting = await this.getMeeting(currentMeetingId);
+        if (!currentMeeting) return [];
+
+        const previousMeetings = await db.select({
+            id: meetings.id,
+            title: meetings.title,
+            date: meetings.date,
+            summaryContent: meetingSummaries.content,
+        })
+        .from(meetings)
+        .innerJoin(meetingSummaries, eq(meetingSummaries.meetingId, meetings.id))
+        .where(and(
+            eq(meetings.clientId, clientId),
+            eq(meetings.status, "completed"),
+            ne(meetings.id, currentMeetingId),
+            lt(meetings.date, currentMeeting.date)
+        ))
+        .orderBy(desc(meetings.date))
+        .limit(5);
+
+        return previousMeetings.map(m => ({
+            title: m.title,
+            summary: m.summaryContent,
+            date: m.date,
+        }));
     }
 
     async deleteMeeting(id: number): Promise<void> {

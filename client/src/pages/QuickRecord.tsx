@@ -171,6 +171,7 @@ export default function QuickRecord() {
           contextText: "",
           contextFile: null,
           contextFileName: null,
+          includePreviousContext: false,
           createdAt: new Date().toISOString(),
           status: "pending",
         });

@@ -799,6 +799,7 @@ export async function registerRoutes(
       const data = z.object({
         contextText: z.string().nullable().optional(),
         templateId: z.number().nullable().optional(),
+        includePreviousContext: z.boolean().optional(),
       }).parse(req.body);
 
       const updated = await storage.updateMeetingContext(id, data);
@@ -1036,6 +1037,20 @@ export async function registerRoutes(
               contextSection += `\n\nContent from attached file (${meeting.contextFileName}):\n${fileContent}`;
             } catch (fileErr) {
               console.error("Failed to read context file:", fileErr);
+            }
+          }
+
+          if (meeting.includePreviousContext && meeting.clientId) {
+            try {
+              const previousSummaries = await storage.getPreviousClientMeetingSummaries(meeting.clientId, id);
+              if (previousSummaries.length > 0) {
+                contextSection += `\n\n--- PREVIOUS MEETING SUMMARIES WITH THIS CLIENT ---\nThe following are summaries from previous meetings with the same client. Use them to provide continuity, track progress on action items, and reference prior discussions:\n`;
+                for (const prev of previousSummaries) {
+                  contextSection += `\n### Previous Meeting: "${prev.title}" (${prev.date.toLocaleDateString()})\n${prev.summary}\n`;
+                }
+              }
+            } catch (prevErr) {
+              console.error("Failed to fetch previous meeting summaries:", prevErr);
             }
           }
 
@@ -1412,6 +1427,20 @@ export async function registerRoutes(
               contextSection += `\n\nContent from attached file (${freshMeeting.contextFileName}):\n${fileContent}`;
             } catch (fileErr) {
               console.error("Failed to read context file:", fileErr);
+            }
+          }
+
+          if (freshMeeting.includePreviousContext && freshMeeting.clientId) {
+            try {
+              const previousSummaries = await storage.getPreviousClientMeetingSummaries(freshMeeting.clientId, id);
+              if (previousSummaries.length > 0) {
+                contextSection += `\n\n--- PREVIOUS MEETING SUMMARIES WITH THIS CLIENT ---\nThe following are summaries from previous meetings with the same client. Use them to provide continuity, track progress on action items, and reference prior discussions:\n`;
+                for (const prev of previousSummaries) {
+                  contextSection += `\n### Previous Meeting: "${prev.title}" (${prev.date.toLocaleDateString()})\n${prev.summary}\n`;
+                }
+              }
+            } catch (prevErr) {
+              console.error("Failed to fetch previous meeting summaries:", prevErr);
             }
           }
 
