@@ -1080,11 +1080,20 @@ export async function registerRoutes(
       return res.status(404).json({ message: "Meeting not found" });
     }
 
+    const includeSummary = req.query.summary === "1";
+    const includeTranscript = req.query.transcript === "1";
+    const includeActionItems = req.query.actionItems === "1";
+    const includeTopics = req.query.topics === "1";
+
+    if (!includeSummary && !includeTranscript && !includeActionItems && !includeTopics) {
+      return res.status(400).json({ message: "Select at least one section to export" });
+    }
+
     const [summary, transcript, actionItems, topics] = await Promise.all([
-      storage.getSummary(id),
-      storage.getTranscript(id),
-      storage.getActionItems(id),
-      storage.getTopics(id),
+      includeSummary ? storage.getSummary(id) : Promise.resolve(undefined),
+      includeTranscript ? storage.getTranscript(id) : Promise.resolve(undefined),
+      includeActionItems ? storage.getActionItems(id) : Promise.resolve([]),
+      includeTopics ? storage.getTopics(id) : Promise.resolve([]),
     ]);
 
     const meeting = { ...meetingBase, summary, transcript, actionItems, topics };

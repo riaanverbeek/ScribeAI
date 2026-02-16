@@ -126,6 +126,13 @@ export default function MeetingDetail() {
   const { toast } = useToast();
   const { hasFullAccess } = useSubscriptionStatus();
   const [isExporting, setIsExporting] = useState(false);
+  const [exportDialogOpen, setExportDialogOpen] = useState(false);
+  const [exportSections, setExportSections] = useState({
+    summary: true,
+    transcript: true,
+    actionItems: true,
+    topics: true,
+  });
 
   const queryClient = useQueryClient();
 
@@ -176,9 +183,20 @@ export default function MeetingDetail() {
 
   const handleExportWord = async () => {
     if (!meeting || !id) return;
+    const anySelected = Object.values(exportSections).some(Boolean);
+    if (!anySelected) {
+      toast({ title: "Please select at least one section to export", variant: "destructive" });
+      return;
+    }
     setIsExporting(true);
+    setExportDialogOpen(false);
     try {
-      const res = await fetch(`/api/meetings/${id}/export-word`, { credentials: "include" });
+      const params = new URLSearchParams();
+      if (exportSections.summary) params.set("summary", "1");
+      if (exportSections.transcript) params.set("transcript", "1");
+      if (exportSections.actionItems) params.set("actionItems", "1");
+      if (exportSections.topics) params.set("topics", "1");
+      const res = await fetch(`/api/meetings/${id}/export-word?${params.toString()}`, { credentials: "include" });
       if (!res.ok) throw new Error("Export failed");
       const blob = await res.blob();
       const url = window.URL.createObjectURL(blob);
@@ -691,16 +709,77 @@ export default function MeetingDetail() {
                     <motion.div {...fadeIn} className="bg-card rounded-2xl border p-4 sm:p-6 md:p-8">
                       <div className="flex justify-end gap-2 mb-4">
                         <CopyButton getText={getSummaryText} label="Summary" />
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          onClick={handleExportWord}
-                          disabled={isExporting}
-                          data-testid="button-export-word"
-                        >
-                          {isExporting ? <Loader2 className="w-4 h-4 mr-1.5 animate-spin" /> : <Download className="w-4 h-4 mr-1.5" />}
-                          Export Word
-                        </Button>
+                        <Dialog open={exportDialogOpen} onOpenChange={setExportDialogOpen}>
+                          <DialogTrigger asChild>
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              disabled={isExporting}
+                              data-testid="button-export-word"
+                            >
+                              {isExporting ? <Loader2 className="w-4 h-4 mr-1.5 animate-spin" /> : <Download className="w-4 h-4 mr-1.5" />}
+                              Export Word
+                            </Button>
+                          </DialogTrigger>
+                          <DialogContent>
+                            <DialogHeader>
+                              <DialogTitle>Export to Word</DialogTitle>
+                            </DialogHeader>
+                            <p className="text-sm text-muted-foreground">Select the sections you want to include in the Word document:</p>
+                            <div className="space-y-3 py-2">
+                              <label className="flex items-center gap-3 cursor-pointer" data-testid="checkbox-export-summary">
+                                <input
+                                  type="checkbox"
+                                  className="w-4 h-4 rounded border-input"
+                                  checked={exportSections.summary}
+                                  onChange={(e) => setExportSections(prev => ({ ...prev, summary: e.target.checked }))}
+                                />
+                                <span className="text-sm font-medium">Executive Summary</span>
+                              </label>
+                              <label className="flex items-center gap-3 cursor-pointer" data-testid="checkbox-export-transcript">
+                                <input
+                                  type="checkbox"
+                                  className="w-4 h-4 rounded border-input"
+                                  checked={exportSections.transcript}
+                                  onChange={(e) => setExportSections(prev => ({ ...prev, transcript: e.target.checked }))}
+                                />
+                                <span className="text-sm font-medium">Transcript</span>
+                              </label>
+                              <label className="flex items-center gap-3 cursor-pointer" data-testid="checkbox-export-action-items">
+                                <input
+                                  type="checkbox"
+                                  className="w-4 h-4 rounded border-input"
+                                  checked={exportSections.actionItems}
+                                  onChange={(e) => setExportSections(prev => ({ ...prev, actionItems: e.target.checked }))}
+                                />
+                                <span className="text-sm font-medium">Action Items</span>
+                              </label>
+                              <label className="flex items-center gap-3 cursor-pointer" data-testid="checkbox-export-topics">
+                                <input
+                                  type="checkbox"
+                                  className="w-4 h-4 rounded border-input"
+                                  checked={exportSections.topics}
+                                  onChange={(e) => setExportSections(prev => ({ ...prev, topics: e.target.checked }))}
+                                />
+                                <span className="text-sm font-medium">Topics</span>
+                              </label>
+                            </div>
+                            <div className="flex justify-end gap-2 pt-2">
+                              <Button variant="outline" size="sm" onClick={() => setExportDialogOpen(false)}>
+                                Cancel
+                              </Button>
+                              <Button
+                                size="sm"
+                                onClick={handleExportWord}
+                                disabled={!Object.values(exportSections).some(Boolean)}
+                                data-testid="button-confirm-export"
+                              >
+                                <Download className="w-4 h-4 mr-1.5" />
+                                Export
+                              </Button>
+                            </div>
+                          </DialogContent>
+                        </Dialog>
                       </div>
                       <div className="prose prose-sm sm:prose-base prose-slate dark:prose-invert max-w-none prose-headings:font-display" data-testid="text-summary-content">
                         <ReactMarkdown>{formatSummaryContent(meeting.summary.content)}</ReactMarkdown>
