@@ -1044,9 +1044,9 @@ export async function registerRoutes(
             try {
               const previousSummaries = await storage.getPreviousClientMeetingSummaries(meeting.clientId, id);
               if (previousSummaries.length > 0) {
-                contextSection += `\n\n--- PREVIOUS MEETING SUMMARIES WITH THIS CLIENT ---\nThe following are summaries from previous meetings with the same client. Use them to provide continuity, track progress on action items, and reference prior discussions:\n`;
+                contextSection += `\n\n--- PREVIOUS MEETING SUMMARIES WITH THIS CLIENT ---\nThe transcript you are about to analyse is from the MOST RECENT meeting with this client. Below are notes and summaries from earlier meetings, listed from most recent to oldest. Use them to provide continuity, track progress on action items, and reference prior discussions:\n`;
                 for (const prev of previousSummaries) {
-                  contextSection += `\n### Previous Meeting: "${prev.title}" (${prev.date.toLocaleDateString()})\n${prev.summary}\n`;
+                  contextSection += `\n### Earlier Meeting: "${prev.title}" (${prev.date.toLocaleDateString()})\n${prev.summary}\n`;
                 }
               }
             } catch (prevErr) {
@@ -1434,9 +1434,9 @@ export async function registerRoutes(
             try {
               const previousSummaries = await storage.getPreviousClientMeetingSummaries(freshMeeting.clientId, id);
               if (previousSummaries.length > 0) {
-                contextSection += `\n\n--- PREVIOUS MEETING SUMMARIES WITH THIS CLIENT ---\nThe following are summaries from previous meetings with the same client. Use them to provide continuity, track progress on action items, and reference prior discussions:\n`;
+                contextSection += `\n\n--- PREVIOUS MEETING SUMMARIES WITH THIS CLIENT ---\nThe transcript you are about to analyse is from the MOST RECENT meeting with this client. Below are notes and summaries from earlier meetings, listed from most recent to oldest. Use them to provide continuity, track progress on action items, and reference prior discussions:\n`;
                 for (const prev of previousSummaries) {
-                  contextSection += `\n### Previous Meeting: "${prev.title}" (${prev.date.toLocaleDateString()})\n${prev.summary}\n`;
+                  contextSection += `\n### Earlier Meeting: "${prev.title}" (${prev.date.toLocaleDateString()})\n${prev.summary}\n`;
                 }
               }
             } catch (prevErr) {
