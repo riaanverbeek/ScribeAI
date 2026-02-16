@@ -43,9 +43,12 @@ export async function sendVerificationEmail(toEmail: string, firstName: string, 
 
   const baseUrl = getBaseUrl();
   const verificationUrl = `${baseUrl}/verify-email?token=${verificationToken}`;
+  const sender = fromEmail || 'ScribeAI <noreply@resend.dev>';
 
-  await client.emails.send({
-    from: fromEmail || 'ScribeAI <noreply@resend.dev>',
+  console.log(`[email] Sending verification email to=${toEmail}, from=${sender}, baseUrl=${baseUrl}`);
+
+  const result = await client.emails.send({
+    from: sender,
     to: toEmail,
     subject: 'Verify your ScribeAI account',
     html: `
@@ -66,6 +69,8 @@ export async function sendVerificationEmail(toEmail: string, firstName: string, 
       </div>
     `,
   });
+
+  console.log(`[email] Verification email result:`, JSON.stringify(result));
 }
 
 export async function sendPasswordResetEmail(toEmail: string, firstName: string, resetToken: string) {
@@ -73,9 +78,12 @@ export async function sendPasswordResetEmail(toEmail: string, firstName: string,
 
   const baseUrl = getBaseUrl();
   const resetUrl = `${baseUrl}/reset-password?token=${resetToken}`;
+  const sender = fromEmail || 'ScribeAI <noreply@resend.dev>';
 
-  await client.emails.send({
-    from: fromEmail || 'ScribeAI <noreply@resend.dev>',
+  console.log(`[email] Sending password reset email to=${toEmail}, from=${sender}, baseUrl=${baseUrl}`);
+
+  const result = await client.emails.send({
+    from: sender,
     to: toEmail,
     subject: 'Reset your ScribeAI password',
     html: `
@@ -96,9 +104,18 @@ export async function sendPasswordResetEmail(toEmail: string, firstName: string,
       </div>
     `,
   });
+
+  console.log(`[email] Password reset email result:`, JSON.stringify(result));
 }
 
 function getBaseUrl(): string {
+  if (process.env.APP_BASE_URL) {
+    return process.env.APP_BASE_URL;
+  }
+  if (process.env.REPLIT_DEPLOYMENT && process.env.REPLIT_DOMAINS) {
+    const domain = process.env.REPLIT_DOMAINS.split(",")[0];
+    return `https://${domain}`;
+  }
   if (process.env.REPLIT_DEV_DOMAIN) {
     return `https://${process.env.REPLIT_DEV_DOMAIN}`;
   }
