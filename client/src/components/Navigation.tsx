@@ -154,7 +154,7 @@ export function Navigation() {
                     )}
                   />
                   <span className={cn(
-                    "text-[10px] md:text-sm font-medium md:block",
+                    "text-[10px] md:text-base font-medium md:block",
                     isActive ? "text-primary md:text-slate-900 md:dark:text-foreground" : "text-slate-500 md:text-slate-600"
                   )}>
                     {item.label}
@@ -190,7 +190,7 @@ export function Navigation() {
                     )}
                   />
                   <span className={cn(
-                    "font-medium",
+                    "text-base font-medium",
                     isActive ? "text-slate-900 dark:text-foreground" : "text-slate-600"
                   )}>
                     {item.label}
