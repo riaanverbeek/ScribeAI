@@ -5,8 +5,8 @@ import { useMeeting, useUpdateMeetingClient } from "@/hooks/use-meetings";
 import { useClients, useCreateClient } from "@/hooks/use-clients";
 import { useSubscriptionStatus } from "@/hooks/use-auth";
 import { useRoute, Link } from "wouter";
-import { ChevronLeft, Calendar, User, LayoutList, FileText, CheckSquare, Sparkles, Users, Plus, Loader2, X, Pencil, Lock, CreditCard, Paperclip, MessageSquareText, RefreshCw, Copy, Check, Download, Mail, Globe } from "lucide-react";
-import type { Template } from "@shared/schema";
+import { ChevronLeft, Calendar, User, LayoutList, FileText, CheckSquare, Sparkles, Users, Plus, Loader2, X, Pencil, Lock, CreditCard, Paperclip, MessageSquareText, RefreshCw, Copy, Check, Download, Mail, Globe, Shield } from "lucide-react";
+import type { Template, Policy } from "@shared/schema";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { StatusBadge } from "@/components/StatusBadge";
@@ -143,6 +143,12 @@ export default function MeetingDetail() {
       if (!res.ok) throw new Error("Failed to load templates");
       return res.json();
     },
+  });
+
+  const { data: meetingPolicies = [] } = useQuery<Policy[]>({
+    queryKey: ["/api/meetings", id, "policies"],
+    queryFn: () => fetch(`/api/meetings/${id}/policies`, { credentials: "include" }).then(r => r.json()),
+    enabled: !!id,
   });
 
   const [isEditingClient, setIsEditingClient] = useState(false);
@@ -497,6 +503,35 @@ export default function MeetingDetail() {
                 </CardContent>
               </Card>
             </motion.section>
+
+            {meetingPolicies.length > 0 && (
+              <motion.section {...fadeIn}>
+                <Card>
+                  <CardContent className="p-4 sm:p-5">
+                    <div className="flex items-center gap-3 mb-3">
+                      <div className="w-9 h-9 rounded-md bg-muted flex items-center justify-center shrink-0">
+                        <Shield className="w-4 h-4 text-muted-foreground" />
+                      </div>
+                      <p className="text-sm font-medium text-muted-foreground">Linked Policies</p>
+                    </div>
+                    <div className="space-y-2">
+                      {meetingPolicies.map((policy) => (
+                        <div
+                          key={policy.id}
+                          className="flex items-center gap-3 p-3 rounded-md bg-muted/50"
+                          data-testid={`meeting-policy-${policy.id}`}
+                        >
+                          <div className="min-w-0 flex-1">
+                            <span className="text-sm font-medium text-foreground">{policy.type}</span>
+                            <span className="text-sm text-muted-foreground ml-2">{policy.insurer} - {policy.policyNumber}</span>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </CardContent>
+                </Card>
+              </motion.section>
+            )}
 
             {hasFullAccess && (meeting.status === "completed" || meeting.status === "failed") && (
               <motion.section {...fadeIn}>

@@ -65,6 +65,15 @@ async function uploadSingleRecording(rec: OfflineRecording): Promise<void> {
     });
   }
 
+  if (rec.policyIds && rec.policyIds.length > 0) {
+    await fetch(`/api/meetings/${meeting.id}/policies`, {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      credentials: "include",
+      body: JSON.stringify({ policyIds: rec.policyIds }),
+    });
+  }
+
   const audioFormData = new FormData();
   const audioFile = new File([rec.audioBlob], rec.audioFileName, {
     type: rec.audioMimeType,

@@ -34,10 +34,11 @@ Preferred communication style: Simple, everyday language.
 - **Subscription Management**: PayFast integration for recurring payments and webhook processing.
 - **User Roles**: System for defining and assigning roles, including custom roles, with role information captured during meeting creation for AI context.
 - **Templates & Context**: System for defining AI summary templates and allowing users to provide additional context (text or file) for AI processing.
+- **Insurance Policy Management**: Clients can have multiple policies (Type, Insurer, Policy Number). Meetings can link to selected policies, and their details are included in AI analysis prompts. Policy types: Life Insurance, Investments, Medical Aid, GAP Cover, Employee Benefits, Short-term Commercial, Short-term Personal, Short-term Agri.
 
 ### Data Layer
 - **Database**: PostgreSQL with Drizzle ORM
-- **Core Tables**: `users`, `clients`, `meetings`, `templates`, `transcripts`, `action_items`, `topics`, `meeting_summaries`.
+- **Core Tables**: `users`, `clients`, `meetings`, `templates`, `transcripts`, `action_items`, `topics`, `meeting_summaries`, `policies`, `meeting_policies`.
 - **Schema**: Defined in `shared/schema.ts`.
 - **Migrations**: Drizzle Kit.
 

@@ -883,6 +883,97 @@ export async function registerRoutes(
     res.status(204).send();
   });
 
+  // ========== POLICY ROUTES ==========
+
+  app.get(api.policies.listByClient.path, requireAuth, requireVerified, requireSubscription, async (req, res) => {
+    const clientId = Number(req.params.clientId);
+    const user = (req as any).user as User;
+    const client = await storage.getClient(clientId);
+    if (!client || client.userId !== user.id) {
+      return res.status(404).json({ message: "Client not found" });
+    }
+    const clientPolicies = await storage.getPoliciesByClient(clientId);
+    res.json(clientPolicies);
+  });
+
+  app.post(api.policies.create.path, requireAuth, requireVerified, requireSubscription, async (req, res) => {
+    const clientId = Number(req.params.clientId);
+    const user = (req as any).user as User;
+    const client = await storage.getClient(clientId);
+    if (!client || client.userId !== user.id) {
+      return res.status(404).json({ message: "Client not found" });
+    }
+    const input = api.policies.create.input.parse(req.body);
+    const policy = await storage.createPolicy({ ...input, clientId });
+    res.status(201).json(policy);
+  });
+
+  app.patch(api.policies.update.path, requireAuth, requireVerified, requireSubscription, async (req, res) => {
+    const id = Number(req.params.id);
+    const user = (req as any).user as User;
+    const policy = await storage.getPolicy(id);
+    if (!policy) {
+      return res.status(404).json({ message: "Policy not found" });
+    }
+    const client = await storage.getClient(policy.clientId);
+    if (!client || client.userId !== user.id) {
+      return res.status(404).json({ message: "Policy not found" });
+    }
+    const { type, insurer, policyNumber } = req.body;
+    const updated = await storage.updatePolicy(id, { type, insurer, policyNumber });
+    res.json(updated);
+  });
+
+  app.delete(api.policies.delete.path, requireAuth, requireVerified, requireSubscription, async (req, res) => {
+    const id = Number(req.params.id);
+    const user = (req as any).user as User;
+    const policy = await storage.getPolicy(id);
+    if (!policy) {
+      return res.status(404).json({ message: "Policy not found" });
+    }
+    const client = await storage.getClient(policy.clientId);
+    if (!client || client.userId !== user.id) {
+      return res.status(404).json({ message: "Policy not found" });
+    }
+    await storage.deletePolicy(id);
+    res.status(204).send();
+  });
+
+  app.get(api.policies.meetingPolicies.path, requireAuth, requireVerified, async (req, res) => {
+    const meetingId = Number(req.params.id);
+    const user = (req as any).user as User;
+    const meeting = await storage.getMeeting(meetingId);
+    if (!meeting || meeting.userId !== user.id) {
+      return res.status(404).json({ message: "Meeting not found" });
+    }
+    const linkedPolicies = await storage.getMeetingPolicies(meetingId);
+    res.json(linkedPolicies);
+  });
+
+  app.put(api.policies.setMeetingPolicies.path, requireAuth, requireVerified, requireSubscription, async (req, res) => {
+    const meetingId = Number(req.params.id);
+    const user = (req as any).user as User;
+    const meeting = await storage.getMeeting(meetingId);
+    if (!meeting || meeting.userId !== user.id) {
+      return res.status(404).json({ message: "Meeting not found" });
+    }
+    const { policyIds } = api.policies.setMeetingPolicies.input.parse(req.body);
+    if (policyIds.length > 0) {
+      for (const pid of policyIds) {
+        const pol = await storage.getPolicy(pid);
+        if (!pol) {
+          return res.status(400).json({ message: `Policy ${pid} not found` });
+        }
+        const polClient = await storage.getClient(pol.clientId);
+        if (!polClient || polClient.userId !== user.id) {
+          return res.status(400).json({ message: `Policy ${pid} not authorized` });
+        }
+      }
+    }
+    await storage.setMeetingPolicies(meetingId, policyIds);
+    res.json({ message: "Policies updated" });
+  });
+
   // ========== MEETING ROUTES ==========
 
   app.get(api.meetings.list.path, requireAuth, requireVerified, async (req, res) => {
@@ -1052,6 +1143,14 @@ export async function registerRoutes(
               }
             } catch (prevErr) {
               console.error("Failed to fetch previous meeting summaries:", prevErr);
+            }
+          }
+
+          const linkedPolicies = await storage.getMeetingPolicies(id);
+          if (linkedPolicies.length > 0) {
+            contextSection += `\n\n--- LINKED INSURANCE POLICIES ---\nThe following insurance policies are relevant to this meeting. Reference them in your analysis where applicable:\n`;
+            for (const pol of linkedPolicies) {
+              contextSection += `- ${pol.type} | Insurer: ${pol.insurer} | Policy Number: ${pol.policyNumber}\n`;
             }
           }
 
@@ -1447,6 +1546,14 @@ export async function registerRoutes(
               }
             } catch (prevErr) {
               console.error("Failed to fetch previous meeting summaries:", prevErr);
+            }
+          }
+
+          const reprocessLinkedPolicies = await storage.getMeetingPolicies(id);
+          if (reprocessLinkedPolicies.length > 0) {
+            contextSection += `\n\n--- LINKED INSURANCE POLICIES ---\nThe following insurance policies are relevant to this meeting. Reference them in your analysis where applicable:\n`;
+            for (const pol of reprocessLinkedPolicies) {
+              contextSection += `- ${pol.type} | Insurer: ${pol.insurer} | Policy Number: ${pol.policyNumber}\n`;
             }
           }
 

@@ -15,6 +15,7 @@ export interface OfflineRecording {
   contextFileName: string | null;
   includePreviousContext: boolean;
   outputLanguage: string;
+  policyIds: number[];
   createdAt: string;
   status: "pending" | "syncing" | "failed";
   errorMessage?: string;

@@ -2,12 +2,14 @@ import { z } from 'zod';
 import { 
     insertMeetingSchema,
     insertClientSchema,
+    insertPolicySchema,
     meetings, 
     clients,
     actionItems, 
     topics, 
     meetingSummaries, 
-    transcripts 
+    transcripts,
+    policies
 } from './schema';
 
 // ============================================
@@ -127,6 +129,55 @@ export const api = {
       responses: {
         204: z.void(),
         404: errorSchemas.notFound,
+      },
+    },
+  },
+  policies: {
+    listByClient: {
+      method: 'GET' as const,
+      path: '/api/clients/:clientId/policies',
+      responses: {
+        200: z.array(z.custom<typeof policies.$inferSelect>()),
+      },
+    },
+    create: {
+      method: 'POST' as const,
+      path: '/api/clients/:clientId/policies',
+      input: insertPolicySchema.omit({ clientId: true }),
+      responses: {
+        201: z.custom<typeof policies.$inferSelect>(),
+        400: errorSchemas.validation,
+      },
+    },
+    update: {
+      method: 'PATCH' as const,
+      path: '/api/policies/:id',
+      responses: {
+        200: z.custom<typeof policies.$inferSelect>(),
+        404: errorSchemas.notFound,
+      },
+    },
+    delete: {
+      method: 'DELETE' as const,
+      path: '/api/policies/:id',
+      responses: {
+        204: z.void(),
+        404: errorSchemas.notFound,
+      },
+    },
+    meetingPolicies: {
+      method: 'GET' as const,
+      path: '/api/meetings/:id/policies',
+      responses: {
+        200: z.array(z.custom<typeof policies.$inferSelect>()),
+      },
+    },
+    setMeetingPolicies: {
+      method: 'PUT' as const,
+      path: '/api/meetings/:id/policies',
+      input: z.object({ policyIds: z.array(z.number()) }),
+      responses: {
+        200: z.object({ message: z.string() }),
       },
     },
   },

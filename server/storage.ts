@@ -1,8 +1,8 @@
 import { db } from "./db";
 import { 
-    users, clients, meetings, transcripts, actionItems, topics, meetingSummaries, templates, roles,
-    type InsertUser, type InsertClient, type InsertMeeting, type InsertTranscript, type InsertActionItem, type InsertTopic, type InsertMeetingSummary, type InsertTemplate, type InsertRole,
-    type User, type Client, type Meeting, type Transcript, type ActionItem, type Topic, type MeetingSummary, type Template, type Role
+    users, clients, meetings, transcripts, actionItems, topics, meetingSummaries, templates, roles, policies, meetingPolicies,
+    type InsertUser, type InsertClient, type InsertMeeting, type InsertTranscript, type InsertActionItem, type InsertTopic, type InsertMeetingSummary, type InsertTemplate, type InsertRole, type InsertPolicy, type InsertMeetingPolicy,
+    type User, type Client, type Meeting, type Transcript, type ActionItem, type Topic, type MeetingSummary, type Template, type Role, type Policy, type MeetingPolicy
 } from "@shared/schema";
 import { eq, and, desc, lt, ne } from "drizzle-orm";
 
@@ -79,6 +79,17 @@ export interface IStorage {
     // Summaries
     getSummary(meetingId: number): Promise<MeetingSummary | undefined>;
     createSummary(summary: InsertMeetingSummary): Promise<MeetingSummary>;
+
+    // Policies
+    getPoliciesByClient(clientId: number): Promise<Policy[]>;
+    getPolicy(id: number): Promise<Policy | undefined>;
+    createPolicy(policy: InsertPolicy): Promise<Policy>;
+    updatePolicy(id: number, data: Partial<Pick<Policy, "type" | "insurer" | "policyNumber">>): Promise<Policy>;
+    deletePolicy(id: number): Promise<void>;
+
+    // Meeting-Policy links
+    getMeetingPolicies(meetingId: number): Promise<Policy[]>;
+    setMeetingPolicies(meetingId: number, policyIds: number[]): Promise<void>;
 
     // Clear analysis data (for reprocessing)
     clearMeetingAnalysis(meetingId: number): Promise<void>;
@@ -391,6 +402,46 @@ export class DatabaseStorage implements IStorage {
     async createSummary(insertSummary: InsertMeetingSummary): Promise<MeetingSummary> {
         const [summary] = await db.insert(meetingSummaries).values(insertSummary).returning();
         return summary;
+    }
+
+    // Policies
+    async getPoliciesByClient(clientId: number): Promise<Policy[]> {
+        return await db.select().from(policies).where(eq(policies.clientId, clientId)).orderBy(policies.type);
+    }
+
+    async getPolicy(id: number): Promise<Policy | undefined> {
+        const [policy] = await db.select().from(policies).where(eq(policies.id, id));
+        return policy;
+    }
+
+    async createPolicy(insertPolicy: InsertPolicy): Promise<Policy> {
+        const [policy] = await db.insert(policies).values(insertPolicy).returning();
+        return policy;
+    }
+
+    async updatePolicy(id: number, data: Partial<Pick<Policy, "type" | "insurer" | "policyNumber">>): Promise<Policy> {
+        const [policy] = await db.update(policies).set(data).where(eq(policies.id, id)).returning();
+        return policy;
+    }
+
+    async deletePolicy(id: number): Promise<void> {
+        await db.delete(policies).where(eq(policies.id, id));
+    }
+
+    // Meeting-Policy links
+    async getMeetingPolicies(meetingId: number): Promise<Policy[]> {
+        const rows = await db.select({ policy: policies })
+            .from(meetingPolicies)
+            .innerJoin(policies, eq(meetingPolicies.policyId, policies.id))
+            .where(eq(meetingPolicies.meetingId, meetingId));
+        return rows.map(r => r.policy);
+    }
+
+    async setMeetingPolicies(meetingId: number, policyIds: number[]): Promise<void> {
+        await db.delete(meetingPolicies).where(eq(meetingPolicies.meetingId, meetingId));
+        if (policyIds.length > 0) {
+            await db.insert(meetingPolicies).values(policyIds.map(policyId => ({ meetingId, policyId })));
+        }
     }
 
     async clearMeetingAnalysis(meetingId: number): Promise<void> {

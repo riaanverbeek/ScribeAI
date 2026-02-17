@@ -25,11 +25,12 @@ import {
   DialogTitle,
   DialogTrigger,
 } from "@/components/ui/dialog";
-import { Mic, UploadCloud, ChevronLeft, Loader2, Plus, Users, FileText, Paperclip, WifiOff, Wifi, Pause, Play, Square, Globe } from "lucide-react";
+import { Mic, UploadCloud, ChevronLeft, Loader2, Plus, Users, FileText, Paperclip, WifiOff, Wifi, Pause, Play, Square, Globe, Shield } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { useVoiceRecorder } from "@/replit_integrations/audio";
 import { motion } from "framer-motion";
-import type { Template } from "@shared/schema";
+import type { Template, Policy } from "@shared/schema";
+import { Checkbox } from "@/components/ui/checkbox";
 
 export default function NewMeeting() {
   const [, setLocation] = useLocation();
@@ -49,6 +50,7 @@ export default function NewMeeting() {
   const [newClientCompany, setNewClientCompany] = useState("");
   const [dialogOpen, setDialogOpen] = useState(false);
   const [isSavingOffline, setIsSavingOffline] = useState(false);
+  const [selectedPolicyIds, setSelectedPolicyIds] = useState<number[]>([]);
   
   const createMutation = useCreateMeeting();
   const uploadMutation = useUploadAudio();
@@ -64,6 +66,12 @@ export default function NewMeeting() {
     },
   });
   
+  const { data: clientPolicies = [] } = useQuery<Policy[]>({
+    queryKey: ["/api/clients", selectedClientId, "policies"],
+    queryFn: () => fetch(`/api/clients/${selectedClientId}/policies`, { credentials: "include" }).then(r => r.json()),
+    enabled: !!selectedClientId,
+  });
+
   const recorder = useVoiceRecorder();
 
   const handleCreateClient = async () => {
@@ -125,6 +133,7 @@ export default function NewMeeting() {
         contextFileName: ctxFileName,
         includePreviousContext: includePreviousContext,
         outputLanguage: outputLanguage,
+        policyIds: selectedPolicyIds,
         createdAt: new Date().toISOString(),
         status: "pending",
       });
@@ -194,6 +203,15 @@ export default function NewMeeting() {
           method: "POST",
           credentials: "include",
           body: formData,
+        });
+      }
+
+      if (selectedPolicyIds.length > 0) {
+        await fetch(`/api/meetings/${meeting.id}/policies`, {
+          method: "PUT",
+          headers: { "Content-Type": "application/json" },
+          credentials: "include",
+          body: JSON.stringify({ policyIds: selectedPolicyIds }),
         });
       }
 
@@ -269,7 +287,7 @@ export default function NewMeeting() {
           <div className="space-y-3">
             <Label className="text-base font-semibold text-slate-900">Client</Label>
             <div className="flex items-center gap-3">
-              <Select value={selectedClientId} onValueChange={setSelectedClientId}>
+              <Select value={selectedClientId} onValueChange={(v) => { setSelectedClientId(v); setSelectedPolicyIds([]); }}>
                 <SelectTrigger className="h-12 rounded-xl border-slate-200 flex-1" data-testid="select-client">
                   <div className="flex items-center gap-2">
                     <Users className="w-4 h-4 text-slate-400" />
@@ -449,6 +467,44 @@ export default function NewMeeting() {
                 AI analysis will reference summaries from earlier meetings with this client for better continuity.
               </p>
             </label>
+          </div>
+        )}
+
+        {selectedClientId && clientPolicies.length > 0 && isOnline && (
+          <div className="space-y-3">
+            <Label className="text-base font-semibold text-slate-900">
+              <div className="flex items-center gap-2">
+                <Shield className="w-4 h-4 text-slate-400" />
+                Link Policies
+              </div>
+            </Label>
+            <p className="text-xs text-muted-foreground -mt-1">Select the policies relevant to this meeting. Their details will be included in the AI analysis.</p>
+            <div className="space-y-2">
+              {clientPolicies.map((policy) => (
+                <div
+                  key={policy.id}
+                  className="flex items-center gap-3 p-3 rounded-xl border border-slate-200 dark:border-border bg-white dark:bg-card"
+                  data-testid={`policy-option-${policy.id}`}
+                >
+                  <Checkbox
+                    id={`policy-${policy.id}`}
+                    checked={selectedPolicyIds.includes(policy.id)}
+                    onCheckedChange={(checked) => {
+                      setSelectedPolicyIds(prev =>
+                        checked
+                          ? [...prev, policy.id]
+                          : prev.filter(id => id !== policy.id)
+                      );
+                    }}
+                    data-testid={`checkbox-policy-${policy.id}`}
+                  />
+                  <label htmlFor={`policy-${policy.id}`} className="flex-1 cursor-pointer select-none">
+                    <span className="font-medium text-sm text-slate-900 dark:text-foreground">{policy.type}</span>
+                    <span className="text-sm text-slate-500 ml-2">{policy.insurer} - {policy.policyNumber}</span>
+                  </label>
+                </div>
+              ))}
+            </div>
           </div>
         )}
 
