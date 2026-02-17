@@ -105,6 +105,32 @@ export const meetingSummaries = pgTable("meeting_summaries", {
   createdAt: timestamp("created_at").defaultNow(),
 });
 
+export const POLICY_TYPES = [
+  "Life Insurance",
+  "Investments",
+  "Medical Aid",
+  "GAP Cover",
+  "Employee Benefits",
+  "Short-term Commercial",
+  "Short-term Personal",
+  "Short-term Agri",
+] as const;
+
+export const policies = pgTable("policies", {
+  id: serial("id").primaryKey(),
+  clientId: integer("client_id").notNull().references(() => clients.id, { onDelete: "cascade" }),
+  type: text("type").notNull(),
+  insurer: text("insurer").notNull(),
+  policyNumber: text("policy_number").notNull(),
+  createdAt: timestamp("created_at").defaultNow(),
+});
+
+export const meetingPolicies = pgTable("meeting_policies", {
+  id: serial("id").primaryKey(),
+  meetingId: integer("meeting_id").notNull().references(() => meetings.id, { onDelete: "cascade" }),
+  policyId: integer("policy_id").notNull().references(() => policies.id, { onDelete: "cascade" }),
+});
+
 // === CHAT TABLES FOR REPLIT INTEGRATIONS ===
 
 export const conversations = pgTable("conversations", {
@@ -136,6 +162,17 @@ export const usersRelations = relations(users, ({ many }) => ({
 export const clientsRelations = relations(clients, ({ one, many }) => ({
   user: one(users, { fields: [clients.userId], references: [users.id] }),
   meetings: many(meetings),
+  policies: many(policies),
+}));
+
+export const policiesRelations = relations(policies, ({ one, many }) => ({
+  client: one(clients, { fields: [policies.clientId], references: [clients.id] }),
+  meetingPolicies: many(meetingPolicies),
+}));
+
+export const meetingPoliciesRelations = relations(meetingPolicies, ({ one }) => ({
+  meeting: one(meetings, { fields: [meetingPolicies.meetingId], references: [meetings.id] }),
+  policy: one(policies, { fields: [meetingPolicies.policyId], references: [policies.id] }),
 }));
 
 export const meetingsRelations = relations(meetings, ({ one, many }) => ({
@@ -216,6 +253,9 @@ export const insertActionItemSchema = createInsertSchema(actionItems).omit({ id:
 export const insertTopicSchema = createInsertSchema(topics).omit({ id: true });
 export const insertMeetingSummarySchema = createInsertSchema(meetingSummaries).omit({ id: true, createdAt: true });
 
+export const insertPolicySchema = createInsertSchema(policies).omit({ id: true, createdAt: true });
+export const insertMeetingPolicySchema = createInsertSchema(meetingPolicies).omit({ id: true });
+
 export const insertConversationSchema = createInsertSchema(conversations).omit({
   id: true,
   createdAt: true,
@@ -254,6 +294,11 @@ export type InsertTopic = z.infer<typeof insertTopicSchema>;
 
 export type MeetingSummary = typeof meetingSummaries.$inferSelect;
 export type InsertMeetingSummary = z.infer<typeof insertMeetingSummarySchema>;
+
+export type Policy = typeof policies.$inferSelect;
+export type InsertPolicy = z.infer<typeof insertPolicySchema>;
+export type MeetingPolicy = typeof meetingPolicies.$inferSelect;
+export type InsertMeetingPolicy = z.infer<typeof insertMeetingPolicySchema>;
 
 export type Conversation = typeof conversations.$inferSelect;
 export type InsertConversation = z.infer<typeof insertConversationSchema>;
