@@ -25,7 +25,7 @@ import {
   DialogTitle,
   DialogTrigger,
 } from "@/components/ui/dialog";
-import { Mic, UploadCloud, ChevronLeft, Loader2, Plus, Users, FileText, Paperclip, WifiOff, Wifi } from "lucide-react";
+import { Mic, UploadCloud, ChevronLeft, Loader2, Plus, Users, FileText, Paperclip, WifiOff, Wifi, Pause, Play, Square } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { useVoiceRecorder } from "@/replit_integrations/audio";
 import { motion } from "framer-motion";
@@ -445,35 +445,81 @@ export default function NewMeeting() {
             <TabsContent value="record">
               <Card className="border-2 border-dashed border-slate-200 bg-slate-50/50 shadow-none rounded-xl">
                 <CardContent className="flex flex-col items-center justify-center py-12">
-                  <div className="relative mb-6">
-                    {recorder.state === "recording" && (
-                      <div className="absolute inset-0 bg-red-500 rounded-full animate-pulse-ring opacity-50" />
-                    )}
-                    <button
-                      onClick={recorder.state === "idle" || recorder.state === "stopped" ? recorder.startRecording : handleStopRecording}
-                      className={`relative z-10 w-20 h-20 rounded-full flex items-center justify-center transition-all duration-300 ${
-                        recorder.state === "recording" 
-                          ? "bg-red-500 text-white shadow-lg shadow-red-500/30 scale-110" 
-                          : "bg-primary text-white hover:bg-slate-800 shadow-xl shadow-slate-900/20"
-                      }`}
-                      data-testid="button-record"
-                    >
-                      {recorder.state === "recording" ? (
-                        <div className="w-8 h-8 bg-white rounded-md" />
-                      ) : (
-                        <Mic className="w-8 h-8" />
-                      )}
-                    </button>
-                  </div>
-                  
-                  <div className="text-center">
-                    <h3 className="font-semibold text-slate-900">
-                      {recorder.state === "recording" ? "Recording..." : "Click to Record"}
-                    </h3>
-                    <p className="text-sm text-slate-500 mt-1">
-                      {recorder.state === "recording" ? "Speak clearly into your microphone" : "Ensure microphone permission is granted"}
-                    </p>
-                  </div>
+                  {(recorder.state === "idle" || recorder.state === "stopped") && (
+                    <>
+                      <div className="relative mb-6">
+                        <button
+                          onClick={recorder.startRecording}
+                          className="relative z-10 w-20 h-20 rounded-full flex items-center justify-center transition-all duration-300 bg-primary text-white hover:bg-slate-800 shadow-xl shadow-slate-900/20"
+                          data-testid="button-record"
+                        >
+                          <Mic className="w-8 h-8" />
+                        </button>
+                      </div>
+                      <div className="text-center">
+                        <h3 className="font-semibold text-slate-900">Click to Record</h3>
+                        <p className="text-sm text-slate-500 mt-1">Ensure microphone permission is granted</p>
+                      </div>
+                    </>
+                  )}
+
+                  {(recorder.state === "recording" || recorder.state === "paused") && (
+                    <>
+                      <div className="relative mb-6">
+                        {recorder.state === "recording" && (
+                          <div className="absolute inset-0 bg-red-500 rounded-full animate-pulse-ring opacity-50" />
+                        )}
+                        <div
+                          className={`relative z-10 w-20 h-20 rounded-full flex items-center justify-center ${
+                            recorder.state === "recording"
+                              ? "bg-red-500 shadow-lg shadow-red-500/30 scale-110"
+                              : "bg-amber-500 shadow-lg shadow-amber-500/30"
+                          } text-white transition-all duration-300`}
+                        >
+                          <Mic className="w-8 h-8" />
+                        </div>
+                      </div>
+
+                      <div className="text-center mb-6">
+                        <h3 className="font-semibold text-slate-900">
+                          {recorder.state === "recording" ? "Recording..." : "Paused"}
+                        </h3>
+                        <p className="text-sm text-slate-500 mt-1">
+                          {recorder.state === "recording" ? "Speak clearly into your microphone" : "Recording is paused. Resume or stop when ready."}
+                        </p>
+                      </div>
+
+                      <div className="flex items-center gap-3">
+                        {recorder.state === "recording" ? (
+                          <Button
+                            variant="outline"
+                            onClick={recorder.pauseRecording}
+                            data-testid="button-pause-recording"
+                          >
+                            <Pause className="w-4 h-4 mr-2" />
+                            Pause
+                          </Button>
+                        ) : (
+                          <Button
+                            variant="outline"
+                            onClick={recorder.resumeRecording}
+                            data-testid="button-resume-recording"
+                          >
+                            <Play className="w-4 h-4 mr-2" />
+                            Resume
+                          </Button>
+                        )}
+                        <Button
+                          variant="destructive"
+                          onClick={handleStopRecording}
+                          data-testid="button-stop-recording"
+                        >
+                          <Square className="w-4 h-4 mr-2" />
+                          Stop & Save
+                        </Button>
+                      </div>
+                    </>
+                  )}
 
                   {file && recorder.state === "stopped" && (
                     <div className="mt-6 px-4 py-2 bg-green-50 text-green-700 rounded-lg text-sm font-medium flex items-center animate-in fade-in slide-in-from-bottom-2">
@@ -523,7 +569,7 @@ export default function NewMeeting() {
           size="lg" 
           className="w-full h-14 text-lg rounded-xl bg-primary hover:bg-slate-800 shadow-xl shadow-slate-900/20"
           onClick={handleCreate}
-          disabled={isPending || (!file && recorder.state !== "recording")}
+          disabled={isPending || !file || recorder.state === "recording" || recorder.state === "paused"}
           data-testid="button-process"
         >
           {isPending ? (

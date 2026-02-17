@@ -1,10 +1,11 @@
 /**
  * React hook for voice recording using MediaRecorder API.
  * Records audio in WebM/Opus format for efficient streaming.
+ * Supports pause and resume.
  */
 import { useRef, useCallback, useState } from "react";
 
-export type RecordingState = "idle" | "recording" | "stopped";
+export type RecordingState = "idle" | "recording" | "paused" | "stopped";
 
 export function useVoiceRecorder() {
   const [state, setState] = useState<RecordingState>("idle");
@@ -24,14 +25,30 @@ export function useVoiceRecorder() {
       if (e.data.size > 0) chunksRef.current.push(e.data);
     };
 
-    recorder.start(100); // Collect chunks every 100ms
+    recorder.start(100);
     setState("recording");
+  }, []);
+
+  const pauseRecording = useCallback((): void => {
+    const recorder = mediaRecorderRef.current;
+    if (recorder && recorder.state === "recording") {
+      recorder.pause();
+      setState("paused");
+    }
+  }, []);
+
+  const resumeRecording = useCallback((): void => {
+    const recorder = mediaRecorderRef.current;
+    if (recorder && recorder.state === "paused") {
+      recorder.resume();
+      setState("recording");
+    }
   }, []);
 
   const stopRecording = useCallback((): Promise<Blob> => {
     return new Promise((resolve) => {
       const recorder = mediaRecorderRef.current;
-      if (!recorder || recorder.state !== "recording") {
+      if (!recorder || (recorder.state !== "recording" && recorder.state !== "paused")) {
         resolve(new Blob());
         return;
       }
@@ -47,6 +64,5 @@ export function useVoiceRecorder() {
     });
   }, []);
 
-  return { state, startRecording, stopRecording };
+  return { state, startRecording, pauseRecording, resumeRecording, stopRecording };
 }
-

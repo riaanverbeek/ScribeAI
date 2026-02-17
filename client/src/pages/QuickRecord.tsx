@@ -15,12 +15,12 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { Mic, Square, ChevronLeft, Loader2, Phone, WifiOff, Check } from "lucide-react";
+import { Mic, Square, ChevronLeft, Loader2, Phone, WifiOff, Check, Pause, Play } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { motion, AnimatePresence } from "framer-motion";
 import { format } from "date-fns";
 
-type Phase = "ready" | "recording" | "saving";
+type Phase = "ready" | "recording" | "paused" | "saving";
 
 export default function QuickRecord() {
   const [, setLocation] = useLocation();
@@ -121,6 +121,28 @@ export default function QuickRecord() {
         variant: "destructive",
       });
     }
+  };
+
+  const pauseRecording = () => {
+    recorder.pauseRecording();
+    if (timerRef.current) {
+      clearInterval(timerRef.current);
+      timerRef.current = null;
+    }
+    if (animFrameRef.current) {
+      cancelAnimationFrame(animFrameRef.current);
+      animFrameRef.current = null;
+    }
+    setPhase("paused");
+  };
+
+  const resumeRecording = () => {
+    recorder.resumeRecording();
+    timerRef.current = setInterval(() => {
+      setElapsed((prev) => prev + 1);
+    }, 1000);
+    drawWaveform();
+    setPhase("recording");
   };
 
   const stopRecording = async () => {
@@ -253,7 +275,7 @@ export default function QuickRecord() {
         )}
 
         <AnimatePresence mode="wait">
-          {(phase === "ready" || phase === "recording") && (
+          {(phase === "ready" || phase === "recording" || phase === "paused") && (
             <motion.div
               key="recorder"
               initial={{ opacity: 0, y: 20 }}
@@ -273,47 +295,88 @@ export default function QuickRecord() {
                 </div>
               )}
 
-              <div className="relative">
-                {phase === "recording" && (
-                  <motion.div
-                    className="absolute inset-0 rounded-full bg-red-500/20"
-                    animate={{ scale: [1, 1.4, 1] }}
-                    transition={{ duration: 2, repeat: Infinity, ease: "easeInOut" }}
-                  />
-                )}
-                <Button
-                  onClick={phase === "ready" ? startRecording : stopRecording}
-                  variant={phase === "recording" ? "destructive" : "default"}
-                  className="relative z-10 w-28 h-28 sm:w-32 sm:h-32 rounded-full"
-                  data-testid="button-quick-record"
-                >
-                  {phase === "recording" ? (
-                    <Square className="w-10 h-10 sm:w-12 sm:h-12" fill="white" />
-                  ) : (
-                    <Mic className="w-10 h-10 sm:w-12 sm:h-12" />
-                  )}
-                </Button>
-              </div>
-
-              {phase === "recording" && (
-                <motion.div
-                  initial={{ opacity: 0 }}
-                  animate={{ opacity: 1 }}
-                  className="text-center"
-                >
-                  <p className="text-4xl font-mono font-bold tabular-nums text-foreground" data-testid="text-timer">
-                    {formatTime(elapsed)}
+              {phase === "ready" && (
+                <>
+                  <div className="relative">
+                    <Button
+                      onClick={startRecording}
+                      variant="default"
+                      className="relative z-10 w-28 h-28 sm:w-32 sm:h-32 rounded-full"
+                      data-testid="button-quick-record"
+                    >
+                      <Mic className="w-10 h-10 sm:w-12 sm:h-12" />
+                    </Button>
+                  </div>
+                  <p className="text-sm text-muted-foreground text-center max-w-xs">
+                    Put your phone call on speaker, then tap the button to start recording both sides of the conversation.
                   </p>
-                  <p className="text-sm text-muted-foreground mt-2">
-                    Tap the button to stop
-                  </p>
-                </motion.div>
+                </>
               )}
 
-              {phase === "ready" && (
-                <p className="text-sm text-muted-foreground text-center max-w-xs">
-                  Put your phone call on speaker, then tap the button to start recording both sides of the conversation.
-                </p>
+              {(phase === "recording" || phase === "paused") && (
+                <>
+                  <div className="relative">
+                    {phase === "recording" && (
+                      <motion.div
+                        className="absolute inset-0 rounded-full bg-red-500/20"
+                        animate={{ scale: [1, 1.4, 1] }}
+                        transition={{ duration: 2, repeat: Infinity, ease: "easeInOut" }}
+                      />
+                    )}
+                    <div
+                      className={`relative z-10 w-28 h-28 sm:w-32 sm:h-32 rounded-full flex items-center justify-center ${
+                        phase === "recording"
+                          ? "bg-red-500 shadow-lg shadow-red-500/30"
+                          : "bg-amber-500 shadow-lg shadow-amber-500/30"
+                      } text-white transition-all duration-300`}
+                    >
+                      <Mic className="w-10 h-10 sm:w-12 sm:h-12" />
+                    </div>
+                  </div>
+
+                  <motion.div
+                    initial={{ opacity: 0 }}
+                    animate={{ opacity: 1 }}
+                    className="text-center"
+                  >
+                    <p className="text-4xl font-mono font-bold tabular-nums text-foreground" data-testid="text-timer">
+                      {formatTime(elapsed)}
+                    </p>
+                    <p className="text-sm text-muted-foreground mt-2">
+                      {phase === "recording" ? "Recording..." : "Paused"}
+                    </p>
+                  </motion.div>
+
+                  <div className="flex items-center gap-3">
+                    {phase === "recording" ? (
+                      <Button
+                        variant="outline"
+                        onClick={pauseRecording}
+                        data-testid="button-pause-recording"
+                      >
+                        <Pause className="w-4 h-4 mr-2" />
+                        Pause
+                      </Button>
+                    ) : (
+                      <Button
+                        variant="outline"
+                        onClick={resumeRecording}
+                        data-testid="button-resume-recording"
+                      >
+                        <Play className="w-4 h-4 mr-2" />
+                        Resume
+                      </Button>
+                    )}
+                    <Button
+                      variant="destructive"
+                      onClick={stopRecording}
+                      data-testid="button-stop-recording"
+                    >
+                      <Square className="w-4 h-4 mr-2" />
+                      Stop & Save
+                    </Button>
+                  </div>
+                </>
               )}
             </motion.div>
           )}
