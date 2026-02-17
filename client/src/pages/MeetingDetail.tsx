@@ -5,7 +5,7 @@ import { useMeeting, useUpdateMeetingClient } from "@/hooks/use-meetings";
 import { useClients, useCreateClient } from "@/hooks/use-clients";
 import { useSubscriptionStatus } from "@/hooks/use-auth";
 import { useRoute, Link } from "wouter";
-import { ChevronLeft, Calendar, User, LayoutList, FileText, CheckSquare, Sparkles, Users, Plus, Loader2, X, Pencil, Lock, CreditCard, Paperclip, MessageSquareText, RefreshCw, Copy, Check, Download, Mail } from "lucide-react";
+import { ChevronLeft, Calendar, User, LayoutList, FileText, CheckSquare, Sparkles, Users, Plus, Loader2, X, Pencil, Lock, CreditCard, Paperclip, MessageSquareText, RefreshCw, Copy, Check, Download, Mail, Globe } from "lucide-react";
 import type { Template } from "@shared/schema";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -157,6 +157,7 @@ export default function MeetingDetail() {
   const [editContextText, setEditContextText] = useState("");
   const [editContextFile, setEditContextFile] = useState<File | null>(null);
   const [editIncludePreviousContext, setEditIncludePreviousContext] = useState(false);
+  const [editOutputLanguage, setEditOutputLanguage] = useState("en");
 
   const getSummaryText = () => {
     if (!meeting?.summary?.content) return "";
@@ -255,6 +256,7 @@ export default function MeetingDetail() {
     setEditContextText(meeting.contextText || "");
     setEditContextFile(null);
     setEditIncludePreviousContext(meeting.includePreviousContext ?? false);
+    setEditOutputLanguage(meeting.outputLanguage || "en");
     setIsEditingContext(true);
   };
 
@@ -265,6 +267,7 @@ export default function MeetingDetail() {
         templateId: editTemplateId ? Number(editTemplateId) : null,
         contextText: editContextText.trim() || null,
         includePreviousContext: editIncludePreviousContext,
+        outputLanguage: editOutputLanguage,
       };
       await apiRequest("PATCH", `/api/meetings/${id}/context`, contextPayload);
 
@@ -557,6 +560,17 @@ export default function MeetingDetail() {
                             </div>
                           </div>
                         )}
+                        <div className="flex items-center gap-3">
+                          <div className="w-9 h-9 rounded-md bg-muted flex items-center justify-center shrink-0">
+                            <Globe className="w-4 h-4 text-muted-foreground" />
+                          </div>
+                          <div>
+                            <p className="text-xs text-muted-foreground">Output Language</p>
+                            <p className="text-sm font-semibold" data-testid="text-output-language">
+                              {meeting.outputLanguage === "af" ? "Afrikaans" : "English"}
+                            </p>
+                          </div>
+                        </div>
                         {!linkedTemplate && !meeting.contextText && !meeting.contextFileName && !meeting.includePreviousContext && (
                           <p className="text-sm text-muted-foreground">No template or context set. Edit to add one and regenerate the analysis.</p>
                         )}
@@ -655,6 +669,23 @@ export default function MeetingDetail() {
                             </label>
                           </div>
                         )}
+
+                        <div className="space-y-2">
+                          <Label className="text-sm">Output Language</Label>
+                          <Select value={editOutputLanguage} onValueChange={setEditOutputLanguage}>
+                            <SelectTrigger data-testid="select-edit-output-language">
+                              <div className="flex items-center gap-2">
+                                <Globe className="w-4 h-4 text-muted-foreground" />
+                                <SelectValue placeholder="Select language" />
+                              </div>
+                            </SelectTrigger>
+                            <SelectContent>
+                              <SelectItem value="en" data-testid="select-edit-output-language-en">English</SelectItem>
+                              <SelectItem value="af" data-testid="select-edit-output-language-af">Afrikaans</SelectItem>
+                            </SelectContent>
+                          </Select>
+                          <p className="text-xs text-muted-foreground">AI summaries, action items, and topics will be generated in this language. The transcript stays in the original spoken language.</p>
+                        </div>
 
                         <div className="flex items-center gap-2 pt-2">
                           <Button

@@ -14,6 +14,7 @@ export interface OfflineRecording {
   contextFile: Blob | null;
   contextFileName: string | null;
   includePreviousContext: boolean;
+  outputLanguage: string;
   createdAt: string;
   status: "pending" | "syncing" | "failed";
   errorMessage?: string;

@@ -43,7 +43,7 @@ export interface IStorage {
     deleteTemplate(id: number): Promise<void>;
 
     // Meetings - context
-    updateMeetingContext(id: number, data: { contextText?: string | null; templateId?: number | null; includePreviousContext?: boolean }): Promise<Meeting>;
+    updateMeetingContext(id: number, data: { contextText?: string | null; templateId?: number | null; includePreviousContext?: boolean; outputLanguage?: string }): Promise<Meeting>;
     updateMeetingContextFile(id: number, contextFileUrl: string, contextFileName: string): Promise<Meeting>;
 
     // Clients
@@ -233,7 +233,7 @@ export class DatabaseStorage implements IStorage {
     }
 
     // Meetings - context
-    async updateMeetingContext(id: number, data: { contextText?: string | null; templateId?: number | null; includePreviousContext?: boolean }): Promise<Meeting> {
+    async updateMeetingContext(id: number, data: { contextText?: string | null; templateId?: number | null; includePreviousContext?: boolean; outputLanguage?: string }): Promise<Meeting> {
         const [meeting] = await db.update(meetings).set(data).where(eq(meetings.id, id)).returning();
         return meeting;
     }

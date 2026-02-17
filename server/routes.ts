@@ -800,6 +800,7 @@ export async function registerRoutes(
         contextText: z.string().nullable().optional(),
         templateId: z.number().nullable().optional(),
         includePreviousContext: z.boolean().optional(),
+        outputLanguage: z.enum(["en", "af"]).optional(),
       }).parse(req.body);
 
       const updated = await storage.updateMeetingContext(id, data);
@@ -1054,8 +1055,13 @@ export async function registerRoutes(
             }
           }
 
+          const outputLangMap: Record<string, string> = { en: "English", af: "Afrikaans" };
+          const outputLangName = outputLangMap[meeting.outputLanguage] || "English";
+
           const systemPrompt = `
             You are an expert meeting analyst. Analyze the following meeting transcript.
+
+            IMPORTANT: You MUST write ALL of your output (summary, action items, and topics) in ${outputLangName}. The transcript may be in any language, but your analysis output MUST be entirely in ${outputLangName}. Do NOT leave any part of your response in a different language. Only the JSON keys should remain in English.
             
             Extract:
             1. Action Items (assignee if clear, otherwise 'Unknown')
@@ -1093,7 +1099,7 @@ export async function registerRoutes(
             ## Constraints & Considerations
             - Any limitations or important notes
 
-            Use clear headings (##), sub-headings (###), bullet points (-), and bold text (**) throughout. The summary MUST be a string value in the JSON, not a nested object.
+            Use clear headings (##), sub-headings (###), bullet points (-), and bold text (**) throughout. The summary MUST be a string value in the JSON, not a nested object. Remember: ALL text content must be in ${outputLangName}.
           `;
 
           const response = await openai.chat.completions.create({
@@ -1444,8 +1450,13 @@ export async function registerRoutes(
             }
           }
 
+          const outputLangMap: Record<string, string> = { en: "English", af: "Afrikaans" };
+          const outputLangName = outputLangMap[freshMeeting.outputLanguage] || "English";
+
           const systemPrompt = `
             You are an expert meeting analyst. Analyze the following meeting transcript.
+
+            IMPORTANT: You MUST write ALL of your output (summary, action items, and topics) in ${outputLangName}. The transcript may be in any language, but your analysis output MUST be entirely in ${outputLangName}. Do NOT leave any part of your response in a different language. Only the JSON keys should remain in English.
             
             Extract:
             1. Action Items (assignee if clear, otherwise 'Unknown')
@@ -1483,7 +1494,7 @@ export async function registerRoutes(
             ## Constraints & Considerations
             - Any limitations or important notes
 
-            Use clear headings (##), sub-headings (###), bullet points (-), and bold text (**) throughout. The summary MUST be a string value in the JSON, not a nested object.
+            Use clear headings (##), sub-headings (###), bullet points (-), and bold text (**) throughout. The summary MUST be a string value in the JSON, not a nested object. Remember: ALL text content must be in ${outputLangName}.
           `;
 
           const response = await openai.chat.completions.create({

@@ -25,7 +25,7 @@ import {
   DialogTitle,
   DialogTrigger,
 } from "@/components/ui/dialog";
-import { Mic, UploadCloud, ChevronLeft, Loader2, Plus, Users, FileText, Paperclip, WifiOff, Wifi, Pause, Play, Square } from "lucide-react";
+import { Mic, UploadCloud, ChevronLeft, Loader2, Plus, Users, FileText, Paperclip, WifiOff, Wifi, Pause, Play, Square, Globe } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { useVoiceRecorder } from "@/replit_integrations/audio";
 import { motion } from "framer-motion";
@@ -43,6 +43,7 @@ export default function NewMeeting() {
   const [contextText, setContextText] = useState("");
   const [contextFile, setContextFile] = useState<File | null>(null);
   const [includePreviousContext, setIncludePreviousContext] = useState(false);
+  const [outputLanguage, setOutputLanguage] = useState("en");
   const [newClientName, setNewClientName] = useState("");
   const [newClientEmail, setNewClientEmail] = useState("");
   const [newClientCompany, setNewClientCompany] = useState("");
@@ -123,6 +124,7 @@ export default function NewMeeting() {
         contextFile: ctxBlob,
         contextFileName: ctxFileName,
         includePreviousContext: includePreviousContext,
+        outputLanguage: outputLanguage,
         createdAt: new Date().toISOString(),
         status: "pending",
       });
@@ -158,6 +160,7 @@ export default function NewMeeting() {
       const meetingData: any = { 
         title,
         date: new Date().toISOString(),
+        outputLanguage,
       };
       if (selectedClientId) {
         meetingData.clientId = Number(selectedClientId);
@@ -368,6 +371,25 @@ export default function NewMeeting() {
               </SelectContent>
             </Select>
             <p className="text-xs text-muted-foreground">Controls how the AI structures the meeting summary.</p>
+          </div>
+        )}
+
+        {isOnline && (
+          <div className="space-y-3">
+            <Label className="text-base font-semibold text-slate-900">Output Language</Label>
+            <Select value={outputLanguage} onValueChange={setOutputLanguage}>
+              <SelectTrigger className="h-12 rounded-xl border-slate-200" data-testid="select-output-language">
+                <div className="flex items-center gap-2">
+                  <Globe className="w-4 h-4 text-slate-400" />
+                  <SelectValue placeholder="Select language" />
+                </div>
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="en" data-testid="select-output-language-en">English</SelectItem>
+                <SelectItem value="af" data-testid="select-output-language-af">Afrikaans</SelectItem>
+              </SelectContent>
+            </Select>
+            <p className="text-xs text-muted-foreground">The language for AI-generated summaries, action items, and topics. The transcript stays in the original spoken language.</p>
           </div>
         )}
 

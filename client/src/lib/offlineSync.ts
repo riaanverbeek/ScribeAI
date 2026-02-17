@@ -30,6 +30,7 @@ async function uploadSingleRecording(rec: OfflineRecording): Promise<void> {
     body: JSON.stringify({
       title: rec.title,
       date: rec.createdAt,
+      outputLanguage: rec.outputLanguage || "en",
       ...(rec.clientId ? { clientId: rec.clientId } : {}),
     }),
   });
