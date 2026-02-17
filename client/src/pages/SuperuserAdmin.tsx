@@ -23,7 +23,7 @@ function UsersTab() {
   const { data: users = [], isLoading } = useQuery<SuperuserUser[]>({ queryKey: ["/api/superuser/users"] });
   const [editUser, setEditUser] = useState<SuperuserUser | null>(null);
   const [deleteUser, setDeleteUser] = useState<SuperuserUser | null>(null);
-  const [editForm, setEditForm] = useState({ firstName: "", lastName: "", email: "", isAdmin: false, subscriptionStatus: "none" as string });
+  const [editForm, setEditForm] = useState({ firstName: "", lastName: "", email: "", isAdmin: false, isVerified: false, subscriptionStatus: "none" as string });
 
   const updateMutation = useMutation({
     mutationFn: async ({ id, data }: { id: number; data: Record<string, unknown> }) => {
@@ -51,7 +51,7 @@ function UsersTab() {
   });
 
   const openEdit = (u: SuperuserUser) => {
-    setEditForm({ firstName: u.firstName, lastName: u.lastName, email: u.email, isAdmin: u.isAdmin, subscriptionStatus: u.subscriptionStatus });
+    setEditForm({ firstName: u.firstName, lastName: u.lastName, email: u.email, isAdmin: u.isAdmin, isVerified: u.isVerified, subscriptionStatus: u.subscriptionStatus });
     setEditUser(u);
   };
 
@@ -67,6 +67,7 @@ function UsersTab() {
                 <span className="font-medium text-sm" data-testid={`text-user-name-${u.id}`}>{u.firstName} {u.lastName}</span>
                 {u.isSuperuser && <Badge variant="default" className="text-[10px]"><ShieldCheck className="w-3 h-3 mr-1" />Superuser</Badge>}
                 {u.isAdmin && !u.isSuperuser && <Badge variant="secondary" className="text-[10px]"><Shield className="w-3 h-3 mr-1" />Admin</Badge>}
+                {!u.isVerified && <Badge variant="destructive" className="text-[10px]" data-testid={`badge-unverified-${u.id}`}>Unverified</Badge>}
               </div>
               <p className="text-xs text-muted-foreground truncate" data-testid={`text-user-email-${u.id}`}>{u.email}</p>
               <div className="flex items-center gap-2 mt-1 flex-wrap">
@@ -108,6 +109,16 @@ function UsersTab() {
               <Label>Admin</Label>
               <Select value={editForm.isAdmin ? "yes" : "no"} onValueChange={(v) => setEditForm(f => ({ ...f, isAdmin: v === "yes" }))}>
                 <SelectTrigger className="w-24" data-testid="select-edit-user-admin"><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="yes">Yes</SelectItem>
+                  <SelectItem value="no">No</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="flex items-center gap-3">
+              <Label>Email Verified</Label>
+              <Select value={editForm.isVerified ? "yes" : "no"} onValueChange={(v) => setEditForm(f => ({ ...f, isVerified: v === "yes" }))}>
+                <SelectTrigger className="w-24" data-testid="select-edit-user-verified"><SelectValue /></SelectTrigger>
                 <SelectContent>
                   <SelectItem value="yes">Yes</SelectItem>
                   <SelectItem value="no">No</SelectItem>
