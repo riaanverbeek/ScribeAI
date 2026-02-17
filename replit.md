@@ -34,6 +34,7 @@ Preferred communication style: Simple, everyday language.
 - **Subscription Management**: PayFast integration for recurring payments and webhook processing.
 - **User Roles**: System for defining and assigning roles, including custom roles, with role information captured during meeting creation for AI context.
 - **Templates & Context**: System for defining AI summary templates and allowing users to provide additional context (text or file) for AI processing.
+- **Internal Meeting Flag**: Meetings can be marked as "Internal Meeting" (internal discussion/dictation without the client present). When checked, the AI is instructed not to look for client responses and frames the summary as internal notes.
 - **Insurance Policy Management**: Clients can have multiple policies (Type, Insurer, Policy Number). Meetings can link to selected policies, and their details are included in AI analysis prompts. Policy types: Life Insurance, Investments, Medical Aid, GAP Cover, Employee Benefits, Short-term Commercial, Short-term Personal, Short-term Agri.
 
 ### Data Layer

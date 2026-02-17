@@ -45,6 +45,7 @@ export default function NewMeeting() {
   const [contextFile, setContextFile] = useState<File | null>(null);
   const [includePreviousContext, setIncludePreviousContext] = useState(false);
   const [outputLanguage, setOutputLanguage] = useState("en");
+  const [isInternal, setIsInternal] = useState(false);
   const [newClientName, setNewClientName] = useState("");
   const [newClientEmail, setNewClientEmail] = useState("");
   const [newClientCompany, setNewClientCompany] = useState("");
@@ -133,6 +134,7 @@ export default function NewMeeting() {
         contextFileName: ctxFileName,
         includePreviousContext: includePreviousContext,
         outputLanguage: outputLanguage,
+        isInternal: isInternal,
         policyIds: selectedPolicyIds,
         createdAt: new Date().toISOString(),
         status: "pending",
@@ -186,6 +188,9 @@ export default function NewMeeting() {
       }
       if (includePreviousContext) {
         contextPayload.includePreviousContext = true;
+      }
+      if (isInternal) {
+        contextPayload.isInternal = true;
       }
       if (Object.keys(contextPayload).length > 0) {
         await fetch(`/api/meetings/${meeting.id}/context`, {
@@ -449,6 +454,23 @@ export default function NewMeeting() {
               </span>
             )}
           </div>
+        </div>
+
+        <div className="flex items-start gap-3">
+          <input
+            type="checkbox"
+            id="is-internal-meeting"
+            checked={isInternal}
+            onChange={(e) => setIsInternal(e.target.checked)}
+            className="mt-1 h-4 w-4 rounded border-input accent-primary cursor-pointer"
+            data-testid="checkbox-is-internal"
+          />
+          <label htmlFor="is-internal-meeting" className="text-sm cursor-pointer select-none">
+            <span className="font-medium">Internal Meeting</span>
+            <p className="text-xs text-muted-foreground mt-0.5">
+              Internal Discussion / Dictation without the client being present
+            </p>
+          </label>
         </div>
 
         {selectedClientId && (

@@ -801,6 +801,7 @@ export async function registerRoutes(
         templateId: z.number().nullable().optional(),
         includePreviousContext: z.boolean().optional(),
         outputLanguage: z.enum(["en", "af"]).optional(),
+        isInternal: z.boolean().optional(),
       }).parse(req.body);
 
       const updated = await storage.updateMeetingContext(id, data);
@@ -1163,10 +1164,15 @@ export async function registerRoutes(
           const outputLangMap: Record<string, string> = { en: "English", af: "Afrikaans" };
           const outputLangName = outputLangMap[meeting.outputLanguage] || "English";
 
+          const internalMeetingInstruction = meeting.isInternal
+            ? `\n\nIMPORTANT CONTEXT: This is an INTERNAL meeting — an internal discussion or dictation where the client was NOT present. The transcript contains ONLY the user's own notes, thoughts, or internal team discussion. Do NOT look for or reference client responses, client questions, or client statements in the transcript. Treat everything as internal notes or dictation. Frame the summary accordingly as internal notes/observations rather than a client-facing meeting recap.`
+            : "";
+
           const systemPrompt = `
             You are an expert meeting analyst. Analyze the following meeting transcript.
 
             IMPORTANT: You MUST write ALL of your output (summary, action items, and topics) in ${outputLangName}. The transcript may be in any language, but your analysis output MUST be entirely in ${outputLangName}. Do NOT leave any part of your response in a different language. Only the JSON keys should remain in English.
+            ${internalMeetingInstruction}
             
             Extract:
             1. Action Items (assignee if clear, otherwise 'Unknown')
@@ -1573,10 +1579,15 @@ export async function registerRoutes(
           const outputLangMap: Record<string, string> = { en: "English", af: "Afrikaans" };
           const outputLangName = outputLangMap[freshMeeting.outputLanguage] || "English";
 
+          const reprocessInternalInstruction = freshMeeting.isInternal
+            ? `\n\nIMPORTANT CONTEXT: This is an INTERNAL meeting — an internal discussion or dictation where the client was NOT present. The transcript contains ONLY the user's own notes, thoughts, or internal team discussion. Do NOT look for or reference client responses, client questions, or client statements in the transcript. Treat everything as internal notes or dictation. Frame the summary accordingly as internal notes/observations rather than a client-facing meeting recap.`
+            : "";
+
           const systemPrompt = `
             You are an expert meeting analyst. Analyze the following meeting transcript.
 
             IMPORTANT: You MUST write ALL of your output (summary, action items, and topics) in ${outputLangName}. The transcript may be in any language, but your analysis output MUST be entirely in ${outputLangName}. Do NOT leave any part of your response in a different language. Only the JSON keys should remain in English.
+            ${reprocessInternalInstruction}
             
             Extract:
             1. Action Items (assignee if clear, otherwise 'Unknown')

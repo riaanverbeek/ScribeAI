@@ -164,6 +164,7 @@ export default function MeetingDetail() {
   const [editContextFile, setEditContextFile] = useState<File | null>(null);
   const [editIncludePreviousContext, setEditIncludePreviousContext] = useState(false);
   const [editOutputLanguage, setEditOutputLanguage] = useState("en");
+  const [editIsInternal, setEditIsInternal] = useState(false);
   const [editPolicyIds, setEditPolicyIds] = useState<number[]>([]);
 
   const { data: clientPolicies = [] } = useQuery<Policy[]>({
@@ -270,6 +271,7 @@ export default function MeetingDetail() {
     setEditContextFile(null);
     setEditIncludePreviousContext(meeting.includePreviousContext ?? false);
     setEditOutputLanguage(meeting.outputLanguage || "en");
+    setEditIsInternal(meeting.isInternal ?? false);
     setEditPolicyIds(meetingPolicies.map((p: Policy) => p.id));
     setIsEditingContext(true);
   };
@@ -282,6 +284,7 @@ export default function MeetingDetail() {
         contextText: editContextText.trim() || null,
         includePreviousContext: editIncludePreviousContext,
         outputLanguage: editOutputLanguage,
+        isInternal: editIsInternal,
       };
       await apiRequest("PATCH", `/api/meetings/${id}/context`, contextPayload);
 
@@ -614,6 +617,17 @@ export default function MeetingDetail() {
                             </div>
                           </div>
                         )}
+                        {meeting.isInternal && (
+                          <div className="flex items-center gap-3">
+                            <div className="w-9 h-9 rounded-md bg-muted flex items-center justify-center shrink-0">
+                              <Users className="w-4 h-4 text-muted-foreground" />
+                            </div>
+                            <div>
+                              <p className="text-xs text-muted-foreground">Meeting Type</p>
+                              <p className="text-sm font-semibold" data-testid="text-is-internal">Internal Discussion / Dictation</p>
+                            </div>
+                          </div>
+                        )}
                         <div className="flex items-center gap-3">
                           <div className="w-9 h-9 rounded-md bg-muted flex items-center justify-center shrink-0">
                             <Globe className="w-4 h-4 text-muted-foreground" />
@@ -642,7 +656,7 @@ export default function MeetingDetail() {
                             </div>
                           </div>
                         )}
-                        {!linkedTemplate && !meeting.contextText && !meeting.contextFileName && !meeting.includePreviousContext && meetingPolicies.length === 0 && (
+                        {!linkedTemplate && !meeting.contextText && !meeting.contextFileName && !meeting.includePreviousContext && !meeting.isInternal && meetingPolicies.length === 0 && (
                           <p className="text-sm text-muted-foreground">No template or context set. Edit to add one and regenerate the analysis.</p>
                         )}
                       </div>
@@ -720,6 +734,23 @@ export default function MeetingDetail() {
                               </span>
                             )}
                           </div>
+                        </div>
+
+                        <div className="flex items-start gap-3 pt-1">
+                          <input
+                            type="checkbox"
+                            id="edit-is-internal"
+                            checked={editIsInternal}
+                            onChange={(e) => setEditIsInternal(e.target.checked)}
+                            className="mt-1 h-4 w-4 rounded border-input accent-primary cursor-pointer"
+                            data-testid="checkbox-edit-is-internal"
+                          />
+                          <label htmlFor="edit-is-internal" className="text-sm cursor-pointer select-none">
+                            <span className="font-medium">Internal Meeting</span>
+                            <p className="text-xs text-muted-foreground mt-0.5">
+                              Internal Discussion / Dictation without the client being present
+                            </p>
+                          </label>
                         </div>
 
                         {meeting.clientId && (
