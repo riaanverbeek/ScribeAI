@@ -493,6 +493,22 @@ export async function registerRoutes(
 
   // ========== SUPERUSER ROUTES ==========
 
+  app.patch("/api/superuser/meetings/:id/status", requireAuth, requireVerified, requireSuperuser, async (req, res) => {
+    const id = Number(req.params.id);
+    try {
+      const { status } = z.object({
+        status: z.enum(["uploading", "processing", "completed", "failed"]),
+      }).parse(req.body);
+      const meeting = await storage.getMeeting(id);
+      if (!meeting) return res.status(404).json({ message: "Meeting not found" });
+      const updated = await storage.updateMeetingStatus(id, status);
+      res.json(updated);
+    } catch (err) {
+      if (err instanceof z.ZodError) return res.status(400).json({ message: err.errors[0].message });
+      throw err;
+    }
+  });
+
   app.get("/api/superuser/users", requireAuth, requireVerified, requireSuperuser, async (req, res) => {
     const allUsers = await storage.getAllUsers();
     const safeUsers = allUsers.map(u => {
