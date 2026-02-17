@@ -164,6 +164,13 @@ export default function MeetingDetail() {
   const [editContextFile, setEditContextFile] = useState<File | null>(null);
   const [editIncludePreviousContext, setEditIncludePreviousContext] = useState(false);
   const [editOutputLanguage, setEditOutputLanguage] = useState("en");
+  const [editPolicyIds, setEditPolicyIds] = useState<number[]>([]);
+
+  const { data: clientPolicies = [] } = useQuery<Policy[]>({
+    queryKey: ["/api/clients", meeting?.clientId, "policies"],
+    queryFn: () => fetch(`/api/clients/${meeting?.clientId}/policies`, { credentials: "include" }).then(r => r.json()),
+    enabled: !!meeting?.clientId,
+  });
 
   const getSummaryText = () => {
     if (!meeting?.summary?.content) return "";
@@ -263,6 +270,7 @@ export default function MeetingDetail() {
     setEditContextFile(null);
     setEditIncludePreviousContext(meeting.includePreviousContext ?? false);
     setEditOutputLanguage(meeting.outputLanguage || "en");
+    setEditPolicyIds(meetingPolicies.map((p: Policy) => p.id));
     setIsEditingContext(true);
   };
 
@@ -287,8 +295,19 @@ export default function MeetingDetail() {
         });
       }
 
+      const policyRes = await fetch(`/api/meetings/${id}/policies`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        credentials: "include",
+        body: JSON.stringify({ policyIds: editPolicyIds }),
+      });
+      if (!policyRes.ok) {
+        throw new Error("Failed to update linked policies");
+      }
+
       setIsEditingContext(false);
       queryClient.invalidateQueries({ queryKey: ["/api/meetings/:id", id] });
+      queryClient.invalidateQueries({ queryKey: ["/api/meetings", id, "policies"] });
       reprocessMutation.mutate(id);
     } catch (err: any) {
       toast({ title: "Failed to update", description: err.message, variant: "destructive" });
@@ -504,7 +523,7 @@ export default function MeetingDetail() {
               </Card>
             </motion.section>
 
-            {meetingPolicies.length > 0 && (
+            {meetingPolicies.length > 0 && !(hasFullAccess && (meeting.status === "completed" || meeting.status === "failed")) && (
               <motion.section {...fadeIn}>
                 <Card>
                   <CardContent className="p-4 sm:p-5">
@@ -606,7 +625,24 @@ export default function MeetingDetail() {
                             </p>
                           </div>
                         </div>
-                        {!linkedTemplate && !meeting.contextText && !meeting.contextFileName && !meeting.includePreviousContext && (
+                        {meetingPolicies.length > 0 && (
+                          <div className="flex items-start gap-3">
+                            <div className="w-9 h-9 rounded-md bg-muted flex items-center justify-center shrink-0 mt-0.5">
+                              <Shield className="w-4 h-4 text-muted-foreground" />
+                            </div>
+                            <div className="flex-1 min-w-0">
+                              <p className="text-xs text-muted-foreground">Linked Policies</p>
+                              <div className="space-y-1 mt-1">
+                                {meetingPolicies.map((policy: Policy) => (
+                                  <p key={policy.id} className="text-sm text-foreground" data-testid={`text-linked-policy-${policy.id}`}>
+                                    {policy.type} <span className="text-muted-foreground">- {policy.insurer} ({policy.policyNumber})</span>
+                                  </p>
+                                ))}
+                              </div>
+                            </div>
+                          </div>
+                        )}
+                        {!linkedTemplate && !meeting.contextText && !meeting.contextFileName && !meeting.includePreviousContext && meetingPolicies.length === 0 && (
                           <p className="text-sm text-muted-foreground">No template or context set. Edit to add one and regenerate the analysis.</p>
                         )}
                       </div>
@@ -721,6 +757,41 @@ export default function MeetingDetail() {
                           </Select>
                           <p className="text-xs text-muted-foreground">AI summaries, action items, and topics will be generated in this language. The transcript stays in the original spoken language.</p>
                         </div>
+
+                        {meeting.clientId && clientPolicies.length > 0 && (
+                          <div className="space-y-2">
+                            <Label className="text-sm">Linked Policies</Label>
+                            <p className="text-xs text-muted-foreground -mt-1">Select the policies relevant to this meeting. Their details will appear at the beginning of the AI summary.</p>
+                            <div className="space-y-2">
+                              {clientPolicies.filter((p: Policy) => p.isActive).map((policy: Policy) => (
+                                <div
+                                  key={policy.id}
+                                  className="flex items-start gap-3"
+                                  data-testid={`edit-policy-option-${policy.id}`}
+                                >
+                                  <input
+                                    type="checkbox"
+                                    id={`edit-policy-${policy.id}`}
+                                    checked={editPolicyIds.includes(policy.id)}
+                                    onChange={() =>
+                                      setEditPolicyIds(prev =>
+                                        prev.includes(policy.id)
+                                          ? prev.filter(pid => pid !== policy.id)
+                                          : [...prev, policy.id]
+                                      )
+                                    }
+                                    className="mt-1 h-4 w-4 rounded border-input accent-primary cursor-pointer"
+                                    data-testid={`edit-checkbox-policy-${policy.id}`}
+                                  />
+                                  <label htmlFor={`edit-policy-${policy.id}`} className="flex-1 cursor-pointer select-none">
+                                    <span className="font-medium text-sm text-foreground">{policy.type}</span>
+                                    <span className="text-sm text-muted-foreground ml-2">{policy.insurer} - {policy.policyNumber}</span>
+                                  </label>
+                                </div>
+                              ))}
+                            </div>
+                          </div>
+                        )}
 
                         <div className="flex items-center gap-2 pt-2">
                           <Button

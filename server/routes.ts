@@ -1147,11 +1147,17 @@ export async function registerRoutes(
           }
 
           const linkedPolicies = await storage.getMeetingPolicies(id);
+          let policyPromptSection = "";
           if (linkedPolicies.length > 0) {
             contextSection += `\n\n--- LINKED INSURANCE POLICIES ---\nThe following insurance policies are relevant to this meeting. Reference them in your analysis where applicable:\n`;
             for (const pol of linkedPolicies) {
               contextSection += `- ${pol.type} | Insurer: ${pol.insurer} | Policy Number: ${pol.policyNumber}\n`;
             }
+            policyPromptSection = `\n\n            IMPORTANT: This meeting has linked insurance policies. You MUST begin the summary with a "## Applicable Policies" section that lists each linked policy in this format:\n            ## Applicable Policies\n`;
+            for (const pol of linkedPolicies) {
+              policyPromptSection += `            - **${pol.type}** | Insurer: ${pol.insurer} | Policy Number: ${pol.policyNumber}\n`;
+            }
+            policyPromptSection += `\n            This section MUST appear FIRST in the summary, before the Executive Summary section. Then continue with the rest of the report structure below.`;
           }
 
           const outputLangMap: Record<string, string> = { en: "English", af: "Afrikaans" };
@@ -1177,6 +1183,7 @@ export async function registerRoutes(
             }
 
             CRITICAL: The "summary" field MUST be a single Markdown-formatted string (NOT a JSON object). Structure it as a professional report with the following format:
+            ${policyPromptSection}
 
             ## Executive Summary
             A brief 2-3 sentence overview of the meeting.
@@ -1550,11 +1557,17 @@ export async function registerRoutes(
           }
 
           const reprocessLinkedPolicies = await storage.getMeetingPolicies(id);
+          let reprocessPolicyPromptSection = "";
           if (reprocessLinkedPolicies.length > 0) {
             contextSection += `\n\n--- LINKED INSURANCE POLICIES ---\nThe following insurance policies are relevant to this meeting. Reference them in your analysis where applicable:\n`;
             for (const pol of reprocessLinkedPolicies) {
               contextSection += `- ${pol.type} | Insurer: ${pol.insurer} | Policy Number: ${pol.policyNumber}\n`;
             }
+            reprocessPolicyPromptSection = `\n\n            IMPORTANT: This meeting has linked insurance policies. You MUST begin the summary with a "## Applicable Policies" section that lists each linked policy in this format:\n            ## Applicable Policies\n`;
+            for (const pol of reprocessLinkedPolicies) {
+              reprocessPolicyPromptSection += `            - **${pol.type}** | Insurer: ${pol.insurer} | Policy Number: ${pol.policyNumber}\n`;
+            }
+            reprocessPolicyPromptSection += `\n            This section MUST appear FIRST in the summary, before the Executive Summary section. Then continue with the rest of the report structure below.`;
           }
 
           const outputLangMap: Record<string, string> = { en: "English", af: "Afrikaans" };
@@ -1580,6 +1593,7 @@ export async function registerRoutes(
             }
 
             CRITICAL: The "summary" field MUST be a single Markdown-formatted string (NOT a JSON object). Structure it as a professional report with the following format:
+            ${reprocessPolicyPromptSection}
 
             ## Executive Summary
             A brief 2-3 sentence overview of the meeting.
