@@ -69,6 +69,7 @@ export const meetings = pgTable("meetings", {
   contextFileName: text("context_file_name"),
   userRole: text("user_role"),
   includePreviousContext: boolean("include_previous_context").default(false).notNull(),
+  outputLanguage: text("output_language").default("en").notNull(),
   status: text("status", { enum: ["uploading", "processing", "completed", "failed"] }).notNull().default("uploading"),
   createdAt: timestamp("created_at").defaultNow(),
 });
