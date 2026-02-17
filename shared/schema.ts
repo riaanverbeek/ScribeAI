@@ -122,6 +122,7 @@ export const policies = pgTable("policies", {
   type: text("type").notNull(),
   insurer: text("insurer").notNull(),
   policyNumber: text("policy_number").notNull(),
+  isActive: boolean("is_active").notNull().default(true),
   createdAt: timestamp("created_at").defaultNow(),
 });
 

@@ -1,6 +1,6 @@
 import { useClient } from "@/hooks/use-clients";
 import { useRoute, Link } from "wouter";
-import { ChevronLeft, Calendar, Clock, ChevronRight, Users, Building2, Mail, Shield, Plus, Trash2, Pencil, X, Check } from "lucide-react";
+import { ChevronLeft, Calendar, Clock, ChevronRight, Users, Building2, Mail, Shield, Plus, Trash2, Pencil, X, Check, CircleDot } from "lucide-react";
 import { useViewMode } from "@/hooks/use-view-mode";
 import { ViewToggle } from "@/components/ViewToggle";
 import { Button } from "@/components/ui/button";
@@ -16,6 +16,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { useToast } from "@/hooks/use-toast";
+import { Badge } from "@/components/ui/badge";
 
 function PolicySection({ clientId }: { clientId: number }) {
   const { toast } = useToast();
@@ -54,6 +55,15 @@ function PolicySection({ clientId }: { clientId: number }) {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/clients", clientId, "policies"] });
       toast({ title: "Policy removed" });
+    },
+  });
+
+  const toggleActiveMutation = useMutation({
+    mutationFn: ({ id, isActive }: { id: number; isActive: boolean }) =>
+      apiRequest("PATCH", `/api/policies/${id}`, { isActive }),
+    onSuccess: (_data, variables) => {
+      queryClient.invalidateQueries({ queryKey: ["/api/clients", clientId, "policies"] });
+      toast({ title: variables.isActive ? "Policy activated" : "Policy deactivated" });
     },
   });
 
@@ -165,12 +175,23 @@ function PolicySection({ clientId }: { clientId: number }) {
           {policyList.map((policy) => (
             <Card
               key={policy.id}
-              className="flex items-center gap-4 p-4"
+              className={`flex items-center gap-4 p-4 ${!policy.isActive ? "opacity-60" : ""}`}
               data-testid={`card-policy-${policy.id}`}
             >
               <div className="min-w-0 flex-1">
-                <div className="font-medium text-slate-900 dark:text-foreground" data-testid={`text-policy-type-${policy.id}`}>
-                  {policy.type}
+                <div className="flex items-center gap-2 flex-wrap">
+                  <span className="font-medium text-slate-900 dark:text-foreground" data-testid={`text-policy-type-${policy.id}`}>
+                    {policy.type}
+                  </span>
+                  <Badge
+                    variant={policy.isActive ? "default" : "secondary"}
+                    className="cursor-pointer select-none text-xs"
+                    onClick={() => toggleActiveMutation.mutate({ id: policy.id, isActive: !policy.isActive })}
+                    data-testid={`badge-policy-status-${policy.id}`}
+                  >
+                    <CircleDot className="w-3 h-3 mr-1" />
+                    {policy.isActive ? "Active" : "Inactive"}
+                  </Badge>
                 </div>
                 <div className="flex items-center gap-3 mt-1 text-sm text-slate-500 flex-wrap">
                   <span>{policy.insurer}</span>

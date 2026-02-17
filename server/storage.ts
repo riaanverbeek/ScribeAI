@@ -84,7 +84,7 @@ export interface IStorage {
     getPoliciesByClient(clientId: number): Promise<Policy[]>;
     getPolicy(id: number): Promise<Policy | undefined>;
     createPolicy(policy: InsertPolicy): Promise<Policy>;
-    updatePolicy(id: number, data: Partial<Pick<Policy, "type" | "insurer" | "policyNumber">>): Promise<Policy>;
+    updatePolicy(id: number, data: Partial<Pick<Policy, "type" | "insurer" | "policyNumber" | "isActive">>): Promise<Policy>;
     deletePolicy(id: number): Promise<void>;
 
     // Meeting-Policy links
@@ -419,7 +419,7 @@ export class DatabaseStorage implements IStorage {
         return policy;
     }
 
-    async updatePolicy(id: number, data: Partial<Pick<Policy, "type" | "insurer" | "policyNumber">>): Promise<Policy> {
+    async updatePolicy(id: number, data: Partial<Pick<Policy, "type" | "insurer" | "policyNumber" | "isActive">>): Promise<Policy> {
         const [policy] = await db.update(policies).set(data).where(eq(policies.id, id)).returning();
         return policy;
     }

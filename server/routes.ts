@@ -919,8 +919,8 @@ export async function registerRoutes(
     if (!client || client.userId !== user.id) {
       return res.status(404).json({ message: "Policy not found" });
     }
-    const { type, insurer, policyNumber } = req.body;
-    const updated = await storage.updatePolicy(id, { type, insurer, policyNumber });
+    const { type, insurer, policyNumber, isActive } = req.body;
+    const updated = await storage.updatePolicy(id, { type, insurer, policyNumber, ...(isActive !== undefined ? { isActive } : {}) });
     res.json(updated);
   });
 
