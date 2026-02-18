@@ -114,10 +114,13 @@ export default function QuickRecord() {
       }, 1000);
 
       drawWaveform();
-    } catch {
+    } catch (err: any) {
+      const isUnsupported = err?.message?.includes("does not support audio recording");
       toast({
-        title: "Microphone Access Denied",
-        description: "Please allow microphone access to record.",
+        title: isUnsupported ? "Recording Not Supported" : "Microphone Access Denied",
+        description: isUnsupported
+          ? "Your browser doesn't support audio recording. Please upload an audio file instead."
+          : "Please allow microphone access to record.",
         variant: "destructive",
       });
     }
@@ -162,7 +165,9 @@ export default function QuickRecord() {
     }
 
     const blob = await recorder.stopRecording();
-    const file = new File([blob], "phone-call.webm", { type: "audio/webm" });
+    const ext = recorder.recordingExtension || ".webm";
+    const mime = recorder.recordingMimeType || "audio/webm";
+    const file = new File([blob], `phone-call${ext}`, { type: mime });
     setAudioFile(file);
 
     const now = new Date();

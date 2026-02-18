@@ -241,7 +241,9 @@ export default function NewMeeting() {
 
   const handleStopRecording = async () => {
     const blob = await recorder.stopRecording();
-    const recordedFile = new File([blob], "recording.webm", { type: "audio/webm" });
+    const ext = recorder.recordingExtension || ".webm";
+    const mime = recorder.recordingMimeType || "audio/webm";
+    const recordedFile = new File([blob], `recording${ext}`, { type: mime });
     setFile(recordedFile);
     toast({ title: "Recording Saved", description: "Ready to process." });
   };
@@ -549,7 +551,17 @@ export default function NewMeeting() {
                     <>
                       <div className="relative mb-6">
                         <button
-                          onClick={recorder.startRecording}
+                          onClick={async () => {
+                            try {
+                              await recorder.startRecording();
+                            } catch {
+                              toast({
+                                title: "Recording Not Supported",
+                                description: "Your browser doesn't support audio recording. Please upload an audio file instead.",
+                                variant: "destructive",
+                              });
+                            }
+                          }}
                           className="relative z-10 w-20 h-20 rounded-full flex items-center justify-center transition-all duration-300 bg-primary text-white hover:bg-slate-800 shadow-xl shadow-slate-900/20"
                           data-testid="button-record"
                         >

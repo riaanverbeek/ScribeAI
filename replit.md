@@ -19,6 +19,7 @@ Preferred communication style: Simple, everyday language.
 - **Styling**: Tailwind CSS with shadcn/ui components
 - **Build Tool**: Vite
 - **Animations**: Framer Motion
+- **Audio Recording**: Auto-detects supported MIME types (WebM/Opus preferred, MP4/AAC fallback for iOS Safari). Server converts all non-WAV formats (WebM, MP4, M4A, OGG, AAC, CAF) to WAV via ffmpeg before storage.
 - **Audio Visualization**: WaveSurfer.js for waveform display and playback
 - **Offline Support**: IndexedDB for offline audio recording storage and a Service Worker for PWA capabilities and offline access.
 - **UI/UX**: Support for tile and list views on key pages, with preference persistence.

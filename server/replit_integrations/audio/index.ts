@@ -2,6 +2,7 @@ export { registerAudioRoutes } from "./routes";
 export {
   openai,
   convertWebmToWav,
+  convertAudioToWav,
   textToSpeech,
   textToSpeechStream,
   speechToText,

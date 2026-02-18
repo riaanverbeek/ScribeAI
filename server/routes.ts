@@ -8,7 +8,7 @@ import { storage } from "./storage";
 import { api } from "@shared/routes";
 import { z } from "zod";
 import multer from "multer";
-import { speechToText, convertWebmToWav } from "./replit_integrations/audio";
+import { speechToText, convertWebmToWav, convertAudioToWav } from "./replit_integrations/audio";
 import OpenAI from "openai";
 import fs from "fs";
 import path from "path";
@@ -1069,8 +1069,13 @@ export async function registerRoutes(
         let finalExt = ext || ".wav";
         let contentType = mimetype || "audio/wav";
         
-        if (mimetype.includes("webm") || ext === ".webm") {
-            audioBuffer = await convertWebmToWav(audioBuffer);
+        const needsConversion = mimetype.includes("webm") || ext === ".webm"
+            || mimetype.includes("mp4") || ext === ".mp4" || ext === ".m4a"
+            || mimetype.includes("ogg") || ext === ".ogg"
+            || mimetype.includes("aac") || ext === ".aac"
+            || mimetype.includes("caf") || ext === ".caf";
+        if (needsConversion) {
+            audioBuffer = await convertAudioToWav(audioBuffer);
             finalExt = ".wav";
             contentType = "audio/wav";
         }

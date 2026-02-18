@@ -18,6 +18,10 @@ export const openai = new OpenAI({
  * const wavBuffer = await convertWebmToWav(webmBuffer);
  * const transcript = await speechToText(wavBuffer, "wav");
  */
+export function convertAudioToWav(inputBuffer: Buffer): Promise<Buffer> {
+  return convertWebmToWav(inputBuffer);
+}
+
 export function convertWebmToWav(webmBuffer: Buffer): Promise<Buffer> {
   return new Promise((resolve, reject) => {
     const ffmpeg = spawn("ffmpeg", [
