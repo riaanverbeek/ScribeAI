@@ -69,7 +69,7 @@ import { requireAuth, requireAdmin, requireVerified, requireSubscription, requir
 import { passwordSchema } from "@shared/passwordValidation";
 import type { User } from "@shared/schema";
 
-const upload = multer({ dest: "uploads/" });
+const upload = multer({ dest: "uploads/", limits: { fileSize: 200 * 1024 * 1024 } });
 
 const openai = new OpenAI({
   apiKey: process.env.AI_INTEGRATIONS_OPENAI_API_KEY,

@@ -663,7 +663,7 @@ export default function NewMeeting() {
                       <UploadCloud className="w-8 h-8" />
                     </div>
                     <span className="font-semibold text-slate-900 hover:underline">Choose a file</span>
-                    <p className="text-sm text-slate-500 mt-1">MP3, WAV, M4A up to 50MB</p>
+                    <p className="text-sm text-slate-500 mt-1">MP3, WAV, M4A up to 200MB</p>
                   </label>
                   
                   {file && recorder.state !== "stopped" && (
