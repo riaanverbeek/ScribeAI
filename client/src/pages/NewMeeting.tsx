@@ -236,7 +236,14 @@ export default function NewMeeting() {
 
       setLocation(`/meeting/${meeting.id}`);
 
-    } catch (error) {}
+    } catch (error: any) {
+      console.error("Meeting creation/upload error:", error);
+      toast({
+        title: "Something Went Wrong",
+        description: error?.message || "Failed to create or upload meeting. Please try again.",
+        variant: "destructive",
+      });
+    }
   };
 
   const handleStopRecording = async () => {
@@ -649,7 +656,7 @@ export default function NewMeeting() {
                     type="file"
                     id="audio-upload"
                     className="hidden"
-                    accept="audio/*"
+                    accept="audio/*,video/mp4,.mp4,.m4a,.mp3,.wav,.ogg,.webm,.aac,.caf"
                     onChange={(e) => {
                       if (e.target.files?.[0]) setFile(e.target.files[0]);
                     }}
@@ -663,7 +670,7 @@ export default function NewMeeting() {
                       <UploadCloud className="w-8 h-8" />
                     </div>
                     <span className="font-semibold text-slate-900 hover:underline">Choose a file</span>
-                    <p className="text-sm text-slate-500 mt-1">MP3, WAV, M4A up to 200MB</p>
+                    <p className="text-sm text-slate-500 mt-1">MP3, WAV, M4A, MP4 up to 200MB</p>
                   </label>
                   
                   {file && recorder.state !== "stopped" && (
