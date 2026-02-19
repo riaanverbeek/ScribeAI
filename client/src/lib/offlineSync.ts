@@ -75,21 +75,32 @@ async function uploadSingleRecording(rec: OfflineRecording): Promise<void> {
     });
   }
 
-  const audioFormData = new FormData();
   const audioFile = new File([rec.audioBlob], rec.audioFileName, {
     type: rec.audioMimeType,
   });
-  audioFormData.append("audio", audioFile);
 
-  const uploadRes = await fetch(`/api/meetings/${meeting.id}/audio`, {
+  const urlRes = await fetch(`/api/meetings/${meeting.id}/audio/request-url`, {
     method: "POST",
+    headers: { "Content-Type": "application/json" },
     credentials: "include",
-    body: audioFormData,
   });
+  if (!urlRes.ok) throw new Error("Failed to get upload URL");
+  const { uploadURL, objectPath } = await urlRes.json();
 
-  if (!uploadRes.ok) {
-    throw new Error("Failed to upload audio");
-  }
+  const putRes = await fetch(uploadURL, {
+    method: "PUT",
+    body: audioFile,
+    headers: { "Content-Type": rec.audioMimeType || "application/octet-stream" },
+  });
+  if (!putRes.ok) throw new Error("Failed to upload audio to storage");
+
+  const confirmRes = await fetch(`/api/meetings/${meeting.id}/audio/confirm`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    credentials: "include",
+    body: JSON.stringify({ objectPath, fileName: rec.audioFileName }),
+  });
+  if (!confirmRes.ok) throw new Error("Failed to confirm audio upload");
 
   await fetch(`/api/meetings/${meeting.id}/process`, {
     method: "POST",

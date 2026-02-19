@@ -13,7 +13,7 @@ import OpenAI from "openai";
 import fs from "fs";
 import path from "path";
 import crypto from "crypto";
-import { uploadBufferToObjectStorage, downloadBufferFromObjectStorage, streamObjectToResponse } from "./objectStorageHelper";
+import { uploadBufferToObjectStorage, downloadBufferFromObjectStorage, streamObjectToResponse, objectStorageService } from "./objectStorageHelper";
 import { registerObjectStorageRoutes } from "./replit_integrations/object_storage";
 
 function formatSummaryToMarkdown(summary: any): string {
@@ -1047,6 +1047,57 @@ export async function registerRoutes(
       }
       throw err;
     }
+  });
+
+  app.post("/api/meetings/:id/audio/request-url", requireAuth, requireVerified, async (req, res) => {
+      const id = Number(req.params.id);
+      const user = (req as any).user as User;
+      const existingMeeting = await storage.getMeeting(id);
+      if (!existingMeeting || existingMeeting.userId !== user.id) {
+          return res.status(404).json({ message: "Meeting not found" });
+      }
+      try {
+        const uploadURL = await objectStorageService.getObjectEntityUploadURL();
+        const objectPath = objectStorageService.normalizeObjectEntityPath(uploadURL);
+
+        await storage.updateMeeting(id, { status: "uploading" as any });
+
+        res.json({ uploadURL, objectPath });
+      } catch (error) {
+        console.error("Error generating audio upload URL:", error);
+        res.status(500).json({ message: "Failed to generate upload URL" });
+      }
+  });
+
+  app.post("/api/meetings/:id/audio/confirm", requireAuth, requireVerified, async (req, res) => {
+      const id = Number(req.params.id);
+      const user = (req as any).user as User;
+      const existingMeeting = await storage.getMeeting(id);
+      if (!existingMeeting || existingMeeting.userId !== user.id) {
+          return res.status(404).json({ message: "Meeting not found" });
+      }
+      const { objectPath, fileName } = req.body;
+      if (!objectPath) {
+          return res.status(400).json({ message: "Missing objectPath" });
+      }
+      try {
+        const ext = path.extname(fileName || objectPath).toLowerCase();
+        const needsConversion = [".webm", ".mp4", ".m4a", ".ogg", ".aac", ".caf"].includes(ext);
+
+        if (needsConversion) {
+          let audioBuffer = await downloadBufferFromObjectStorage(objectPath);
+          audioBuffer = await convertAudioToWav(audioBuffer);
+          const wavPath = await uploadBufferToObjectStorage(audioBuffer, ".wav", "audio/wav");
+          await storage.updateMeetingAudioUrl(id, wavPath);
+        } else {
+          await storage.updateMeetingAudioUrl(id, objectPath);
+        }
+
+        res.json({ message: "Audio uploaded successfully" });
+      } catch (error) {
+        console.error("Error confirming audio upload:", error);
+        res.status(500).json({ message: "Failed to process audio" });
+      }
   });
 
   app.post("/api/meetings/:id/audio", requireAuth, requireVerified, upload.single('audio'), async (req, res) => {

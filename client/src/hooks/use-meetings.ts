@@ -87,18 +87,33 @@ export function useUploadAudio() {
 
   return useMutation({
     mutationFn: async ({ id, file }: { id: number; file: File | Blob }) => {
-      const formData = new FormData();
-      formData.append("audio", file);
+      const fileName = (file as File).name || "audio.wav";
 
-      const url = buildUrl(api.meetings.uploadAudio.path, { id });
-      const res = await fetch(url, {
+      const urlRes = await fetch(`/api/meetings/${id}/audio/request-url`, {
         method: "POST",
-        body: formData, // Browser sets Content-Type to multipart/form-data automatically
+        headers: { "Content-Type": "application/json" },
         credentials: "include",
       });
+      if (!urlRes.ok) throw new Error("Failed to get upload URL");
+      const { uploadURL, objectPath } = await urlRes.json();
 
-      if (!res.ok) throw new Error("Failed to upload audio");
-      return res.json();
+      const putRes = await fetch(uploadURL, {
+        method: "PUT",
+        body: file,
+        headers: {
+          "Content-Type": (file as File).type || "application/octet-stream",
+        },
+      });
+      if (!putRes.ok) throw new Error("Failed to upload audio to storage");
+
+      const confirmRes = await fetch(`/api/meetings/${id}/audio/confirm`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        credentials: "include",
+        body: JSON.stringify({ objectPath, fileName }),
+      });
+      if (!confirmRes.ok) throw new Error("Failed to confirm audio upload");
+      return confirmRes.json();
     },
     onSuccess: (_, { id }) => {
       queryClient.invalidateQueries({ queryKey: [api.meetings.list.path] });
