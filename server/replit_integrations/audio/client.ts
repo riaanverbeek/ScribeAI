@@ -22,6 +22,47 @@ export function convertAudioToWav(inputBuffer: Buffer): Promise<Buffer> {
   return convertWebmToWav(inputBuffer);
 }
 
+const MAX_OPENAI_FILE_SIZE = 24 * 1024 * 1024;
+
+export function convertAudioToMp3(inputBuffer: Buffer): Promise<Buffer> {
+  return new Promise((resolve, reject) => {
+    const ffmpeg = spawn("ffmpeg", [
+      "-i", "pipe:0",
+      "-f", "mp3",
+      "-ar", "16000",
+      "-ac", "1",
+      "-b:a", "64k",
+      "pipe:1"
+    ]);
+
+    const chunks: Buffer[] = [];
+
+    ffmpeg.stdout.on("data", (chunk) => chunks.push(chunk));
+    ffmpeg.stderr.on("data", () => {});
+    ffmpeg.on("close", (code) => {
+      if (code === 0) {
+        resolve(Buffer.concat(chunks));
+      } else {
+        reject(new Error(`ffmpeg mp3 conversion exited with code ${code}`));
+      }
+    });
+    ffmpeg.on("error", reject);
+
+    ffmpeg.stdin.write(inputBuffer);
+    ffmpeg.stdin.end();
+  });
+}
+
+export async function prepareAudioForTranscription(audioBuffer: Buffer, format: "wav" | "mp3" | "webm"): Promise<{ buffer: Buffer; format: "wav" | "mp3" | "webm" }> {
+  if (audioBuffer.length <= MAX_OPENAI_FILE_SIZE) {
+    return { buffer: audioBuffer, format };
+  }
+  console.log(`Audio file too large (${(audioBuffer.length / 1024 / 1024).toFixed(1)}MB), compressing to MP3...`);
+  const mp3Buffer = await convertAudioToMp3(audioBuffer);
+  console.log(`Compressed to ${(mp3Buffer.length / 1024 / 1024).toFixed(1)}MB`);
+  return { buffer: mp3Buffer, format: "mp3" };
+}
+
 export function convertWebmToWav(webmBuffer: Buffer): Promise<Buffer> {
   return new Promise((resolve, reject) => {
     const ffmpeg = spawn("ffmpeg", [

@@ -3,6 +3,8 @@ export {
   openai,
   convertWebmToWav,
   convertAudioToWav,
+  convertAudioToMp3,
+  prepareAudioForTranscription,
   textToSpeech,
   textToSpeechStream,
   speechToText,

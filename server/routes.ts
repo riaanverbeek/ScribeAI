@@ -8,7 +8,7 @@ import { storage } from "./storage";
 import { api } from "@shared/routes";
 import { z } from "zod";
 import multer from "multer";
-import { speechToText, convertWebmToWav, convertAudioToWav } from "./replit_integrations/audio";
+import { speechToText, convertWebmToWav, convertAudioToWav, prepareAudioForTranscription } from "./replit_integrations/audio";
 import OpenAI from "openai";
 import fs from "fs";
 import path from "path";
@@ -1115,8 +1115,9 @@ export async function registerRoutes(
             audioBuffer = fs.readFileSync(meeting.audioUrl);
           }
           const audioExt = path.extname(meeting.audioUrl).toLowerCase();
-          const format: "wav" | "mp3" | "webm" = audioExt === ".mp3" ? "mp3" : audioExt === ".webm" ? "webm" : "wav";
-          const transcriptText = await speechToText(audioBuffer, format);
+          const rawFormat: "wav" | "mp3" | "webm" = audioExt === ".mp3" ? "mp3" : audioExt === ".webm" ? "webm" : "wav";
+          const prepared = await prepareAudioForTranscription(audioBuffer, rawFormat);
+          const transcriptText = await speechToText(prepared.buffer, prepared.format);
           
           await storage.createTranscript({
               meetingId: id,
