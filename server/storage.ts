@@ -93,6 +93,7 @@ export interface IStorage {
 
     // Clear analysis data (for reprocessing)
     clearMeetingAnalysis(meetingId: number): Promise<void>;
+    clearTranscript(meetingId: number): Promise<void>;
 }
 
 export class DatabaseStorage implements IStorage {
@@ -448,6 +449,10 @@ export class DatabaseStorage implements IStorage {
         await db.delete(actionItems).where(eq(actionItems.meetingId, meetingId));
         await db.delete(topics).where(eq(topics.meetingId, meetingId));
         await db.delete(meetingSummaries).where(eq(meetingSummaries.meetingId, meetingId));
+    }
+
+    async clearTranscript(meetingId: number): Promise<void> {
+        await db.delete(transcripts).where(eq(transcripts.meetingId, meetingId));
     }
 }
 

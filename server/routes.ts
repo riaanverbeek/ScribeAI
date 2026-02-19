@@ -1154,6 +1154,11 @@ export async function registerRoutes(
           return res.status(400).json({ message: "No audio uploaded for this meeting" });
       }
 
+      if (meeting.status === "processing" || meeting.status === "failed") {
+          await storage.clearMeetingAnalysis(id);
+          await storage.clearTranscript(id);
+      }
+
       try {
           await storage.updateMeetingStatus(id, "processing");
 

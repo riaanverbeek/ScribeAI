@@ -246,6 +246,21 @@ export default function MeetingDetail() {
     },
   });
 
+  const retryProcessMutation = useMutation({
+    mutationFn: async (meetingId: number) => {
+      const res = await apiRequest("POST", `/api/meetings/${meetingId}/process`);
+      return res.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/meetings/:id", id] });
+      queryClient.invalidateQueries({ queryKey: ["/api/meetings"] });
+      toast({ title: "Processing restarted", description: "The meeting is being processed again." });
+    },
+    onError: (err: any) => {
+      toast({ title: "Retry failed", description: err.message, variant: "destructive" });
+    },
+  });
+
   const sendEmailMutation = useMutation({
     mutationFn: async (meetingId: number) => {
       const res = await apiRequest("POST", `/api/meetings/${meetingId}/send-email`);
@@ -1010,7 +1025,7 @@ export default function MeetingDetail() {
                       </div>
                     </motion.div>
                   ) : (
-                    <EmptyState type="summary" status={meeting.status} />
+                    <EmptyState type="summary" status={meeting.status} onRetry={() => retryProcessMutation.mutate(meeting.id)} isRetrying={retryProcessMutation.isPending} />
                   )}
                 </TabsContent>
 
@@ -1037,7 +1052,7 @@ export default function MeetingDetail() {
                       </div>
                     </motion.div>
                   ) : (
-                    <EmptyState type="transcript" status={meeting.status} />
+                    <EmptyState type="transcript" status={meeting.status} onRetry={() => retryProcessMutation.mutate(meeting.id)} isRetrying={retryProcessMutation.isPending} />
                   )}
                 </TabsContent>
 
@@ -1074,7 +1089,7 @@ export default function MeetingDetail() {
                       ))}
                     </div>
                   ) : (
-                    <EmptyState type="action items" status={meeting.status} />
+                    <EmptyState type="action items" status={meeting.status} onRetry={() => retryProcessMutation.mutate(meeting.id)} isRetrying={retryProcessMutation.isPending} />
                   )}
                 </TabsContent>
 
@@ -1112,7 +1127,7 @@ export default function MeetingDetail() {
                       </div>
                     </div>
                   ) : (
-                    <EmptyState type="topics" status={meeting.status} />
+                    <EmptyState type="topics" status={meeting.status} onRetry={() => retryProcessMutation.mutate(meeting.id)} isRetrying={retryProcessMutation.isPending} />
                   )}
                 </TabsContent>
               </div>
@@ -1123,7 +1138,7 @@ export default function MeetingDetail() {
   );
 }
 
-function EmptyState({ type, status }: { type: string, status: string | undefined }) {
+function EmptyState({ type, status, onRetry, isRetrying }: { type: string, status: string | undefined, onRetry?: () => void, isRetrying?: boolean }) {
   if (status === 'processing' || status === 'uploading') {
     return (
       <div className="flex flex-col items-center justify-center py-20 text-center">
@@ -1134,6 +1149,19 @@ function EmptyState({ type, status }: { type: string, status: string | undefined
         <p className="text-muted-foreground mt-1 max-w-sm">
           We are currently generating the {type}. This typically takes 1-2 minutes depending on the audio length.
         </p>
+        {status === 'processing' && onRetry && (
+          <Button
+            variant="outline"
+            size="sm"
+            className="mt-4"
+            onClick={onRetry}
+            disabled={isRetrying}
+            data-testid="button-retry-processing"
+          >
+            {isRetrying ? <Loader2 className="w-4 h-4 mr-1.5 animate-spin" /> : <RefreshCw className="w-4 h-4 mr-1.5" />}
+            Stuck? Retry Processing
+          </Button>
+        )}
       </div>
     );
   }

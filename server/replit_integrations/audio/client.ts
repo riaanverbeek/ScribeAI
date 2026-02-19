@@ -1,6 +1,9 @@
 import OpenAI, { toFile } from "openai";
 import { Buffer } from "node:buffer";
 import { spawn } from "child_process";
+import fs from "fs";
+import os from "os";
+import path from "path";
 
 export const openai = new OpenAI({
   apiKey: process.env.AI_INTEGRATIONS_OPENAI_API_KEY,
@@ -24,33 +27,35 @@ export function convertAudioToWav(inputBuffer: Buffer): Promise<Buffer> {
 
 const MAX_OPENAI_FILE_SIZE = 24 * 1024 * 1024;
 
-export function convertAudioToMp3(inputBuffer: Buffer): Promise<Buffer> {
-  return new Promise((resolve, reject) => {
-    const ffmpeg = spawn("ffmpeg", [
-      "-i", "pipe:0",
-      "-f", "mp3",
-      "-ar", "16000",
-      "-ac", "1",
-      "-b:a", "64k",
-      "pipe:1"
-    ]);
+function makeTempFile(ext: string): string {
+  return path.join(os.tmpdir(), `scribe_${Date.now()}_${Math.random().toString(36).slice(2)}.${ext}`);
+}
 
-    const chunks: Buffer[] = [];
-
-    ffmpeg.stdout.on("data", (chunk) => chunks.push(chunk));
-    ffmpeg.stderr.on("data", () => {});
-    ffmpeg.on("close", (code) => {
-      if (code === 0) {
-        resolve(Buffer.concat(chunks));
-      } else {
-        reject(new Error(`ffmpeg mp3 conversion exited with code ${code}`));
-      }
+export async function convertAudioToMp3(inputBuffer: Buffer): Promise<Buffer> {
+  const inputPath = makeTempFile("input");
+  const outputPath = makeTempFile("mp3");
+  try {
+    fs.writeFileSync(inputPath, inputBuffer);
+    return await new Promise((resolve, reject) => {
+      const ffmpeg = spawn("ffmpeg", [
+        "-y", "-i", inputPath,
+        "-f", "mp3", "-ar", "16000", "-ac", "1", "-b:a", "64k",
+        outputPath,
+      ]);
+      ffmpeg.stderr.on("data", () => {});
+      ffmpeg.on("close", (code) => {
+        if (code === 0) {
+          resolve(fs.readFileSync(outputPath));
+        } else {
+          reject(new Error(`ffmpeg mp3 conversion exited with code ${code}`));
+        }
+      });
+      ffmpeg.on("error", reject);
     });
-    ffmpeg.on("error", reject);
-
-    ffmpeg.stdin.write(inputBuffer);
-    ffmpeg.stdin.end();
-  });
+  } finally {
+    try { fs.unlinkSync(inputPath); } catch {}
+    try { fs.unlinkSync(outputPath); } catch {}
+  }
 }
 
 export async function prepareAudioForTranscription(audioBuffer: Buffer, format: "wav" | "mp3" | "webm"): Promise<{ buffer: Buffer; format: "wav" | "mp3" | "webm" }> {
@@ -65,56 +70,63 @@ export async function prepareAudioForTranscription(audioBuffer: Buffer, format: 
 
 const MAX_CHUNK_DURATION_SEC = 1400;
 
-export function getAudioDuration(audioBuffer: Buffer): Promise<number> {
-  return new Promise((resolve, reject) => {
-    const ffprobe = spawn("ffprobe", [
-      "-i", "pipe:0",
-      "-show_entries", "format=duration",
-      "-v", "quiet",
-      "-of", "csv=p=0",
-    ]);
-    let output = "";
-    ffprobe.stdout.on("data", (chunk) => { output += chunk.toString(); });
-    ffprobe.stderr.on("data", () => {});
-    ffprobe.on("close", (code) => {
-      if (code === 0) {
-        resolve(parseFloat(output.trim()) || 0);
-      } else {
-        reject(new Error(`ffprobe exited with code ${code}`));
-      }
+export async function getAudioDuration(audioBuffer: Buffer): Promise<number> {
+  const inputPath = makeTempFile("probe");
+  try {
+    fs.writeFileSync(inputPath, audioBuffer);
+    return await new Promise((resolve, reject) => {
+      const ffprobe = spawn("ffprobe", [
+        "-i", inputPath,
+        "-show_entries", "format=duration",
+        "-v", "quiet",
+        "-of", "csv=p=0",
+      ]);
+      let output = "";
+      ffprobe.stdout.on("data", (chunk) => { output += chunk.toString(); });
+      ffprobe.stderr.on("data", () => {});
+      ffprobe.on("close", (code) => {
+        if (code === 0) {
+          const dur = parseFloat(output.trim());
+          if (isNaN(dur) || dur <= 0) {
+            reject(new Error(`ffprobe returned invalid duration: "${output.trim()}"`));
+          } else {
+            resolve(dur);
+          }
+        } else {
+          reject(new Error(`ffprobe exited with code ${code}`));
+        }
+      });
+      ffprobe.on("error", reject);
     });
-    ffprobe.on("error", reject);
-    ffprobe.stdin.write(audioBuffer);
-    ffprobe.stdin.end();
-  });
+  } finally {
+    try { fs.unlinkSync(inputPath); } catch {}
+  }
 }
 
-export function splitAudioChunk(audioBuffer: Buffer, startSec: number, durationSec: number): Promise<Buffer> {
-  return new Promise((resolve, reject) => {
-    const ffmpeg = spawn("ffmpeg", [
-      "-i", "pipe:0",
-      "-ss", startSec.toString(),
-      "-t", durationSec.toString(),
-      "-f", "mp3",
-      "-ar", "16000",
-      "-ac", "1",
-      "-b:a", "64k",
-      "pipe:1",
-    ]);
-    const chunks: Buffer[] = [];
-    ffmpeg.stdout.on("data", (chunk) => chunks.push(chunk));
-    ffmpeg.stderr.on("data", () => {});
-    ffmpeg.on("close", (code) => {
-      if (code === 0) {
-        resolve(Buffer.concat(chunks));
-      } else {
-        reject(new Error(`ffmpeg split exited with code ${code}`));
-      }
+export async function splitAudioChunk(inputPath: string, startSec: number, durationSec: number): Promise<Buffer> {
+  const outputPath = makeTempFile("mp3");
+  try {
+    return await new Promise((resolve, reject) => {
+      const ffmpeg = spawn("ffmpeg", [
+        "-y", "-i", inputPath,
+        "-ss", startSec.toString(),
+        "-t", durationSec.toString(),
+        "-f", "mp3", "-ar", "16000", "-ac", "1", "-b:a", "64k",
+        outputPath,
+      ]);
+      ffmpeg.stderr.on("data", () => {});
+      ffmpeg.on("close", (code) => {
+        if (code === 0) {
+          resolve(fs.readFileSync(outputPath));
+        } else {
+          reject(new Error(`ffmpeg split exited with code ${code}`));
+        }
+      });
+      ffmpeg.on("error", reject);
     });
-    ffmpeg.on("error", reject);
-    ffmpeg.stdin.write(audioBuffer);
-    ffmpeg.stdin.end();
-  });
+  } finally {
+    try { fs.unlinkSync(outputPath); } catch {}
+  }
 }
 
 export async function transcribeLongAudio(audioBuffer: Buffer, format: "wav" | "mp3" | "webm"): Promise<string> {
@@ -126,58 +138,62 @@ export async function transcribeLongAudio(audioBuffer: Buffer, format: "wav" | "
     return await speechToText(prepared.buffer, prepared.format);
   }
 
-  const numChunks = Math.ceil(duration / MAX_CHUNK_DURATION_SEC);
-  console.log(`Splitting audio into ${numChunks} chunks for transcription...`);
-  const transcripts: string[] = [];
+  const inputPath = makeTempFile(format);
+  try {
+    fs.writeFileSync(inputPath, audioBuffer);
+    const numChunks = Math.ceil(duration / MAX_CHUNK_DURATION_SEC);
+    console.log(`Splitting audio into ${numChunks} chunks for transcription...`);
+    const transcripts: string[] = [];
 
-  for (let i = 0; i < numChunks; i++) {
-    const startSec = i * MAX_CHUNK_DURATION_SEC;
-    const chunkDuration = Math.min(MAX_CHUNK_DURATION_SEC, duration - startSec);
-    console.log(`Transcribing chunk ${i + 1}/${numChunks} (${startSec.toFixed(0)}s - ${(startSec + chunkDuration).toFixed(0)}s)...`);
+    for (let i = 0; i < numChunks; i++) {
+      const startSec = i * MAX_CHUNK_DURATION_SEC;
+      const chunkDuration = Math.min(MAX_CHUNK_DURATION_SEC, duration - startSec);
+      console.log(`Transcribing chunk ${i + 1}/${numChunks} (${startSec.toFixed(0)}s - ${(startSec + chunkDuration).toFixed(0)}s)...`);
 
-    const chunkBuffer = await splitAudioChunk(audioBuffer, startSec, chunkDuration);
+      const chunkBuffer = await splitAudioChunk(inputPath, startSec, chunkDuration);
 
-    let prepared = { buffer: chunkBuffer, format: "mp3" as const };
-    if (chunkBuffer.length > MAX_OPENAI_FILE_SIZE) {
-      console.log(`Chunk ${i + 1} too large (${(chunkBuffer.length / 1024 / 1024).toFixed(1)}MB), re-compressing...`);
-      const recompressed = await convertAudioToMp3(chunkBuffer);
-      prepared = { buffer: recompressed, format: "mp3" };
+      let prepared = { buffer: chunkBuffer, format: "mp3" as const };
+      if (chunkBuffer.length > MAX_OPENAI_FILE_SIZE) {
+        console.log(`Chunk ${i + 1} too large (${(chunkBuffer.length / 1024 / 1024).toFixed(1)}MB), re-compressing...`);
+        const recompressed = await convertAudioToMp3(chunkBuffer);
+        prepared = { buffer: recompressed, format: "mp3" };
+      }
+
+      const text = await speechToText(prepared.buffer, prepared.format);
+      transcripts.push(text);
     }
 
-    const text = await speechToText(prepared.buffer, prepared.format);
-    transcripts.push(text);
+    return transcripts.join("\n\n");
+  } finally {
+    try { fs.unlinkSync(inputPath); } catch {}
   }
-
-  return transcripts.join("\n\n");
 }
 
-export function convertWebmToWav(webmBuffer: Buffer): Promise<Buffer> {
-  return new Promise((resolve, reject) => {
-    const ffmpeg = spawn("ffmpeg", [
-      "-i", "pipe:0",      // Read from stdin
-      "-f", "wav",         // Output format
-      "-ar", "16000",      // Sample rate (16kHz is good for speech)
-      "-ac", "1",          // Mono audio
-      "-acodec", "pcm_s16le", // PCM 16-bit encoding
-      "pipe:1"             // Write to stdout
-    ]);
-
-    const chunks: Buffer[] = [];
-
-    ffmpeg.stdout.on("data", (chunk) => chunks.push(chunk));
-    ffmpeg.stderr.on("data", () => {}); // Suppress ffmpeg logs
-    ffmpeg.on("close", (code) => {
-      if (code === 0) {
-        resolve(Buffer.concat(chunks));
-      } else {
-        reject(new Error(`ffmpeg exited with code ${code}`));
-      }
+export async function convertWebmToWav(webmBuffer: Buffer): Promise<Buffer> {
+  const inputPath = makeTempFile("webm");
+  const outputPath = makeTempFile("wav");
+  try {
+    fs.writeFileSync(inputPath, webmBuffer);
+    return await new Promise((resolve, reject) => {
+      const ffmpeg = spawn("ffmpeg", [
+        "-y", "-i", inputPath,
+        "-f", "wav", "-ar", "16000", "-ac", "1", "-acodec", "pcm_s16le",
+        outputPath,
+      ]);
+      ffmpeg.stderr.on("data", () => {});
+      ffmpeg.on("close", (code) => {
+        if (code === 0) {
+          resolve(fs.readFileSync(outputPath));
+        } else {
+          reject(new Error(`ffmpeg exited with code ${code}`));
+        }
+      });
+      ffmpeg.on("error", reject);
     });
-    ffmpeg.on("error", reject);
-
-    ffmpeg.stdin.write(webmBuffer);
-    ffmpeg.stdin.end();
-  });
+  } finally {
+    try { fs.unlinkSync(inputPath); } catch {}
+    try { fs.unlinkSync(outputPath); } catch {}
+  }
 }
 
 /**
