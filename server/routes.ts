@@ -1060,8 +1060,6 @@ export async function registerRoutes(
         const uploadURL = await objectStorageService.getObjectEntityUploadURL();
         const objectPath = objectStorageService.normalizeObjectEntityPath(uploadURL);
 
-        await storage.updateMeeting(id, { status: "uploading" as any });
-
         res.json({ uploadURL, objectPath });
       } catch (error) {
         console.error("Error generating audio upload URL:", error);
