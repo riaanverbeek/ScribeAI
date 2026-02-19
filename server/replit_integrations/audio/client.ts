@@ -63,6 +63,94 @@ export async function prepareAudioForTranscription(audioBuffer: Buffer, format: 
   return { buffer: mp3Buffer, format: "mp3" };
 }
 
+const MAX_CHUNK_DURATION_SEC = 1400;
+
+export function getAudioDuration(audioBuffer: Buffer): Promise<number> {
+  return new Promise((resolve, reject) => {
+    const ffprobe = spawn("ffprobe", [
+      "-i", "pipe:0",
+      "-show_entries", "format=duration",
+      "-v", "quiet",
+      "-of", "csv=p=0",
+    ]);
+    let output = "";
+    ffprobe.stdout.on("data", (chunk) => { output += chunk.toString(); });
+    ffprobe.stderr.on("data", () => {});
+    ffprobe.on("close", (code) => {
+      if (code === 0) {
+        resolve(parseFloat(output.trim()) || 0);
+      } else {
+        reject(new Error(`ffprobe exited with code ${code}`));
+      }
+    });
+    ffprobe.on("error", reject);
+    ffprobe.stdin.write(audioBuffer);
+    ffprobe.stdin.end();
+  });
+}
+
+export function splitAudioChunk(audioBuffer: Buffer, startSec: number, durationSec: number): Promise<Buffer> {
+  return new Promise((resolve, reject) => {
+    const ffmpeg = spawn("ffmpeg", [
+      "-i", "pipe:0",
+      "-ss", startSec.toString(),
+      "-t", durationSec.toString(),
+      "-f", "mp3",
+      "-ar", "16000",
+      "-ac", "1",
+      "-b:a", "64k",
+      "pipe:1",
+    ]);
+    const chunks: Buffer[] = [];
+    ffmpeg.stdout.on("data", (chunk) => chunks.push(chunk));
+    ffmpeg.stderr.on("data", () => {});
+    ffmpeg.on("close", (code) => {
+      if (code === 0) {
+        resolve(Buffer.concat(chunks));
+      } else {
+        reject(new Error(`ffmpeg split exited with code ${code}`));
+      }
+    });
+    ffmpeg.on("error", reject);
+    ffmpeg.stdin.write(audioBuffer);
+    ffmpeg.stdin.end();
+  });
+}
+
+export async function transcribeLongAudio(audioBuffer: Buffer, format: "wav" | "mp3" | "webm"): Promise<string> {
+  const duration = await getAudioDuration(audioBuffer);
+  console.log(`Audio duration: ${duration.toFixed(1)} seconds`);
+
+  if (duration <= MAX_CHUNK_DURATION_SEC) {
+    const prepared = await prepareAudioForTranscription(audioBuffer, format);
+    return await speechToText(prepared.buffer, prepared.format);
+  }
+
+  const numChunks = Math.ceil(duration / MAX_CHUNK_DURATION_SEC);
+  console.log(`Splitting audio into ${numChunks} chunks for transcription...`);
+  const transcripts: string[] = [];
+
+  for (let i = 0; i < numChunks; i++) {
+    const startSec = i * MAX_CHUNK_DURATION_SEC;
+    const chunkDuration = Math.min(MAX_CHUNK_DURATION_SEC, duration - startSec);
+    console.log(`Transcribing chunk ${i + 1}/${numChunks} (${startSec.toFixed(0)}s - ${(startSec + chunkDuration).toFixed(0)}s)...`);
+
+    const chunkBuffer = await splitAudioChunk(audioBuffer, startSec, chunkDuration);
+
+    let prepared = { buffer: chunkBuffer, format: "mp3" as const };
+    if (chunkBuffer.length > MAX_OPENAI_FILE_SIZE) {
+      console.log(`Chunk ${i + 1} too large (${(chunkBuffer.length / 1024 / 1024).toFixed(1)}MB), re-compressing...`);
+      const recompressed = await convertAudioToMp3(chunkBuffer);
+      prepared = { buffer: recompressed, format: "mp3" };
+    }
+
+    const text = await speechToText(prepared.buffer, prepared.format);
+    transcripts.push(text);
+  }
+
+  return transcripts.join("\n\n");
+}
+
 export function convertWebmToWav(webmBuffer: Buffer): Promise<Buffer> {
   return new Promise((resolve, reject) => {
     const ffmpeg = spawn("ffmpeg", [

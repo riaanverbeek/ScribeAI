@@ -5,6 +5,7 @@ export {
   convertAudioToWav,
   convertAudioToMp3,
   prepareAudioForTranscription,
+  transcribeLongAudio,
   textToSpeech,
   textToSpeechStream,
   speechToText,
