@@ -256,13 +256,25 @@ export default function NewMeeting() {
       }
 
       if (isTranscriptMode) {
-        const content = await getTranscriptContent();
-        const transcriptRes = await fetch(`/api/meetings/${meeting.id}/transcript`, {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          credentials: "include",
-          body: JSON.stringify({ content }),
-        });
+        let transcriptRes: Response;
+        const isDocx = transcriptFile && transcriptFile.name.toLowerCase().endsWith(".docx");
+        if (isDocx) {
+          const formData = new FormData();
+          formData.append("file", transcriptFile);
+          transcriptRes = await fetch(`/api/meetings/${meeting.id}/transcript`, {
+            method: "POST",
+            credentials: "include",
+            body: formData,
+          });
+        } else {
+          const content = await getTranscriptContent();
+          transcriptRes = await fetch(`/api/meetings/${meeting.id}/transcript`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            credentials: "include",
+            body: JSON.stringify({ content }),
+          });
+        }
         if (!transcriptRes.ok) {
           const err = await transcriptRes.json().catch(() => ({ message: "Failed to save transcript" }));
           throw new Error(err.message);
@@ -759,7 +771,7 @@ export default function NewMeeting() {
                       type="file"
                       id="transcript-file-upload"
                       className="hidden"
-                      accept=".txt,.md,.csv,.json"
+                      accept=".txt,.md,.csv,.json,.docx"
                       onChange={(e) => {
                         if (e.target.files?.[0]) {
                           setTranscriptFile(e.target.files[0]);
@@ -785,7 +797,7 @@ export default function NewMeeting() {
                     )}
                   </div>
                   <p className="text-xs text-muted-foreground">
-                    Supports .txt, .md, .csv, and .json files. The AI will analyse the text as if it were a recorded meeting.
+                    Supports .txt, .md, .csv, .json, and .docx files. The AI will analyse the text as if it were a recorded meeting.
                   </p>
                 </CardContent>
               </Card>

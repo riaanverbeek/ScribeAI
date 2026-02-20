@@ -13,6 +13,7 @@ import OpenAI from "openai";
 import fs from "fs";
 import path from "path";
 import crypto from "crypto";
+import mammoth from "mammoth";
 import { uploadBufferToObjectStorage, downloadBufferFromObjectStorage, streamObjectToResponse, objectStorageService } from "./objectStorageHelper";
 import { registerObjectStorageRoutes } from "./replit_integrations/object_storage";
 
@@ -1143,7 +1144,7 @@ export async function registerRoutes(
       }
   });
 
-  app.post("/api/meetings/:id/transcript", requireAuth, requireVerified, async (req, res) => {
+  app.post("/api/meetings/:id/transcript", requireAuth, requireVerified, upload.single('file'), async (req, res) => {
       const id = Number(req.params.id);
       const user = (req as any).user as User;
       const meeting = await storage.getMeeting(id);
@@ -1152,8 +1153,38 @@ export async function registerRoutes(
           return res.status(404).json({ message: "Meeting not found" });
       }
 
-      const { content } = req.body;
-      if (!content || typeof content !== "string" || !content.trim()) {
+      let transcriptContent: string | null = null;
+
+      if (req.file) {
+        const ext = path.extname(req.file.originalname).toLowerCase();
+        if (ext === ".docx") {
+          try {
+            const buffer = fs.readFileSync(req.file.path);
+            const result = await mammoth.extractRawText({ buffer });
+            transcriptContent = result.value;
+          } catch (err) {
+            console.error("Error parsing .docx file:", err);
+            return res.status(400).json({ message: "Failed to parse .docx file" });
+          } finally {
+            try { fs.unlinkSync(req.file.path); } catch {}
+          }
+        } else {
+          try {
+            transcriptContent = fs.readFileSync(req.file.path, "utf-8");
+          } catch {
+            return res.status(400).json({ message: "Failed to read uploaded file" });
+          } finally {
+            try { fs.unlinkSync(req.file.path); } catch {}
+          }
+        }
+      } else {
+        const { content } = req.body;
+        if (content && typeof content === "string") {
+          transcriptContent = content;
+        }
+      }
+
+      if (!transcriptContent || !transcriptContent.trim()) {
           return res.status(400).json({ message: "Transcript content is required" });
       }
 
@@ -1164,7 +1195,7 @@ export async function registerRoutes(
 
       await storage.createTranscript({
           meetingId: id,
-          content: content.trim(),
+          content: transcriptContent.trim(),
           language: "en",
       });
 
