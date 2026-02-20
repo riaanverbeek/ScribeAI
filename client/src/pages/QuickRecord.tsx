@@ -15,7 +15,13 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { Mic, Square, ChevronLeft, Loader2, Phone, WifiOff, Check, Pause, Play } from "lucide-react";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import { Mic, Square, ChevronLeft, Loader2, Phone, WifiOff, Check, Pause, Play, ShieldCheck } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { motion, AnimatePresence } from "framer-motion";
 import { format } from "date-fns";
@@ -33,6 +39,8 @@ export default function QuickRecord() {
   const [title, setTitle] = useState("");
   const [selectedClientId, setSelectedClientId] = useState<string>("");
   const [isSaving, setIsSaving] = useState(false);
+  const [consentStatus, setConsentStatus] = useState<"not_asked" | "yes" | "no">("not_asked");
+  const [consentDialogOpen, setConsentDialogOpen] = useState(false);
 
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
@@ -216,6 +224,9 @@ export default function QuickRecord() {
       };
       if (selectedClientId) {
         meetingData.clientId = Number(selectedClientId);
+        if (consentStatus !== "not_asked") {
+          meetingData.clientRecordingConsent = consentStatus;
+        }
       }
 
       const meeting = await createMutation.mutateAsync(meetingData);
@@ -421,7 +432,13 @@ export default function QuickRecord() {
               {isOnline && clients && clients.length > 0 && (
                 <div className="space-y-3">
                   <Label className="text-sm font-medium">Client (optional)</Label>
-                  <Select value={selectedClientId} onValueChange={setSelectedClientId}>
+                  <Select value={selectedClientId} onValueChange={(v) => {
+                    setSelectedClientId(v);
+                    setConsentStatus("not_asked");
+                    if (v) {
+                      setConsentDialogOpen(true);
+                    }
+                  }}>
                     <SelectTrigger className="rounded-xl" data-testid="select-quick-client">
                       <SelectValue placeholder="Select a client" />
                     </SelectTrigger>
@@ -476,6 +493,54 @@ export default function QuickRecord() {
           )}
         </AnimatePresence>
       </div>
+
+      <Dialog open={consentDialogOpen} onOpenChange={setConsentDialogOpen}>
+        <DialogContent className="rounded-2xl max-w-md">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <ShieldCheck className="w-5 h-5 text-primary" />
+              Recording Consent
+            </DialogTitle>
+          </DialogHeader>
+          <div className="py-4">
+            <p className="text-sm text-slate-700 dark:text-slate-300">
+              Have you obtained the client's consent to record this meeting?
+            </p>
+            <p className="text-xs text-muted-foreground mt-2">
+              It is recommended to obtain explicit consent before recording any meeting with a client.
+            </p>
+          </div>
+          <div className="flex gap-3">
+            <Button
+              className="flex-1"
+              onClick={() => {
+                setConsentStatus("yes");
+                setConsentDialogOpen(false);
+              }}
+              data-testid="button-quick-consent-yes"
+            >
+              Yes, consent obtained
+            </Button>
+            <Button
+              variant="outline"
+              className="flex-1"
+              onClick={() => {
+                setConsentStatus("no");
+                setConsentDialogOpen(false);
+                toast({
+                  title: "Consent Not Obtained",
+                  description: "Recording without explicit client consent is not advisable. Consider obtaining consent before proceeding.",
+                  variant: "destructive",
+                  duration: 6000,
+                });
+              }}
+              data-testid="button-quick-consent-no"
+            >
+              No
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
