@@ -46,6 +46,7 @@ export default function NewMeeting() {
   const [includePreviousContext, setIncludePreviousContext] = useState(false);
   const [outputLanguage, setOutputLanguage] = useState("en");
   const [isInternal, setIsInternal] = useState(false);
+  const [detailLevel, setDetailLevel] = useState<"high" | "medium" | "low">("high");
   const [newClientName, setNewClientName] = useState("");
   const [newClientEmail, setNewClientEmail] = useState("");
   const [newClientCompany, setNewClientCompany] = useState("");
@@ -204,6 +205,7 @@ export default function NewMeeting() {
         title,
         date: new Date().toISOString(),
         outputLanguage,
+        detailLevel,
       };
       if (selectedClientId) {
         meetingData.clientId = Number(selectedClientId);
@@ -484,6 +486,23 @@ export default function NewMeeting() {
               </SelectContent>
             </Select>
             <p className="text-xs text-muted-foreground">The language for AI-generated summaries, action items, and topics. The transcript stays in the original spoken language.</p>
+          </div>
+        )}
+
+        {isOnline && (
+          <div className="space-y-3">
+            <Label className="text-base font-semibold text-slate-900">Detail Level</Label>
+            <Select value={detailLevel} onValueChange={(v) => setDetailLevel(v as "high" | "medium" | "low")}>
+              <SelectTrigger className="h-12 rounded-xl border-slate-200" data-testid="select-detail-level">
+                <SelectValue placeholder="Select detail level" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="high" data-testid="select-detail-level-high">High - Comprehensive analysis</SelectItem>
+                <SelectItem value="medium" data-testid="select-detail-level-medium">Medium - Balanced overview</SelectItem>
+                <SelectItem value="low" data-testid="select-detail-level-low">Low - Brief summary</SelectItem>
+              </SelectContent>
+            </Select>
+            <p className="text-xs text-muted-foreground">Controls how detailed the AI-generated summary and analysis will be.</p>
           </div>
         )}
 

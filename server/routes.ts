@@ -820,6 +820,7 @@ export async function registerRoutes(
         outputLanguage: z.enum(["en", "af"]).optional(),
         isInternal: z.boolean().optional(),
         clientRecordingConsent: z.enum(["not_asked", "yes", "no"]).optional(),
+        detailLevel: z.enum(["high", "medium", "low"]).optional(),
       }).parse(req.body);
 
       const updated = await storage.updateMeetingContext(id, data);
@@ -1322,12 +1323,21 @@ export async function registerRoutes(
             consentInstruction = `\n\nRECORDING CONSENT: The user has indicated that explicit consent was NOT obtained from the client to record this meeting. Include a note in the summary under a "## Recording Consent" section stating: "Note: Explicit consent to record this meeting was not obtained from the client."`;
           }
 
+          const detailLevelMap: Record<string, string> = {
+            high: "Provide a COMPREHENSIVE and DETAILED analysis. Include thorough discussion points, detailed action items with full context, in-depth topic analysis, and an extensive executive summary covering all aspects of the meeting. Be verbose and leave nothing out.",
+            medium: "Provide a BALANCED analysis with moderate detail. Cover the main discussion points, key action items, and important topics. The executive summary should capture the essentials without being overly brief or overly long.",
+            low: "Provide a BRIEF and CONCISE analysis. Focus only on the most critical points, essential action items, and top-priority topics. Keep the executive summary short and to the point — no more than a few paragraphs.",
+          };
+          const detailInstruction = detailLevelMap[meeting.detailLevel] || detailLevelMap.high;
+
           const systemPrompt = `
             You are an expert meeting analyst. Analyze the following meeting transcript.
 
             IMPORTANT: You MUST write ALL of your output (summary, action items, and topics) in ${outputLangName}. The transcript may be in any language, but your analysis output MUST be entirely in ${outputLangName}. Do NOT leave any part of your response in a different language. Only the JSON keys should remain in English.
             ${internalMeetingInstruction}
             ${consentInstruction}
+
+            DETAIL LEVEL: ${detailInstruction}
             
             Extract:
             1. Action Items (assignee if clear, otherwise 'Unknown')
@@ -1745,12 +1755,21 @@ export async function registerRoutes(
             reprocessConsentInstruction = `\n\nRECORDING CONSENT: The user has indicated that explicit consent was NOT obtained from the client to record this meeting. Include a note in the summary under a "## Recording Consent" section stating: "Note: Explicit consent to record this meeting was not obtained from the client."`;
           }
 
+          const reprocessDetailLevelMap: Record<string, string> = {
+            high: "Provide a COMPREHENSIVE and DETAILED analysis. Include thorough discussion points, detailed action items with full context, in-depth topic analysis, and an extensive executive summary covering all aspects of the meeting. Be verbose and leave nothing out.",
+            medium: "Provide a BALANCED analysis with moderate detail. Cover the main discussion points, key action items, and important topics. The executive summary should capture the essentials without being overly brief or overly long.",
+            low: "Provide a BRIEF and CONCISE analysis. Focus only on the most critical points, essential action items, and top-priority topics. Keep the executive summary short and to the point — no more than a few paragraphs.",
+          };
+          const reprocessDetailInstruction = reprocessDetailLevelMap[freshMeeting.detailLevel] || reprocessDetailLevelMap.high;
+
           const systemPrompt = `
             You are an expert meeting analyst. Analyze the following meeting transcript.
 
             IMPORTANT: You MUST write ALL of your output (summary, action items, and topics) in ${outputLangName}. The transcript may be in any language, but your analysis output MUST be entirely in ${outputLangName}. Do NOT leave any part of your response in a different language. Only the JSON keys should remain in English.
             ${reprocessInternalInstruction}
             ${reprocessConsentInstruction}
+
+            DETAIL LEVEL: ${reprocessDetailInstruction}
             
             Extract:
             1. Action Items (assignee if clear, otherwise 'Unknown')

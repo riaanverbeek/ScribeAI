@@ -5,7 +5,7 @@ import { useMeeting, useUpdateMeetingClient } from "@/hooks/use-meetings";
 import { useClients, useCreateClient } from "@/hooks/use-clients";
 import { useSubscriptionStatus } from "@/hooks/use-auth";
 import { useRoute, Link } from "wouter";
-import { ChevronLeft, Calendar, User, LayoutList, FileText, CheckSquare, Sparkles, Users, Plus, Loader2, X, Pencil, Lock, CreditCard, Paperclip, MessageSquareText, RefreshCw, Copy, Check, Download, Mail, Globe, Shield } from "lucide-react";
+import { ChevronLeft, Calendar, User, LayoutList, FileText, CheckSquare, Sparkles, Users, Plus, Loader2, X, Pencil, Lock, CreditCard, Paperclip, MessageSquareText, RefreshCw, Copy, Check, Download, Mail, Globe, Shield, SlidersHorizontal } from "lucide-react";
 import type { Template, Policy } from "@shared/schema";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -165,6 +165,7 @@ export default function MeetingDetail() {
   const [editIncludePreviousContext, setEditIncludePreviousContext] = useState(false);
   const [editOutputLanguage, setEditOutputLanguage] = useState("en");
   const [editIsInternal, setEditIsInternal] = useState(false);
+  const [editDetailLevel, setEditDetailLevel] = useState<"high" | "medium" | "low">("high");
   const [editPolicyIds, setEditPolicyIds] = useState<number[]>([]);
 
   const { data: clientPolicies = [] } = useQuery<Policy[]>({
@@ -287,6 +288,7 @@ export default function MeetingDetail() {
     setEditIncludePreviousContext(meeting.includePreviousContext ?? false);
     setEditOutputLanguage(meeting.outputLanguage || "en");
     setEditIsInternal(meeting.isInternal ?? false);
+    setEditDetailLevel((meeting.detailLevel as "high" | "medium" | "low") || "high");
     setEditPolicyIds(meetingPolicies.map((p: Policy) => p.id));
     setIsEditingContext(true);
   };
@@ -300,6 +302,7 @@ export default function MeetingDetail() {
         includePreviousContext: editIncludePreviousContext,
         outputLanguage: editOutputLanguage,
         isInternal: editIsInternal,
+        detailLevel: editDetailLevel,
       };
       await apiRequest("PATCH", `/api/meetings/${id}/context`, contextPayload);
 
@@ -654,6 +657,17 @@ export default function MeetingDetail() {
                             </p>
                           </div>
                         </div>
+                        <div className="flex items-center gap-3">
+                          <div className="w-9 h-9 rounded-md bg-muted flex items-center justify-center shrink-0">
+                            <SlidersHorizontal className="w-4 h-4 text-muted-foreground" />
+                          </div>
+                          <div>
+                            <p className="text-xs text-muted-foreground">Detail Level</p>
+                            <p className="text-sm font-semibold" data-testid="text-detail-level">
+                              {meeting.detailLevel === "low" ? "Low - Brief" : meeting.detailLevel === "medium" ? "Medium - Balanced" : "High - Comprehensive"}
+                            </p>
+                          </div>
+                        </div>
                         {meetingPolicies.length > 0 && (
                           <div className="flex items-start gap-3">
                             <div className="w-9 h-9 rounded-md bg-muted flex items-center justify-center shrink-0 mt-0.5">
@@ -802,6 +816,21 @@ export default function MeetingDetail() {
                             </SelectContent>
                           </Select>
                           <p className="text-xs text-muted-foreground">AI summaries, action items, and topics will be generated in this language. The transcript stays in the original spoken language.</p>
+                        </div>
+
+                        <div className="space-y-2">
+                          <Label className="text-sm">Analysis Detail Level</Label>
+                          <Select value={editDetailLevel} onValueChange={(v) => setEditDetailLevel(v as "high" | "medium" | "low")}>
+                            <SelectTrigger data-testid="select-edit-detail-level">
+                              <SelectValue placeholder="Select detail level" />
+                            </SelectTrigger>
+                            <SelectContent>
+                              <SelectItem value="high" data-testid="select-edit-detail-level-high">High - Comprehensive</SelectItem>
+                              <SelectItem value="medium" data-testid="select-edit-detail-level-medium">Medium - Balanced</SelectItem>
+                              <SelectItem value="low" data-testid="select-edit-detail-level-low">Low - Brief</SelectItem>
+                            </SelectContent>
+                          </Select>
+                          <p className="text-xs text-muted-foreground">Controls how detailed the AI analysis will be.</p>
                         </div>
 
                         {meeting.clientId && clientPolicies.length > 0 && (
