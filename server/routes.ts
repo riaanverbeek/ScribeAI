@@ -1142,6 +1142,34 @@ export async function registerRoutes(
       }
   });
 
+  app.post("/api/meetings/:id/transcript", requireAuth, requireVerified, async (req, res) => {
+      const id = Number(req.params.id);
+      const user = (req as any).user as User;
+      const meeting = await storage.getMeeting(id);
+
+      if (!meeting || meeting.userId !== user.id) {
+          return res.status(404).json({ message: "Meeting not found" });
+      }
+
+      const { content } = req.body;
+      if (!content || typeof content !== "string" || !content.trim()) {
+          return res.status(400).json({ message: "Transcript content is required" });
+      }
+
+      const existing = await storage.getTranscript(id);
+      if (existing) {
+          await storage.clearTranscript(id);
+      }
+
+      await storage.createTranscript({
+          meetingId: id,
+          content: content.trim(),
+          language: "en",
+      });
+
+      res.json({ message: "Transcript saved" });
+  });
+
   app.post("/api/meetings/:id/process", requireAuth, requireVerified, requireSubscription, async (req, res) => {
       const id = Number(req.params.id);
       const user = (req as any).user as User;
@@ -1150,33 +1178,45 @@ export async function registerRoutes(
       if (!meeting || meeting.userId !== user.id) {
           return res.status(404).json({ message: "Meeting not found" });
       }
-      if (!meeting.audioUrl) {
-          return res.status(400).json({ message: "No audio uploaded for this meeting" });
+
+      const existingTranscript = await storage.getTranscript(id);
+      const hasTranscript = !!existingTranscript;
+
+      if (!meeting.audioUrl && !hasTranscript) {
+          return res.status(400).json({ message: "No audio or transcript available for this meeting" });
       }
 
       if (meeting.status === "processing" || meeting.status === "failed") {
           await storage.clearMeetingAnalysis(id);
-          await storage.clearTranscript(id);
+          if (!hasTranscript) {
+            await storage.clearTranscript(id);
+          }
       }
 
       try {
           await storage.updateMeetingStatus(id, "processing");
 
-          let audioBuffer: Buffer;
-          if (meeting.audioUrl.startsWith("/objects/")) {
-            audioBuffer = await downloadBufferFromObjectStorage(meeting.audioUrl);
+          let transcriptText: string;
+
+          if (hasTranscript) {
+            transcriptText = existingTranscript.content;
           } else {
-            audioBuffer = fs.readFileSync(meeting.audioUrl);
+            let audioBuffer: Buffer;
+            if (meeting.audioUrl!.startsWith("/objects/")) {
+              audioBuffer = await downloadBufferFromObjectStorage(meeting.audioUrl!);
+            } else {
+              audioBuffer = fs.readFileSync(meeting.audioUrl!);
+            }
+            const audioExt = path.extname(meeting.audioUrl!).toLowerCase();
+            const rawFormat: "wav" | "mp3" | "webm" = audioExt === ".mp3" ? "mp3" : audioExt === ".webm" ? "webm" : "wav";
+            transcriptText = await transcribeLongAudio(audioBuffer, rawFormat);
+            
+            await storage.createTranscript({
+                meetingId: id,
+                content: transcriptText,
+                language: "en" 
+            });
           }
-          const audioExt = path.extname(meeting.audioUrl).toLowerCase();
-          const rawFormat: "wav" | "mp3" | "webm" = audioExt === ".mp3" ? "mp3" : audioExt === ".webm" ? "webm" : "wav";
-          const transcriptText = await transcribeLongAudio(audioBuffer, rawFormat);
-          
-          await storage.createTranscript({
-              meetingId: id,
-              content: transcriptText,
-              language: "en" 
-          });
 
           let templateFormatInstructions = "";
           if (meeting.templateId) {

@@ -25,7 +25,7 @@ import {
   DialogTitle,
   DialogTrigger,
 } from "@/components/ui/dialog";
-import { Mic, UploadCloud, ChevronLeft, Loader2, Plus, Users, FileText, Paperclip, WifiOff, Wifi, Pause, Play, Square, Globe, Shield } from "lucide-react";
+import { Mic, UploadCloud, ChevronLeft, Loader2, Plus, Users, FileText, Paperclip, WifiOff, Wifi, Pause, Play, Square, Globe, Shield, ClipboardPaste, FileUp } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { useVoiceRecorder } from "@/replit_integrations/audio";
 import { motion } from "framer-motion";
@@ -52,6 +52,9 @@ export default function NewMeeting() {
   const [dialogOpen, setDialogOpen] = useState(false);
   const [isSavingOffline, setIsSavingOffline] = useState(false);
   const [selectedPolicyIds, setSelectedPolicyIds] = useState<number[]>([]);
+  const [transcriptText, setTranscriptText] = useState("");
+  const [transcriptFile, setTranscriptFile] = useState<File | null>(null);
+  const [activeInputTab, setActiveInputTab] = useState("record");
   
   const createMutation = useCreateMeeting();
   const uploadMutation = useUploadAudio();
@@ -157,14 +160,41 @@ export default function NewMeeting() {
     }
   };
 
+  const getTranscriptContent = async (): Promise<string | null> => {
+    if (transcriptText.trim()) return transcriptText.trim();
+    if (transcriptFile) {
+      return new Promise((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onload = () => resolve(reader.result as string);
+        reader.onerror = () => reject(new Error("Failed to read transcript file"));
+        reader.readAsText(transcriptFile);
+      });
+    }
+    return null;
+  };
+
   const handleCreate = async () => {
     if (!isOnline) {
+      if (activeInputTab === "transcript") {
+        toast({ title: "Not Available Offline", description: "Transcript processing requires an internet connection. Please try again when you're online.", variant: "destructive" });
+        return;
+      }
       return handleSaveOffline();
     }
 
     if (!title.trim()) {
       toast({ title: "Title Required", description: "Please give your meeting a name.", variant: "destructive" });
       return;
+    }
+
+    const isTranscriptMode = activeInputTab === "transcript";
+
+    if (isTranscriptMode) {
+      const content = await getTranscriptContent();
+      if (!content || !content.trim()) {
+        toast({ title: "Transcript Required", description: "Please paste your transcript text or upload a transcript file.", variant: "destructive" });
+        return;
+      }
     }
 
     try {
@@ -220,19 +250,34 @@ export default function NewMeeting() {
         });
       }
 
-      let audioFile = file;
+      if (isTranscriptMode) {
+        const content = await getTranscriptContent();
+        const transcriptRes = await fetch(`/api/meetings/${meeting.id}/transcript`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          credentials: "include",
+          body: JSON.stringify({ content }),
+        });
+        if (!transcriptRes.ok) {
+          const err = await transcriptRes.json().catch(() => ({ message: "Failed to save transcript" }));
+          throw new Error(err.message);
+        }
+        await processMutation.mutateAsync(meeting.id);
+      } else {
+        let audioFile = file;
 
-      if (recorder.state === "stopped") {
-      } else if (!file) {
-        toast({ title: "Audio Required", description: "Please record or upload audio.", variant: "destructive" });
-        return;
+        if (recorder.state === "stopped") {
+        } else if (!file) {
+          toast({ title: "Audio Required", description: "Please record or upload audio.", variant: "destructive" });
+          return;
+        }
+
+        if (audioFile) {
+          await uploadMutation.mutateAsync({ id: meeting.id, file: audioFile });
+        }
+
+        await processMutation.mutateAsync(meeting.id);
       }
-
-      if (audioFile) {
-        await uploadMutation.mutateAsync({ id: meeting.id, file: audioFile });
-      }
-
-      await processMutation.mutateAsync(meeting.id);
 
       setLocation(`/meeting/${meeting.id}`);
 
@@ -540,14 +585,17 @@ export default function NewMeeting() {
         )}
 
         <div className="space-y-3">
-          <Label className="text-base font-semibold text-slate-900">Audio Source</Label>
-          <Tabs defaultValue="record" className="w-full">
-            <TabsList className="grid w-full grid-cols-2 bg-slate-100 p-1 rounded-xl mb-4">
-              <TabsTrigger value="record" className="rounded-lg data-[state=active]:bg-white data-[state=active]:text-primary data-[state=active]:shadow-sm">
+          <Label className="text-base font-semibold text-slate-900">Meeting Input</Label>
+          <Tabs defaultValue="record" className="w-full" onValueChange={setActiveInputTab}>
+            <TabsList className="grid w-full grid-cols-3 bg-slate-100 p-1 rounded-xl mb-4">
+              <TabsTrigger value="record" className="rounded-lg data-[state=active]:bg-white data-[state=active]:text-primary data-[state=active]:shadow-sm text-xs sm:text-sm">
                 Record Audio
               </TabsTrigger>
-              <TabsTrigger value="upload" className="rounded-lg data-[state=active]:bg-white data-[state=active]:text-primary data-[state=active]:shadow-sm">
-                Upload File
+              <TabsTrigger value="upload" className="rounded-lg data-[state=active]:bg-white data-[state=active]:text-primary data-[state=active]:shadow-sm text-xs sm:text-sm">
+                Upload Audio
+              </TabsTrigger>
+              <TabsTrigger value="transcript" className="rounded-lg data-[state=active]:bg-white data-[state=active]:text-primary data-[state=active]:shadow-sm text-xs sm:text-sm">
+                Paste Transcript
               </TabsTrigger>
             </TabsList>
 
@@ -681,6 +729,59 @@ export default function NewMeeting() {
                 </CardContent>
               </Card>
             </TabsContent>
+
+            <TabsContent value="transcript">
+              <Card className="border-2 border-dashed border-slate-200 bg-slate-50/50 shadow-none rounded-xl">
+                <CardContent className="py-6 space-y-4">
+                  <div className="flex items-center gap-2 mb-2">
+                    <ClipboardPaste className="w-5 h-5 text-slate-400" />
+                    <span className="font-semibold text-slate-900 dark:text-foreground text-sm">Paste or upload your transcript</span>
+                  </div>
+                  <Textarea
+                    placeholder="Paste your meeting transcript here..."
+                    value={transcriptText}
+                    onChange={(e) => setTranscriptText(e.target.value)}
+                    rows={8}
+                    className="rounded-xl border-slate-200 text-sm"
+                    data-testid="input-transcript-text"
+                  />
+                  <div className="flex items-center gap-3">
+                    <span className="text-xs text-muted-foreground">or</span>
+                    <input
+                      type="file"
+                      id="transcript-file-upload"
+                      className="hidden"
+                      accept=".txt,.md,.csv,.json"
+                      onChange={(e) => {
+                        if (e.target.files?.[0]) {
+                          setTranscriptFile(e.target.files[0]);
+                          setTranscriptText("");
+                        }
+                      }}
+                      data-testid="input-transcript-file"
+                    />
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => document.getElementById("transcript-file-upload")?.click()}
+                      type="button"
+                      data-testid="button-upload-transcript-file"
+                    >
+                      <FileUp className="w-4 h-4 mr-1.5" />
+                      Upload Text File
+                    </Button>
+                    {transcriptFile && (
+                      <span className="text-sm text-muted-foreground" data-testid="text-transcript-file-name">
+                        {transcriptFile.name}
+                      </span>
+                    )}
+                  </div>
+                  <p className="text-xs text-muted-foreground">
+                    Supports .txt, .md, .csv, and .json files. The AI will analyse the text as if it were a recorded meeting.
+                  </p>
+                </CardContent>
+              </Card>
+            </TabsContent>
           </Tabs>
         </div>
 
@@ -688,7 +789,7 @@ export default function NewMeeting() {
           size="lg" 
           className="w-full h-14 text-lg rounded-xl bg-primary hover:bg-slate-800 shadow-xl shadow-slate-900/20"
           onClick={handleCreate}
-          disabled={isPending || !file || recorder.state === "recording" || recorder.state === "paused"}
+          disabled={isPending || (activeInputTab === "transcript" ? (!transcriptText.trim() && !transcriptFile) : (!file || recorder.state === "recording" || recorder.state === "paused"))}
           data-testid="button-process"
         >
           {isPending ? (

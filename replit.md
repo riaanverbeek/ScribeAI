@@ -37,6 +37,7 @@ Preferred communication style: Simple, everyday language.
 - **Templates & Context**: System for defining AI summary templates and allowing users to provide additional context (text or file) for AI processing.
 - **Internal Meeting Flag**: Meetings can be marked as "Internal Meeting" (internal discussion/dictation without the client present). When checked, the AI is instructed not to look for client responses and frames the summary as internal notes.
 - **Insurance Policy Management**: Clients can have multiple policies (Type, Insurer, Policy Number). Meetings can link to selected policies, and their details are included in AI analysis prompts. Policy types: Life Insurance, Investments, Medical Aid, GAP Cover, Employee Benefits, Short-term Commercial, Short-term Personal, Short-term Agri.
+- **Transcript Upload**: Users can paste transcript text directly or upload a text file (.txt, .md, .csv, .json) instead of audio. The transcript is saved via `POST /api/meetings/:id/transcript` and the process route skips audio transcription when a transcript already exists.
 
 ### Data Layer
 - **Database**: PostgreSQL with Drizzle ORM
