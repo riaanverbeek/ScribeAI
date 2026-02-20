@@ -71,6 +71,7 @@ export const meetings = pgTable("meetings", {
   includePreviousContext: boolean("include_previous_context").default(false).notNull(),
   outputLanguage: text("output_language").default("en").notNull(),
   isInternal: boolean("is_internal").default(false).notNull(),
+  clientRecordingConsent: text("client_recording_consent", { enum: ["not_asked", "yes", "no"] }).default("not_asked"),
   status: text("status", { enum: ["uploading", "processing", "completed", "failed"] }).notNull().default("uploading"),
   createdAt: timestamp("created_at").defaultNow(),
 });

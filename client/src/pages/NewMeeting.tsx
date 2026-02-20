@@ -25,7 +25,7 @@ import {
   DialogTitle,
   DialogTrigger,
 } from "@/components/ui/dialog";
-import { Mic, UploadCloud, ChevronLeft, Loader2, Plus, Users, FileText, Paperclip, WifiOff, Wifi, Pause, Play, Square, Globe, Shield, ClipboardPaste, FileUp } from "lucide-react";
+import { Mic, UploadCloud, ChevronLeft, Loader2, Plus, Users, FileText, Paperclip, WifiOff, Wifi, Pause, Play, Square, Globe, Shield, ClipboardPaste, FileUp, AlertTriangle, ShieldCheck } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { useVoiceRecorder } from "@/replit_integrations/audio";
 import { motion } from "framer-motion";
@@ -55,6 +55,8 @@ export default function NewMeeting() {
   const [transcriptText, setTranscriptText] = useState("");
   const [transcriptFile, setTranscriptFile] = useState<File | null>(null);
   const [activeInputTab, setActiveInputTab] = useState("record");
+  const [consentStatus, setConsentStatus] = useState<"not_asked" | "yes" | "no">("not_asked");
+  const [consentDialogOpen, setConsentDialogOpen] = useState(false);
   
   const createMutation = useCreateMeeting();
   const uploadMutation = useUploadAudio();
@@ -222,6 +224,9 @@ export default function NewMeeting() {
       if (isInternal) {
         contextPayload.isInternal = true;
       }
+      if (selectedClientId && consentStatus !== "not_asked") {
+        contextPayload.clientRecordingConsent = consentStatus;
+      }
       if (Object.keys(contextPayload).length > 0) {
         await fetch(`/api/meetings/${meeting.id}/context`, {
           method: "PATCH",
@@ -346,7 +351,7 @@ export default function NewMeeting() {
           <div className="space-y-3">
             <Label className="text-base font-semibold text-slate-900">Client</Label>
             <div className="flex items-center gap-3">
-              <Select value={selectedClientId} onValueChange={(v) => { setSelectedClientId(v); setSelectedPolicyIds([]); }}>
+              <Select value={selectedClientId} onValueChange={(v) => { setSelectedClientId(v); setSelectedPolicyIds([]); setConsentStatus("not_asked"); }}>
                 <SelectTrigger className="h-12 rounded-xl border-slate-200 flex-1" data-testid="select-client">
                   <div className="flex items-center gap-2">
                     <Users className="w-4 h-4 text-slate-400" />
@@ -609,6 +614,9 @@ export default function NewMeeting() {
                           onClick={async () => {
                             try {
                               await recorder.startRecording();
+                              if (selectedClientId) {
+                                setConsentDialogOpen(true);
+                              }
                             } catch {
                               toast({
                                 title: "Recording Not Supported",
@@ -807,6 +815,54 @@ export default function NewMeeting() {
           )}
         </Button>
       </div>
+
+      <Dialog open={consentDialogOpen} onOpenChange={setConsentDialogOpen}>
+        <DialogContent className="rounded-2xl max-w-md">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <ShieldCheck className="w-5 h-5 text-primary" />
+              Recording Consent
+            </DialogTitle>
+          </DialogHeader>
+          <div className="py-4">
+            <p className="text-sm text-slate-700 dark:text-slate-300">
+              Have you obtained the client's consent to record this meeting?
+            </p>
+            <p className="text-xs text-muted-foreground mt-2">
+              It is recommended to obtain explicit consent before recording any meeting with a client.
+            </p>
+          </div>
+          <div className="flex gap-3">
+            <Button
+              className="flex-1"
+              onClick={() => {
+                setConsentStatus("yes");
+                setConsentDialogOpen(false);
+              }}
+              data-testid="button-consent-yes"
+            >
+              Yes, consent obtained
+            </Button>
+            <Button
+              variant="outline"
+              className="flex-1"
+              onClick={() => {
+                setConsentStatus("no");
+                setConsentDialogOpen(false);
+                toast({
+                  title: "Consent Not Obtained",
+                  description: "Recording without explicit client consent is not advisable. Consider obtaining consent before proceeding.",
+                  variant: "destructive",
+                  duration: 6000,
+                });
+              }}
+              data-testid="button-consent-no"
+            >
+              No
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

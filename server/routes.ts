@@ -818,6 +818,7 @@ export async function registerRoutes(
         includePreviousContext: z.boolean().optional(),
         outputLanguage: z.enum(["en", "af"]).optional(),
         isInternal: z.boolean().optional(),
+        clientRecordingConsent: z.enum(["not_asked", "yes", "no"]).optional(),
       }).parse(req.body);
 
       const updated = await storage.updateMeetingContext(id, data);
@@ -1283,11 +1284,19 @@ export async function registerRoutes(
             ? `\n\nIMPORTANT CONTEXT: This is an INTERNAL meeting — an internal discussion or dictation where the client was NOT present. The transcript contains ONLY the user's own notes, thoughts, or internal team discussion. Do NOT look for or reference client responses, client questions, or client statements in the transcript. Treat everything as internal notes or dictation. Frame the summary accordingly as internal notes/observations rather than a client-facing meeting recap.`
             : "";
 
+          let consentInstruction = "";
+          if (meeting.clientRecordingConsent === "yes") {
+            consentInstruction = `\n\nRECORDING CONSENT: The user has confirmed that explicit consent was obtained from the client to record this meeting. Include a note in the summary under a "## Recording Consent" section stating: "Client consent to record this meeting was obtained."`;
+          } else if (meeting.clientRecordingConsent === "no") {
+            consentInstruction = `\n\nRECORDING CONSENT: The user has indicated that explicit consent was NOT obtained from the client to record this meeting. Include a note in the summary under a "## Recording Consent" section stating: "Note: Explicit consent to record this meeting was not obtained from the client."`;
+          }
+
           const systemPrompt = `
             You are an expert meeting analyst. Analyze the following meeting transcript.
 
             IMPORTANT: You MUST write ALL of your output (summary, action items, and topics) in ${outputLangName}. The transcript may be in any language, but your analysis output MUST be entirely in ${outputLangName}. Do NOT leave any part of your response in a different language. Only the JSON keys should remain in English.
             ${internalMeetingInstruction}
+            ${consentInstruction}
             
             Extract:
             1. Action Items (assignee if clear, otherwise 'Unknown')
@@ -1698,11 +1707,19 @@ export async function registerRoutes(
             ? `\n\nIMPORTANT CONTEXT: This is an INTERNAL meeting — an internal discussion or dictation where the client was NOT present. The transcript contains ONLY the user's own notes, thoughts, or internal team discussion. Do NOT look for or reference client responses, client questions, or client statements in the transcript. Treat everything as internal notes or dictation. Frame the summary accordingly as internal notes/observations rather than a client-facing meeting recap.`
             : "";
 
+          let reprocessConsentInstruction = "";
+          if (freshMeeting.clientRecordingConsent === "yes") {
+            reprocessConsentInstruction = `\n\nRECORDING CONSENT: The user has confirmed that explicit consent was obtained from the client to record this meeting. Include a note in the summary under a "## Recording Consent" section stating: "Client consent to record this meeting was obtained."`;
+          } else if (freshMeeting.clientRecordingConsent === "no") {
+            reprocessConsentInstruction = `\n\nRECORDING CONSENT: The user has indicated that explicit consent was NOT obtained from the client to record this meeting. Include a note in the summary under a "## Recording Consent" section stating: "Note: Explicit consent to record this meeting was not obtained from the client."`;
+          }
+
           const systemPrompt = `
             You are an expert meeting analyst. Analyze the following meeting transcript.
 
             IMPORTANT: You MUST write ALL of your output (summary, action items, and topics) in ${outputLangName}. The transcript may be in any language, but your analysis output MUST be entirely in ${outputLangName}. Do NOT leave any part of your response in a different language. Only the JSON keys should remain in English.
             ${reprocessInternalInstruction}
+            ${reprocessConsentInstruction}
             
             Extract:
             1. Action Items (assignee if clear, otherwise 'Unknown')
