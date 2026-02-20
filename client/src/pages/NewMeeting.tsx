@@ -646,7 +646,7 @@ export default function NewMeeting() {
                             try {
                               await recorder.startRecording();
                               if (selectedClientId) {
-                                setConsentDialogOpen(true);
+                                setTimeout(() => setConsentDialogOpen(true), 150);
                               }
                             } catch {
                               toast({
@@ -848,7 +848,7 @@ export default function NewMeeting() {
       </div>
 
       <Dialog open={consentDialogOpen} onOpenChange={setConsentDialogOpen}>
-        <DialogContent className="rounded-2xl max-w-md">
+        <DialogContent className="rounded-2xl max-w-md" onOpenAutoFocus={(e) => e.preventDefault()}>
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
               <ShieldCheck className="w-5 h-5 text-primary" />

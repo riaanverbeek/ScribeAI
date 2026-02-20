@@ -436,7 +436,7 @@ export default function QuickRecord() {
                     setSelectedClientId(v);
                     setConsentStatus("not_asked");
                     if (v) {
-                      setConsentDialogOpen(true);
+                      setTimeout(() => setConsentDialogOpen(true), 150);
                     }
                   }}>
                     <SelectTrigger className="rounded-xl" data-testid="select-quick-client">
@@ -495,7 +495,7 @@ export default function QuickRecord() {
       </div>
 
       <Dialog open={consentDialogOpen} onOpenChange={setConsentDialogOpen}>
-        <DialogContent className="rounded-2xl max-w-md">
+        <DialogContent className="rounded-2xl max-w-md" onOpenAutoFocus={(e) => e.preventDefault()}>
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
               <ShieldCheck className="w-5 h-5 text-primary" />
