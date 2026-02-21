@@ -35,16 +35,17 @@ export function Navigation() {
     <>
       {mobileMenuOpen && (
         <div
-          className="fixed inset-0 bg-black/40 z-40 md:hidden"
+          className="fixed inset-0 bg-black/40 z-[55] md:hidden"
           onClick={() => setMobileMenuOpen(false)}
         />
       )}
 
       <div
         className={cn(
-          "fixed inset-y-0 left-0 z-50 w-72 bg-slate-50 dark:bg-background border-r transform transition-transform duration-200 ease-in-out md:hidden flex flex-col overflow-hidden",
+          "fixed top-0 left-0 z-[60] w-72 h-[100dvh] bg-slate-50 dark:bg-background border-r transform transition-transform duration-200 ease-in-out md:hidden flex flex-col overflow-hidden",
           mobileMenuOpen ? "translate-x-0" : "-translate-x-full"
         )}
+        style={{ paddingBottom: "env(safe-area-inset-bottom, 0px)" }}
       >
         <div className="flex items-center justify-between px-5 py-5 border-b shrink-0">
           <div className="flex items-center gap-3">
