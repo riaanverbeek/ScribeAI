@@ -21,7 +21,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import { Mic, Square, ChevronLeft, Loader2, Phone, WifiOff, Check, Pause, Play, ShieldCheck } from "lucide-react";
+import { Mic, Square, ChevronLeft, Loader2, Phone, WifiOff, Check, Pause, Play, ShieldCheck, AlertTriangle } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { motion, AnimatePresence } from "framer-motion";
 import { format } from "date-fns";
@@ -53,6 +53,17 @@ export default function QuickRecord() {
   const uploadMutation = useUploadAudio();
   const processMutation = useProcessMeeting();
   const { data: clients } = useClients();
+
+  useEffect(() => {
+    if (phase === "recording" || phase === "paused") {
+      const handler = (e: BeforeUnloadEvent) => {
+        e.preventDefault();
+        e.returnValue = "";
+      };
+      window.addEventListener("beforeunload", handler);
+      return () => window.removeEventListener("beforeunload", handler);
+    }
+  }, [phase]);
 
   const formatTime = (seconds: number) => {
     const m = Math.floor(seconds / 60);
@@ -362,6 +373,13 @@ export default function QuickRecord() {
                       {phase === "recording" ? "Recording..." : "Paused"}
                     </p>
                   </motion.div>
+
+                  <div className="flex items-center gap-2 bg-amber-500/10 border border-amber-500/30 rounded-lg px-3 py-2 max-w-xs" data-testid="warning-stay-on-screen">
+                    <AlertTriangle className="w-4 h-4 text-amber-500 shrink-0" />
+                    <p className="text-xs text-amber-700 dark:text-amber-400">
+                      Keep this screen open while recording. Switching apps (especially on iPhone) may stop the recording.
+                    </p>
+                  </div>
 
                   <div className="flex items-center gap-3">
                     {phase === "recording" ? (
