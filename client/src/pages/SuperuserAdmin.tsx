@@ -32,7 +32,7 @@ function UserAccountView({ user, onBack }: { user: SuperuserUser; onBack: () => 
     queryKey: ["/api/superuser/meetings", { userId: user.id }],
     queryFn: async () => {
       const res = await fetch(`/api/superuser/meetings?userId=${user.id}`, { credentials: "include" });
-      if (!res.ok) throw new Error("Failed to load meetings");
+      if (!res.ok) throw new Error("Failed to load sessions");
       return res.json();
     },
   });
@@ -50,7 +50,7 @@ function UserAccountView({ user, onBack }: { user: SuperuserUser; onBack: () => 
     queryKey: ["/api/superuser/meetings", viewingMeeting],
     queryFn: async () => {
       const res = await fetch(`/api/superuser/meetings/${viewingMeeting}`, { credentials: "include" });
-      if (!res.ok) throw new Error("Failed to load meeting");
+      if (!res.ok) throw new Error("Failed to load session");
       return res.json();
     },
     enabled: viewingMeeting !== null,
@@ -148,7 +148,7 @@ function UserAccountView({ user, onBack }: { user: SuperuserUser; onBack: () => 
             )}
           </div>
         ) : (
-          <p className="text-sm text-muted-foreground">Meeting not found.</p>
+          <p className="text-sm text-muted-foreground">Session not found.</p>
         )}
       </div>
     );
@@ -178,12 +178,12 @@ function UserAccountView({ user, onBack }: { user: SuperuserUser; onBack: () => 
 
       <div>
         <h4 className="text-sm font-semibold mb-2 flex items-center gap-1.5">
-          <Calendar className="w-4 h-4" /> Meetings ({meetings.length})
+          <Calendar className="w-4 h-4" /> Sessions ({meetings.length})
         </h4>
         {meetingsLoading ? (
-          <p className="text-sm text-muted-foreground">Loading meetings...</p>
+          <p className="text-sm text-muted-foreground">Loading sessions...</p>
         ) : meetings.length === 0 ? (
-          <p className="text-sm text-muted-foreground p-3 border rounded-md bg-muted/20">No meetings found for this user.</p>
+          <p className="text-sm text-muted-foreground p-3 border rounded-md bg-muted/20">No sessions found for this user.</p>
         ) : (
           <div className="space-y-1 rounded-lg border overflow-hidden divide-y">
             {meetings.map((m) => (
@@ -522,7 +522,7 @@ function MeetingsTab() {
     queryKey: ["/api/superuser/meetings", viewingMeeting],
     queryFn: async () => {
       const res = await fetch(`/api/superuser/meetings/${viewingMeeting}`, { credentials: "include" });
-      if (!res.ok) throw new Error("Failed to load meeting");
+      if (!res.ok) throw new Error("Failed to load session");
       return res.json();
     },
     enabled: viewingMeeting !== null,
@@ -535,7 +535,7 @@ function MeetingsTab() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/superuser/meetings"] });
       setDeleteMeeting(null);
-      toast({ title: "Meeting deleted" });
+      toast({ title: "Session deleted" });
     },
     onError: (err: Error) => toast({ title: "Error", description: err.message, variant: "destructive" }),
   });
@@ -546,13 +546,13 @@ function MeetingsTab() {
     return u ? `${u.firstName} ${u.lastName}` : `User #${userId}`;
   };
 
-  if (isLoading) return <div className="p-6 text-muted-foreground">Loading meetings...</div>;
+  if (isLoading) return <div className="p-6 text-muted-foreground">Loading sessions...</div>;
 
   if (viewingMeeting !== null) {
     return (
       <div className="space-y-4">
         <Button variant="ghost" size="sm" onClick={() => setViewingMeeting(null)} data-testid="button-back-to-meetings">
-          <ArrowLeft className="w-4 h-4 mr-1.5" /> Back to Meetings
+          <ArrowLeft className="w-4 h-4 mr-1.5" /> Back to Sessions
         </Button>
 
         {detailLoading ? (
@@ -627,7 +627,7 @@ function MeetingsTab() {
             )}
           </div>
         ) : (
-          <p className="text-sm text-muted-foreground">Meeting not found.</p>
+          <p className="text-sm text-muted-foreground">Session not found.</p>
         )}
       </div>
     );
@@ -635,7 +635,7 @@ function MeetingsTab() {
 
   return (
     <div className="space-y-3">
-      {meetings.length === 0 && <p className="text-sm text-muted-foreground p-4">No meetings found.</p>}
+      {meetings.length === 0 && <p className="text-sm text-muted-foreground p-4">No sessions found.</p>}
       {meetings.map((m) => (
         <Card key={m.id}>
           <CardContent className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 p-4">
@@ -668,7 +668,7 @@ function MeetingsTab() {
       <AlertDialog open={!!deleteMeeting} onOpenChange={(open) => !open && setDeleteMeeting(null)}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>Delete Meeting</AlertDialogTitle>
+            <AlertDialogTitle>Delete Session</AlertDialogTitle>
             <AlertDialogDescription>
               This will permanently delete "{deleteMeeting?.title}" and all its data. This cannot be undone.
             </AlertDialogDescription>
@@ -977,7 +977,7 @@ export default function SuperuserAdmin() {
           <ShieldCheck className="w-6 h-6 text-primary" />
           <h1 className="text-2xl font-bold" data-testid="text-superuser-heading">Superuser Panel</h1>
         </div>
-        <p className="text-sm text-muted-foreground">Manage all users, clients, meetings, templates, and roles across the platform.</p>
+        <p className="text-sm text-muted-foreground">Manage all users, clients, sessions, templates, and roles across the platform.</p>
       </div>
 
       <Tabs defaultValue="users">
@@ -989,7 +989,7 @@ export default function SuperuserAdmin() {
             <Briefcase className="w-4 h-4 hidden sm:block" /> Clients
           </TabsTrigger>
           <TabsTrigger value="meetings" className="gap-1" data-testid="tab-meetings">
-            <Calendar className="w-4 h-4 hidden sm:block" /> Meetings
+            <Calendar className="w-4 h-4 hidden sm:block" /> Sessions
           </TabsTrigger>
           <TabsTrigger value="templates" className="gap-1" data-testid="tab-templates">
             <FileText className="w-4 h-4 hidden sm:block" /> Templates

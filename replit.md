@@ -1,8 +1,10 @@
-# ScribeAI - Meeting Transcription & Analysis Platform
+# ScribeAI - Session Transcription & Analysis Platform
 
 ## Overview
 
-ScribeAI is a full-stack web application designed to process meeting audio recordings. It leverages AI to generate transcriptions, summaries, action items, and topic analysis. Users can upload audio files or record directly in the browser. The platform aims to streamline post-meeting workflows by automating the extraction of key information.
+ScribeAI is a full-stack web application designed to process session/meeting audio recordings. It leverages AI to generate transcriptions, summaries, action items, and topic analysis. Users can upload audio files or record directly in the browser. The platform aims to streamline post-session workflows by automating the extraction of key information.
+
+**UI Terminology**: All user-facing text uses "session/sessions" instead of "meeting/meetings". The underlying code (variable names, database columns, API routes) still uses "meeting" internally.
 
 The project uses a monorepo structure, combining a React frontend, an Express backend, and a PostgreSQL database, all optimized for deployment on Replit.
 

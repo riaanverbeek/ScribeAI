@@ -1,7 +1,7 @@
 {
-  "name": "ScribeAI - Meeting Transcription & Analysis",
+  "name": "ScribeAI - Session Transcription & Analysis",
   "short_name": "ScribeAI",
-  "description": "Record, transcribe, and analyze meetings with AI",
+  "description": "Record, transcribe, and analyze sessions with AI",
   "start_url": "/",
   "display": "standalone",
   "background_color": "#ffffff",

@@ -103,7 +103,7 @@ export default function NewMeeting() {
 
   const handleSaveOffline = async () => {
     if (!title.trim()) {
-      toast({ title: "Title Required", description: "Please give your meeting a name.", variant: "destructive" });
+      toast({ title: "Title Required", description: "Please give your session a name.", variant: "destructive" });
       return;
     }
 
@@ -186,7 +186,7 @@ export default function NewMeeting() {
     }
 
     if (!title.trim()) {
-      toast({ title: "Title Required", description: "Please give your meeting a name.", variant: "destructive" });
+      toast({ title: "Title Required", description: "Please give your session a name.", variant: "destructive" });
       return;
     }
 
@@ -304,7 +304,7 @@ export default function NewMeeting() {
       console.error("Meeting creation/upload error:", error);
       toast({
         title: "Something Went Wrong",
-        description: error?.message || "Failed to create or upload meeting. Please try again.",
+        description: error?.message || "Failed to create or upload session. Please try again.",
         variant: "destructive",
       });
     }
@@ -334,7 +334,7 @@ export default function NewMeeting() {
       </Button>
 
       <div className="mb-6 sm:mb-8">
-        <h1 className="text-2xl sm:text-3xl font-display font-bold text-slate-900 dark:text-foreground">New Meeting</h1>
+        <h1 className="text-2xl sm:text-3xl font-display font-bold text-slate-900 dark:text-foreground">New Session</h1>
         <p className="text-slate-500 mt-1 text-sm sm:text-base">Record a conversation or upload an existing file.</p>
       </div>
 
@@ -350,7 +350,7 @@ export default function NewMeeting() {
 
       <div className="grid gap-8">
         <div className="space-y-3">
-          <Label htmlFor="title" className="text-base font-semibold text-slate-900">Meeting Title</Label>
+          <Label htmlFor="title" className="text-base font-semibold text-slate-900">Session Title</Label>
           <Input 
             id="title"
             placeholder="e.g. Q4 Marketing Strategy"
@@ -466,7 +466,7 @@ export default function NewMeeting() {
                 ))}
               </SelectContent>
             </Select>
-            <p className="text-xs text-muted-foreground">Controls how the AI structures the meeting summary.</p>
+            <p className="text-xs text-muted-foreground">Controls how the AI structures the session summary.</p>
           </div>
         )}
 
@@ -507,7 +507,7 @@ export default function NewMeeting() {
         )}
 
         <div className="space-y-3">
-          <Label className="text-base font-semibold text-slate-900">Meeting Context (optional)</Label>
+          <Label className="text-base font-semibold text-slate-900">Session Context (optional)</Label>
           <p className="text-xs text-muted-foreground -mt-1">Provide any background info the AI should consider during analysis.</p>
           <Textarea
             placeholder="e.g. This is a follow-up to last week's budget review. Focus on action items related to cost reduction."
@@ -556,7 +556,7 @@ export default function NewMeeting() {
             data-testid="checkbox-is-internal"
           />
           <label htmlFor="is-internal-meeting" className="text-sm cursor-pointer select-none">
-            <span className="font-medium">Internal Meeting</span>
+            <span className="font-medium">Internal Session</span>
             <p className="text-xs text-muted-foreground mt-0.5">
               Internal Discussion / Dictation without the client being present
             </p>
@@ -574,9 +574,9 @@ export default function NewMeeting() {
               data-testid="checkbox-include-previous-context"
             />
             <label htmlFor="include-previous-context" className="text-sm cursor-pointer select-none">
-              <span className="font-medium">Include previous meeting summaries</span>
+              <span className="font-medium">Include previous session summaries</span>
               <p className="text-xs text-muted-foreground mt-0.5">
-                AI analysis will reference summaries from earlier meetings with this client for better continuity.
+                AI analysis will reference summaries from earlier sessions with this client for better continuity.
               </p>
             </label>
           </div>
@@ -590,7 +590,7 @@ export default function NewMeeting() {
                 Link Policies
               </div>
             </Label>
-            <p className="text-xs text-muted-foreground -mt-1">Select the policies relevant to this meeting. Their details will be included in the AI analysis.</p>
+            <p className="text-xs text-muted-foreground -mt-1">Select the policies relevant to this session. Their details will be included in the AI analysis.</p>
             <div className="space-y-2">
               {clientPolicies.map((policy) => (
                 <div
@@ -621,7 +621,7 @@ export default function NewMeeting() {
         )}
 
         <div className="space-y-3">
-          <Label className="text-base font-semibold text-slate-900">Meeting Input</Label>
+          <Label className="text-base font-semibold text-slate-900">Session Input</Label>
           <Tabs defaultValue="record" className="w-full" onValueChange={setActiveInputTab}>
             <TabsList className="grid w-full grid-cols-3 bg-slate-100 p-1 rounded-xl mb-4">
               <TabsTrigger value="record" className="rounded-lg data-[state=active]:bg-white data-[state=active]:text-primary data-[state=active]:shadow-sm text-xs sm:text-sm">
@@ -777,7 +777,7 @@ export default function NewMeeting() {
                     <span className="font-semibold text-slate-900 dark:text-foreground text-sm">Paste or upload your transcript</span>
                   </div>
                   <Textarea
-                    placeholder="Paste your meeting transcript here..."
+                    placeholder="Paste your session transcript here..."
                     value={transcriptText}
                     onChange={(e) => setTranscriptText(e.target.value)}
                     rows={8}
@@ -816,7 +816,7 @@ export default function NewMeeting() {
                     )}
                   </div>
                   <p className="text-xs text-muted-foreground">
-                    Supports .txt, .md, .csv, .json, and .docx files. The AI will analyse the text as if it were a recorded meeting.
+                    Supports .txt, .md, .csv, .json, and .docx files. The AI will analyse the text as if it were a recorded session.
                   </p>
                 </CardContent>
               </Card>
@@ -842,7 +842,7 @@ export default function NewMeeting() {
               Save for Later
             </>
           ) : (
-            "Process Meeting"
+            "Process Session"
           )}
         </Button>
       </div>
@@ -857,10 +857,10 @@ export default function NewMeeting() {
           </DialogHeader>
           <div className="py-4">
             <p className="text-sm text-slate-700 dark:text-slate-300">
-              Have you obtained the client's consent to record this meeting?
+              Have you obtained the client's consent to record this session?
             </p>
             <p className="text-xs text-muted-foreground mt-2">
-              It is recommended to obtain explicit consent before recording any meeting with a client.
+              It is recommended to obtain explicit consent before recording any session with a client.
             </p>
           </div>
           <div className="flex gap-3">

@@ -160,7 +160,7 @@ export async function registerRoutes(
       const user = (req as any).user as User;
       const meeting = await storage.getMeeting(meetingId);
       if (!meeting || meeting.userId !== user.id) {
-        return res.status(404).json({ message: "Meeting not found" });
+        return res.status(404).json({ message: "Session not found" });
       }
       if (!meeting.audioUrl) {
         return res.status(404).json({ message: "No audio available" });
@@ -540,7 +540,7 @@ export async function registerRoutes(
         status: z.enum(["uploading", "processing", "completed", "failed"]),
       }).parse(req.body);
       const meeting = await storage.getMeeting(id);
-      if (!meeting) return res.status(404).json({ message: "Meeting not found" });
+      if (!meeting) return res.status(404).json({ message: "Session not found" });
       const updated = await storage.updateMeetingStatus(id, status);
       res.json(updated);
     } catch (err) {
@@ -640,7 +640,7 @@ export async function registerRoutes(
   app.get("/api/superuser/meetings/:id", requireAuth, requireVerified, requireSuperuser, async (req, res) => {
     const id = Number(req.params.id);
     const meeting = await storage.getMeeting(id);
-    if (!meeting) return res.status(404).json({ message: "Meeting not found" });
+    if (!meeting) return res.status(404).json({ message: "Session not found" });
     const transcript = await storage.getTranscript(id);
     const actionItemsList = await storage.getActionItems(id);
     const topicsList = await storage.getTopics(id);
@@ -651,7 +651,7 @@ export async function registerRoutes(
   app.delete("/api/superuser/meetings/:id", requireAuth, requireVerified, requireSuperuser, async (req, res) => {
     const id = Number(req.params.id);
     const meeting = await storage.getMeeting(id);
-    if (!meeting) return res.status(404).json({ message: "Meeting not found" });
+    if (!meeting) return res.status(404).json({ message: "Session not found" });
     await storage.deleteMeeting(id);
     res.status(204).send();
   });
@@ -860,7 +860,7 @@ export async function registerRoutes(
     const user = (req as any).user as User;
     const meeting = await storage.getMeeting(id);
     if (!meeting || meeting.userId !== user.id) {
-      return res.status(404).json({ message: "Meeting not found" });
+      return res.status(404).json({ message: "Session not found" });
     }
     try {
       const data = z.object({
@@ -888,7 +888,7 @@ export async function registerRoutes(
     const user = (req as any).user as User;
     const meeting = await storage.getMeeting(id);
     if (!meeting || meeting.userId !== user.id) {
-      return res.status(404).json({ message: "Meeting not found" });
+      return res.status(404).json({ message: "Session not found" });
     }
     if (!req.file) {
       return res.status(400).json({ message: "No file uploaded" });
@@ -1014,7 +1014,7 @@ export async function registerRoutes(
     const user = (req as any).user as User;
     const meeting = await storage.getMeeting(meetingId);
     if (!meeting || meeting.userId !== user.id) {
-      return res.status(404).json({ message: "Meeting not found" });
+      return res.status(404).json({ message: "Session not found" });
     }
     const linkedPolicies = await storage.getMeetingPolicies(meetingId);
     res.json(linkedPolicies);
@@ -1025,7 +1025,7 @@ export async function registerRoutes(
     const user = (req as any).user as User;
     const meeting = await storage.getMeeting(meetingId);
     if (!meeting || meeting.userId !== user.id) {
-      return res.status(404).json({ message: "Meeting not found" });
+      return res.status(404).json({ message: "Session not found" });
     }
     const { policyIds } = api.policies.setMeetingPolicies.input.parse(req.body);
     if (policyIds.length > 0) {
@@ -1078,7 +1078,7 @@ export async function registerRoutes(
     const user = (req as any).user as User;
     const meeting = await storage.getMeeting(meetingId);
     if (!meeting || meeting.userId !== user.id) {
-      return res.status(404).json({ message: "Meeting not found" });
+      return res.status(404).json({ message: "Session not found" });
     }
     const { content, assignee } = api.actionItems.create.input.parse(req.body);
     const item = await storage.createActionItem({
@@ -1127,7 +1127,7 @@ export async function registerRoutes(
     const user = (req as any).user as User;
     const meeting = await storage.getMeeting(id);
     if (!meeting || meeting.userId !== user.id) {
-      return res.status(404).json({ message: "Meeting not found" });
+      return res.status(404).json({ message: "Session not found" });
     }
     
     const canAccessAnalysis = hasFullAccess(user);
@@ -1172,7 +1172,7 @@ export async function registerRoutes(
       const user = (req as any).user as User;
       const existingMeeting = await storage.getMeeting(id);
       if (!existingMeeting || existingMeeting.userId !== user.id) {
-          return res.status(404).json({ message: "Meeting not found" });
+          return res.status(404).json({ message: "Session not found" });
       }
       try {
         const uploadURL = await objectStorageService.getObjectEntityUploadURL();
@@ -1190,7 +1190,7 @@ export async function registerRoutes(
       const user = (req as any).user as User;
       const existingMeeting = await storage.getMeeting(id);
       if (!existingMeeting || existingMeeting.userId !== user.id) {
-          return res.status(404).json({ message: "Meeting not found" });
+          return res.status(404).json({ message: "Session not found" });
       }
       const { objectPath, fileName } = req.body;
       if (!objectPath) {
@@ -1221,7 +1221,7 @@ export async function registerRoutes(
       const user = (req as any).user as User;
       const existingMeeting = await storage.getMeeting(id);
       if (!existingMeeting || existingMeeting.userId !== user.id) {
-          return res.status(404).json({ message: "Meeting not found" });
+          return res.status(404).json({ message: "Session not found" });
       }
       if (!req.file) {
           return res.status(400).json({ message: "No file uploaded" });
@@ -1266,7 +1266,7 @@ export async function registerRoutes(
       const meeting = await storage.getMeeting(id);
 
       if (!meeting || meeting.userId !== user.id) {
-          return res.status(404).json({ message: "Meeting not found" });
+          return res.status(404).json({ message: "Session not found" });
       }
 
       let transcriptContent: string | null = null;
@@ -1324,7 +1324,7 @@ export async function registerRoutes(
       const meeting = await storage.getMeeting(id);
       
       if (!meeting || meeting.userId !== user.id) {
-          return res.status(404).json({ message: "Meeting not found" });
+          return res.status(404).json({ message: "Session not found" });
       }
 
       const existingTranscript = await storage.getTranscript(id);
@@ -1576,7 +1576,7 @@ export async function registerRoutes(
     const meetingBase = await storage.getMeeting(id);
 
     if (!meetingBase || meetingBase.userId !== user.id) {
-      return res.status(404).json({ message: "Meeting not found" });
+      return res.status(404).json({ message: "Session not found" });
     }
 
     const includeSummary = req.query.summary === "1";
@@ -1600,7 +1600,7 @@ export async function registerRoutes(
     const children: any[] = [];
 
     children.push(new Paragraph({
-      text: meeting.title || "Meeting Report",
+      text: meeting.title || "Session Report",
       heading: HeadingLevel.TITLE,
       alignment: AlignmentType.CENTER,
       spacing: { after: 200 },
@@ -1744,7 +1744,7 @@ export async function registerRoutes(
     });
 
     const buffer = await Packer.toBuffer(doc);
-    const filename = (meeting.title || "Meeting Report").replace(/[^a-zA-Z0-9\s-]/g, "").trim();
+    const filename = (meeting.title || "Session Report").replace(/[^a-zA-Z0-9\s-]/g, "").trim();
     res.setHeader("Content-Type", "application/vnd.openxmlformats-officedocument.wordprocessingml.document");
     res.setHeader("Content-Disposition", `attachment; filename="${filename}.docx"`);
     res.send(Buffer.from(buffer));
@@ -1759,10 +1759,10 @@ export async function registerRoutes(
     const user = (req as any).user as User;
     const meeting = await storage.getMeeting(id);
     if (!meeting || meeting.userId !== user.id) {
-      return res.status(404).json({ message: "Meeting not found" });
+      return res.status(404).json({ message: "Session not found" });
     }
     if (meeting.status !== "completed") {
-      return res.status(400).json({ message: "Meeting has not been processed yet" });
+      return res.status(400).json({ message: "Session has not been processed yet" });
     }
     const meetingOwner = await storage.getUserById(user.id);
     if (!meetingOwner) {
@@ -1791,12 +1791,12 @@ export async function registerRoutes(
       const meeting = await storage.getMeeting(id);
 
       if (!meeting || meeting.userId !== user.id) {
-          return res.status(404).json({ message: "Meeting not found" });
+          return res.status(404).json({ message: "Session not found" });
       }
 
       const transcript = await storage.getTranscript(id);
       if (!transcript) {
-          return res.status(400).json({ message: "No transcript available. Process the meeting first." });
+          return res.status(400).json({ message: "No transcript available. Process the session first." });
       }
 
       await storage.updateMeetingStatus(id, "processing");
@@ -2012,7 +2012,7 @@ export async function registerRoutes(
     const user = (req as any).user as User;
     const meeting = await storage.getMeeting(id);
     if (!meeting || meeting.userId !== user.id) {
-      return res.status(404).json({ message: "Meeting not found" });
+      return res.status(404).json({ message: "Session not found" });
     }
     try {
       const { clientId } = api.meetings.updateClient.input.parse(req.body);
@@ -2037,7 +2037,7 @@ export async function registerRoutes(
     const user = (req as any).user as User;
     const meeting = await storage.getMeeting(id);
     if (!meeting || meeting.userId !== user.id) {
-      return res.status(404).json({ message: "Meeting not found" });
+      return res.status(404).json({ message: "Session not found" });
     }
     await storage.deleteMeeting(id);
     res.status(204).send();

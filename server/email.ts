@@ -64,7 +64,7 @@ export async function sendVerificationEmail(toEmail: string, firstName: string, 
           This link expires in 24 hours. If you didn't create a ScribeAI account, you can safely ignore this email.
         </p>
         <p style="font-size: 12px; color: #aaa; margin-top: 40px; border-top: 1px solid #eee; padding-top: 20px;">
-          ScribeAI - Meeting Transcription & Analysis
+          ScribeAI - Session Transcription & Analysis
         </p>
       </div>
     `,
@@ -99,7 +99,7 @@ export async function sendPasswordResetEmail(toEmail: string, firstName: string,
           This link expires in 1 hour. If you didn't request a password reset, you can safely ignore this email.
         </p>
         <p style="font-size: 12px; color: #aaa; margin-top: 40px; border-top: 1px solid #eee; padding-top: 20px;">
-          ScribeAI - Meeting Transcription & Analysis
+          ScribeAI - Session Transcription & Analysis
         </p>
       </div>
     `,
@@ -151,22 +151,22 @@ export async function sendMeetingCompletedEmail(
         </table>
       `;
     } else {
-      actionItemsHtml = `<p style="font-size: 14px; color: #888; margin-top: 20px;">No action items were identified for this meeting.</p>`;
+      actionItemsHtml = `<p style="font-size: 14px; color: #888; margin-top: 20px;">No action items were identified for this session.</p>`;
     }
 
     const result = await client.emails.send({
       from: sender,
       to: toEmail,
-      subject: `Meeting Ready: ${meetingTitle}`,
+      subject: `Session Ready: ${meetingTitle}`,
       html: `
         <div style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; max-width: 600px; margin: 0 auto; padding: 40px 20px;">
-          <h1 style="font-size: 24px; color: #1a1a1a; margin-bottom: 8px;">Your meeting has been processed</h1>
+          <h1 style="font-size: 24px; color: #1a1a1a; margin-bottom: 8px;">Your session has been processed</h1>
           <p style="font-size: 16px; color: #4a4a4a; line-height: 1.6; margin-bottom: 24px;">
-            Hi ${firstName}, your meeting analysis is ready to review.
+            Hi ${firstName}, your session analysis is ready to review.
           </p>
 
           <div style="background: #f9f9f9; border-radius: 8px; padding: 16px 20px; margin-bottom: 24px;">
-            <p style="margin: 0 0 8px; font-size: 14px;"><strong>Meeting:</strong> ${meetingTitle}</p>
+            <p style="margin: 0 0 8px; font-size: 14px;"><strong>Session:</strong> ${meetingTitle}</p>
             <p style="margin: 0; font-size: 14px;"><strong>Date:</strong> ${dateStr}</p>
           </div>
 
@@ -179,15 +179,15 @@ export async function sendMeetingCompletedEmail(
           </div>
 
           <p style="font-size: 12px; color: #aaa; margin-top: 40px; border-top: 1px solid #eee; padding-top: 20px;">
-            ScribeAI - Meeting Transcription & Analysis
+            ScribeAI - Session Transcription & Analysis
           </p>
         </div>
       `,
     });
 
-    console.log(`[email] Meeting completed email sent to=${toEmail}, result:`, JSON.stringify(result));
+    console.log(`[email] Session completed email sent to=${toEmail}, result:`, JSON.stringify(result));
   } catch (err) {
-    console.error("[email] Failed to send meeting completed email:", err);
+    console.error("[email] Failed to send session completed email:", err);
   }
 }
 

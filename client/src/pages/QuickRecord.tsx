@@ -522,10 +522,10 @@ export default function QuickRecord() {
           </DialogHeader>
           <div className="py-4">
             <p className="text-sm text-slate-700 dark:text-slate-300">
-              Have you obtained the client's consent to record this meeting?
+              Have you obtained the client's consent to record this session?
             </p>
             <p className="text-xs text-muted-foreground mt-2">
-              It is recommended to obtain explicit consent before recording any meeting with a client.
+              It is recommended to obtain explicit consent before recording any session with a client.
             </p>
           </div>
           <div className="flex gap-3">

@@ -75,12 +75,12 @@ export default function Register() {
                 </p>
                 <ul className="text-xs text-muted-foreground space-y-1 pl-5.5 ml-0.5">
                   <li className="flex items-center gap-1.5"><span className="text-green-600">&#10003;</span> AI transcription (English & Afrikaans)</li>
-                  <li className="flex items-center gap-1.5"><span className="text-green-600">&#10003;</span> Meeting summaries & action items</li>
+                  <li className="flex items-center gap-1.5"><span className="text-green-600">&#10003;</span> Session summaries & action items</li>
                   <li className="flex items-center gap-1.5"><span className="text-green-600">&#10003;</span> Client & policy management</li>
                   <li className="flex items-center gap-1.5"><span className="text-green-600">&#10003;</span> Word export & topic analysis</li>
                 </ul>
                 <p className="text-xs text-muted-foreground pt-1 border-t">
-                  After trial: You can still record and upload meetings, but AI analysis, client management, and exports require a subscription (R199/month).
+                  After trial: You can still record and upload sessions, but AI analysis, client management, and exports require a subscription (R199/month).
                 </p>
               </div>
               <div className="flex gap-3">

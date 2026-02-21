@@ -112,7 +112,7 @@ export default function ResetPassword() {
           <h1 className="text-3xl font-bold" style={{ fontFamily: "var(--font-display)" }}>
             ScribeAI
           </h1>
-          <p className="text-muted-foreground mt-2">Meeting transcription & analysis</p>
+          <p className="text-muted-foreground mt-2">Session transcription & analysis</p>
         </div>
 
         <Card>

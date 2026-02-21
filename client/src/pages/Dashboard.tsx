@@ -112,7 +112,7 @@ export default function Dashboard() {
     return (
       <div className="flex h-screen items-center justify-center">
         <div className="text-center space-y-4">
-          <p className="text-slate-500">Failed to load meetings.</p>
+          <p className="text-slate-500">Failed to load sessions.</p>
           <Button onClick={() => window.location.reload()}>Retry</Button>
         </div>
       </div>
@@ -128,7 +128,7 @@ export default function Dashboard() {
     <div className="p-4 sm:p-6 md:p-10 max-w-7xl mx-auto space-y-6 sm:space-y-8">
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
-          <h1 className="text-2xl sm:text-3xl font-display font-bold text-slate-900 dark:text-foreground" data-testid="text-dashboard-heading">Your Meetings</h1>
+          <h1 className="text-2xl sm:text-3xl font-display font-bold text-slate-900 dark:text-foreground" data-testid="text-dashboard-heading">Your Sessions</h1>
           <p className="text-slate-500 mt-1 font-body text-sm sm:text-base">Manage recordings and view AI insights.</p>
         </div>
         <div className="flex gap-3 w-full sm:w-auto">
@@ -150,7 +150,7 @@ export default function Dashboard() {
               data-testid="button-new-meeting"
             >
               <Plus className="mr-2 w-5 h-5" />
-              New Meeting
+              New Session
             </Button>
           </Link>
         </div>
@@ -186,7 +186,7 @@ export default function Dashboard() {
         )}
         {selectedClient && (
           <Badge variant="secondary" className="rounded-lg">
-            Showing meetings for: {selectedClient.name}
+            Showing sessions for: {selectedClient.name}
           </Badge>
         )}
         <div className="ml-auto">
@@ -442,13 +442,13 @@ export default function Dashboard() {
             <Mic className="w-8 h-8 text-slate-300" />
           </div>
           <h3 className="text-lg font-bold text-slate-900">
-            {selectedClientId ? "No meetings for this client" : "No meetings yet"}
+            {selectedClientId ? "No sessions for this client" : "No sessions yet"}
           </h3>
           <p className="text-slate-500 mt-1 mb-6">
-            {selectedClientId ? "Record or upload a meeting for this client." : "Record or upload your first meeting to get started."}
+            {selectedClientId ? "Record or upload a session for this client." : "Record or upload your first session to get started."}
           </p>
           <Link href="/new">
-            <Button variant="outline" className="rounded-xl">Create Meeting</Button>
+            <Button variant="outline" className="rounded-xl">Create Session</Button>
           </Link>
         </div>
       )}

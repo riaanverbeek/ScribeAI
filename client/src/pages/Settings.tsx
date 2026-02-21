@@ -102,7 +102,7 @@ function RoleSelector() {
       <div>
         <Label className="text-sm font-medium">Your Role</Label>
         <p className="text-xs text-muted-foreground mt-0.5">
-          This tells the AI what your position is when analyzing your meeting recordings.
+          This tells the AI what your position is when analyzing your session recordings.
         </p>
       </div>
 

@@ -253,7 +253,7 @@ export default function MeetingDetail() {
       const url = window.URL.createObjectURL(blob);
       const a = document.createElement("a");
       a.href = url;
-      a.download = `${meeting.title || "Meeting Report"}.docx`;
+      a.download = `${meeting.title || "Session Report"}.docx`;
       document.body.appendChild(a);
       a.click();
       document.body.removeChild(a);
@@ -289,7 +289,7 @@ export default function MeetingDetail() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/meetings/:id", id] });
       queryClient.invalidateQueries({ queryKey: ["/api/meetings"] });
-      toast({ title: "Processing restarted", description: "The meeting is being processed again." });
+      toast({ title: "Processing restarted", description: "The session is being processed again." });
     },
     onError: (err: any) => {
       toast({ title: "Retry failed", description: err.message, variant: "destructive" });
@@ -302,7 +302,7 @@ export default function MeetingDetail() {
       return res.json();
     },
     onSuccess: () => {
-      toast({ title: "Email sent", description: "The meeting report has been sent to your email." });
+      toast({ title: "Email sent", description: "The session report has been sent to your email." });
     },
     onError: (err: any) => {
       toast({ title: "Failed to send email", description: err.message, variant: "destructive" });
@@ -310,7 +310,7 @@ export default function MeetingDetail() {
   });
 
   if (isLoading) return <div className="p-10 text-center text-slate-500">Loading details...</div>;
-  if (error || !meeting) return <div className="p-10 text-center text-red-500">Meeting not found</div>;
+  if (error || !meeting) return <div className="p-10 text-center text-red-500">Session not found</div>;
 
   const linkedClient = meeting.clientId && clients ? clients.find(c => c.id === meeting.clientId) : null;
   const linkedTemplate = meeting.templateId && templates ? templates.find(t => t.id === meeting.templateId) : null;
@@ -668,7 +668,7 @@ export default function MeetingDetail() {
                             </div>
                             <div>
                               <p className="text-xs text-muted-foreground">Client History</p>
-                              <p className="text-sm font-semibold" data-testid="text-include-previous-context">Including previous meeting summaries</p>
+                              <p className="text-sm font-semibold" data-testid="text-include-previous-context">Including previous session summaries</p>
                             </div>
                           </div>
                         )}
@@ -678,7 +678,7 @@ export default function MeetingDetail() {
                               <Users className="w-4 h-4 text-muted-foreground" />
                             </div>
                             <div>
-                              <p className="text-xs text-muted-foreground">Meeting Type</p>
+                              <p className="text-xs text-muted-foreground">Session Type</p>
                               <p className="text-sm font-semibold" data-testid="text-is-internal">Internal Discussion / Dictation</p>
                             </div>
                           </div>
@@ -812,7 +812,7 @@ export default function MeetingDetail() {
                             data-testid="checkbox-edit-is-internal"
                           />
                           <label htmlFor="edit-is-internal" className="text-sm cursor-pointer select-none">
-                            <span className="font-medium">Internal Meeting</span>
+                            <span className="font-medium">Internal Session</span>
                             <p className="text-xs text-muted-foreground mt-0.5">
                               Internal Discussion / Dictation without the client being present
                             </p>
@@ -830,9 +830,9 @@ export default function MeetingDetail() {
                               data-testid="checkbox-include-previous-context"
                             />
                             <label htmlFor="edit-include-previous" className="text-sm cursor-pointer select-none">
-                              <span className="font-medium">Include previous meeting summaries</span>
+                              <span className="font-medium">Include previous session summaries</span>
                               <p className="text-xs text-muted-foreground mt-0.5">
-                                When checked, AI analysis will reference summaries from earlier meetings with the same client for better continuity.
+                                When checked, AI analysis will reference summaries from earlier sessions with the same client for better continuity.
                               </p>
                             </label>
                           </div>
@@ -873,7 +873,7 @@ export default function MeetingDetail() {
                         {meeting.clientId && clientPolicies.length > 0 && (
                           <div className="space-y-2">
                             <Label className="text-sm">Linked Policies</Label>
-                            <p className="text-xs text-muted-foreground -mt-1">Select the policies relevant to this meeting. Their details will appear at the beginning of the AI summary.</p>
+                            <p className="text-xs text-muted-foreground -mt-1">Select the policies relevant to this session. Their details will appear at the beginning of the AI summary.</p>
                             <div className="space-y-2">
                               {clientPolicies.filter((p: Policy) => p.isActive).map((policy: Policy) => (
                                 <div
@@ -1308,7 +1308,7 @@ function EmptyState({ type, status, onRetry, isRetrying }: { type: string, statu
 
   return (
     <div className="flex flex-col items-center justify-center py-20 text-center border-2 border-dashed rounded-2xl bg-muted/30">
-      <p className="text-muted-foreground">No {type} available for this meeting.</p>
+      <p className="text-muted-foreground">No {type} available for this session.</p>
     </div>
   );
 }

@@ -19,7 +19,7 @@ export function useMeetings() {
     queryKey: [api.meetings.list.path],
     queryFn: async () => {
       const res = await fetch(api.meetings.list.path, { credentials: "include" });
-      if (!res.ok) throw new Error("Failed to fetch meetings");
+      if (!res.ok) throw new Error("Failed to fetch sessions");
       return api.meetings.list.responses[200].parse(await res.json());
     },
   });
@@ -34,7 +34,7 @@ export function useMeeting(id: number | null) {
       const url = buildUrl(api.meetings.get.path, { id });
       const res = await fetch(url, { credentials: "include" });
       if (res.status === 404) return null;
-      if (!res.ok) throw new Error("Failed to fetch meeting details");
+      if (!res.ok) throw new Error("Failed to fetch session details");
       return api.meetings.get.responses[200].parse(await res.json());
     },
     // Poll for status updates if processing
@@ -64,7 +64,7 @@ export function useCreateMeeting() {
           const error = api.meetings.create.responses[400].parse(await res.json());
           throw new Error(error.message);
         }
-        throw new Error("Failed to create meeting");
+        throw new Error("Failed to create session");
       }
       return api.meetings.create.responses[201].parse(await res.json());
     },
@@ -190,7 +190,7 @@ export function useUpdateMeetingClient() {
       queryClient.invalidateQueries({ queryKey: [api.meetings.list.path] });
       toast({
         title: "Client Updated",
-        description: "Meeting has been linked to the selected client.",
+        description: "Session has been linked to the selected client.",
       });
     },
     onError: (error) => {
@@ -215,13 +215,13 @@ export function useDeleteMeeting() {
         credentials: "include",
       });
 
-      if (!res.ok) throw new Error("Failed to delete meeting");
+      if (!res.ok) throw new Error("Failed to delete session");
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: [api.meetings.list.path] });
       toast({
         title: "Deleted",
-        description: "Meeting removed successfully.",
+        description: "Session removed successfully.",
       });
     },
   });

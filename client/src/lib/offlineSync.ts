@@ -36,7 +36,7 @@ async function uploadSingleRecording(rec: OfflineRecording): Promise<void> {
   });
 
   if (!meetingRes.ok) {
-    throw new Error("Failed to create meeting");
+    throw new Error("Failed to create session");
   }
 
   const meeting = await meetingRes.json();

@@ -148,7 +148,7 @@ export default function Templates() {
             <DialogHeader>
               <DialogTitle>{editingTemplate ? "Edit Template" : "Create Template"}</DialogTitle>
               <DialogDescription>
-                {editingTemplate ? "Update the template details below." : "Define a format prompt that the AI will use to structure meeting summaries."}
+                {editingTemplate ? "Update the template details below." : "Define a format prompt that the AI will use to structure session summaries."}
               </DialogDescription>
             </DialogHeader>
             <div className="grid gap-4 py-2">
@@ -177,7 +177,7 @@ export default function Templates() {
                 <p className="text-xs text-muted-foreground">This is sent to the AI to dictate the format and style of the summary output.</p>
                 <Textarea
                   id="tpl-prompt"
-                  placeholder="e.g. Format the summary as formal meeting minutes with numbered sections: 1. Attendees, 2. Agenda Items, 3. Decisions Made, 4. Action Items with owners and deadlines..."
+                  placeholder="e.g. Format the summary as formal session minutes with numbered sections: 1. Attendees, 2. Agenda Items, 3. Decisions Made, 4. Action Items with owners and deadlines..."
                   value={formatPrompt}
                   onChange={e => setFormatPrompt(e.target.value)}
                   rows={6}

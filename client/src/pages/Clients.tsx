@@ -97,7 +97,7 @@ export default function Clients() {
         <div className="flex items-center gap-3">
           <div>
             <h1 className="text-2xl sm:text-3xl font-display font-bold text-slate-900 dark:text-foreground" data-testid="text-clients-heading">Clients</h1>
-            <p className="text-slate-500 mt-1 font-body text-sm sm:text-base">Manage your clients and view their meetings.</p>
+            <p className="text-slate-500 mt-1 font-body text-sm sm:text-base">Manage your clients and view their sessions.</p>
           </div>
         </div>
         <div className="flex items-center gap-3 flex-wrap">
@@ -227,7 +227,7 @@ export default function Clients() {
 
                     <div className="mt-6 flex items-center gap-4">
                       <span className="flex items-center text-primary font-medium text-sm">
-                        View Meetings
+                        View Sessions
                         <ChevronRight className="w-4 h-4 ml-1 transition-transform group-hover:translate-x-1" />
                       </span>
                     </div>

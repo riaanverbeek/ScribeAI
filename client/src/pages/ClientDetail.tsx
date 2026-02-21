@@ -285,7 +285,7 @@ function TasksSection({ clientId }: { clientId: number }) {
         <div className="flex flex-col items-center justify-center py-10 bg-slate-50 dark:bg-muted/30 rounded-2xl border-2 border-dashed border-slate-200 dark:border-border">
           <CheckSquare className="w-10 h-10 text-slate-300 mb-3" />
           <p className="text-sm text-slate-500">
-            {tasks.length === 0 ? "No tasks from meetings yet" : `No ${statusFilter} tasks`}
+            {tasks.length === 0 ? "No tasks from sessions yet" : `No ${statusFilter} tasks`}
           </p>
         </div>
       ) : (
@@ -386,7 +386,7 @@ export default function ClientDetail() {
         </div>
         <Link href="/new">
           <Button className="rounded-xl shrink-0" data-testid="button-new-meeting-for-client">
-            <span className="hidden sm:inline">New Meeting</span>
+            <span className="hidden sm:inline">New Session</span>
             <span className="sm:hidden">New</span>
           </Button>
         </Link>
@@ -405,7 +405,7 @@ export default function ClientDetail() {
               data-testid="tab-meetings"
             >
               <Users className="w-4 h-4 inline mr-1.5 -mt-0.5" />
-              Meetings ({client.meetings?.length || 0})
+              Sessions ({client.meetings?.length || 0})
             </button>
             <button
               onClick={() => setActiveTab("tasks")}
@@ -520,10 +520,10 @@ export default function ClientDetail() {
               <div className="w-16 h-16 bg-white dark:bg-background rounded-full flex items-center justify-center shadow-sm mb-4">
                 <Users className="w-8 h-8 text-slate-300" />
               </div>
-              <h3 className="text-lg font-bold text-slate-900 dark:text-foreground">No meetings yet</h3>
-              <p className="text-slate-500 mt-1 mb-6 text-center px-4">No meetings have been recorded for this client.</p>
+              <h3 className="text-lg font-bold text-slate-900 dark:text-foreground">No sessions yet</h3>
+              <p className="text-slate-500 mt-1 mb-6 text-center px-4">No sessions have been recorded for this client.</p>
               <Link href="/new">
-                <Button variant="outline" className="rounded-xl">Create Meeting</Button>
+                <Button variant="outline" className="rounded-xl">Create Session</Button>
               </Link>
             </div>
           )}
