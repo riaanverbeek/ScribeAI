@@ -6,7 +6,7 @@ import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription, CardFooter } from "@/components/ui/card";
 import { Label } from "@/components/ui/label";
 import { useToast } from "@/hooks/use-toast";
-import { UserPlus, Mail, Lock, User } from "lucide-react";
+import { UserPlus, Mail, Lock, User, CheckCircle2 } from "lucide-react";
 import { queryClient } from "@/lib/queryClient";
 import PasswordRequirements from "@/components/PasswordRequirements";
 import { validatePassword } from "@shared/passwordValidation";
@@ -68,6 +68,21 @@ export default function Register() {
           </CardHeader>
           <form onSubmit={handleSubmit}>
             <CardContent className="space-y-4">
+              <div className="rounded-lg border bg-muted/30 p-3 space-y-2">
+                <p className="text-sm font-medium flex items-center gap-1.5">
+                  <CheckCircle2 className="h-4 w-4 text-green-600 shrink-0" />
+                  7-day free trial — full access to everything
+                </p>
+                <ul className="text-xs text-muted-foreground space-y-1 pl-5.5 ml-0.5">
+                  <li className="flex items-center gap-1.5"><span className="text-green-600">&#10003;</span> AI transcription (English & Afrikaans)</li>
+                  <li className="flex items-center gap-1.5"><span className="text-green-600">&#10003;</span> Meeting summaries & action items</li>
+                  <li className="flex items-center gap-1.5"><span className="text-green-600">&#10003;</span> Client & policy management</li>
+                  <li className="flex items-center gap-1.5"><span className="text-green-600">&#10003;</span> Word export & topic analysis</li>
+                </ul>
+                <p className="text-xs text-muted-foreground pt-1 border-t">
+                  After trial: You can still record and upload meetings, but AI analysis, client management, and exports require a subscription (R199/month).
+                </p>
+              </div>
               <div className="flex gap-3">
                 <div className="space-y-2 flex-1">
                   <Label htmlFor="firstName">First name</Label>

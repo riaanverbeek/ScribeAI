@@ -85,9 +85,9 @@ export default function Subscription() {
         <CardContent className="space-y-4">
           {status === "trialing" && trialEndsAt && (
             <div className="rounded-md bg-secondary p-4" data-testid="text-trial-info">
-              <p className="text-sm font-medium">Your free trial ends on {format(new Date(trialEndsAt), "MMMM d, yyyy")}</p>
+              <p className="text-sm font-medium">You have full access to all features until {format(new Date(trialEndsAt), "MMMM d, yyyy")}</p>
               <p className="text-sm text-muted-foreground mt-1">
-                Subscribe to keep full access to AI transcription, summaries, action items, and topic analysis after your trial ends.
+                After your trial ends, you'll still be able to record and upload meetings, but AI analysis, client management, and exports will require a subscription.
               </p>
             </div>
           )}
@@ -117,15 +117,27 @@ export default function Subscription() {
             </div>
           )}
 
-          <div className="space-y-2">
-            <h3 className="text-sm font-medium">What's included:</h3>
-            <ul className="space-y-1.5 text-sm text-muted-foreground">
-              <li className="flex items-center gap-2"><CheckCircle className="h-4 w-4 text-green-600 shrink-0" /> AI speech-to-text transcription (Afrikaans & English)</li>
-              <li className="flex items-center gap-2"><CheckCircle className="h-4 w-4 text-green-600 shrink-0" /> Executive meeting summaries</li>
-              <li className="flex items-center gap-2"><CheckCircle className="h-4 w-4 text-green-600 shrink-0" /> Action item extraction</li>
-              <li className="flex items-center gap-2"><CheckCircle className="h-4 w-4 text-green-600 shrink-0" /> Topic analysis with relevance scores</li>
-              <li className="flex items-center gap-2"><CheckCircle className="h-4 w-4 text-green-600 shrink-0" /> Client management & organisation</li>
-            </ul>
+          <div className="space-y-4">
+            <div className="space-y-2">
+              <h3 className="text-sm font-medium">Always free (no subscription needed):</h3>
+              <ul className="space-y-1.5 text-sm text-muted-foreground">
+                <li className="flex items-center gap-2"><CheckCircle className="h-4 w-4 text-green-600 shrink-0" /> Record and upload meeting audio</li>
+                <li className="flex items-center gap-2"><CheckCircle className="h-4 w-4 text-green-600 shrink-0" /> Upload or paste transcripts</li>
+                <li className="flex items-center gap-2"><CheckCircle className="h-4 w-4 text-green-600 shrink-0" /> View and manage your meetings</li>
+              </ul>
+            </div>
+            <div className="space-y-2">
+              <h3 className="text-sm font-medium">Included with subscription (R199/month):</h3>
+              <ul className="space-y-1.5 text-sm text-muted-foreground">
+                <li className="flex items-center gap-2"><CheckCircle className="h-4 w-4 text-green-600 shrink-0" /> AI speech-to-text transcription (Afrikaans & English)</li>
+                <li className="flex items-center gap-2"><CheckCircle className="h-4 w-4 text-green-600 shrink-0" /> Executive meeting summaries</li>
+                <li className="flex items-center gap-2"><CheckCircle className="h-4 w-4 text-green-600 shrink-0" /> Action item extraction</li>
+                <li className="flex items-center gap-2"><CheckCircle className="h-4 w-4 text-green-600 shrink-0" /> Topic analysis with relevance scores</li>
+                <li className="flex items-center gap-2"><CheckCircle className="h-4 w-4 text-green-600 shrink-0" /> Client & policy management</li>
+                <li className="flex items-center gap-2"><CheckCircle className="h-4 w-4 text-green-600 shrink-0" /> Word document export</li>
+                <li className="flex items-center gap-2"><CheckCircle className="h-4 w-4 text-green-600 shrink-0" /> Custom AI summary templates</li>
+              </ul>
+            </div>
           </div>
         </CardContent>
         <CardFooter className="flex flex-col gap-2">
