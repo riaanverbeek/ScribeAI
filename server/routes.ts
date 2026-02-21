@@ -17,6 +17,45 @@ import mammoth from "mammoth";
 import { uploadBufferToObjectStorage, downloadBufferFromObjectStorage, streamObjectToResponse, objectStorageService } from "./objectStorageHelper";
 import { registerObjectStorageRoutes } from "./replit_integrations/object_storage";
 
+function cleanAiOutput(text: string): string {
+  const lines = text.split('\n');
+  const cleanedLines: string[] = [];
+  
+  for (const line of lines) {
+    const trimmed = line.trim();
+    if (trimmed === '') {
+      cleanedLines.push(line);
+      continue;
+    }
+    
+    const words = trimmed.split(/\s+/);
+    if (words.length >= 4) {
+      const nonsenseWords = words.filter(w => {
+        const clean = w.replace(/[^a-zA-Z]/g, '');
+        if (clean.length < 2) return false;
+        const consonants = (clean.match(/[^aeiouAEIOU]/g) || []).length;
+        const ratio = consonants / clean.length;
+        return ratio > 0.85 && clean.length > 4;
+      });
+      
+      const hasDotChains = /\.\w+\.\w+\.\w+/.test(trimmed);
+      const hasCodePatterns = /\b(await|inline|modello|completions|verifier|uncertainties)\b/i.test(trimmed) && 
+                              !/^(##|###|\*\*|-|\d+\.)/.test(trimmed);
+      const hasRandomConcatenation = /[a-z][A-Z][a-z]{2,}[A-Z]/.test(trimmed) && !/^(##|###)/.test(trimmed);
+      
+      if ((nonsenseWords.length > words.length * 0.3 && words.length > 5) || 
+          (hasDotChains && hasCodePatterns) ||
+          (hasCodePatterns && nonsenseWords.length > 2)) {
+        break;
+      }
+    }
+    
+    cleanedLines.push(line);
+  }
+  
+  return cleanedLines.join('\n').replace(/\n{3,}/g, '\n\n').trim();
+}
+
 function formatSummaryToMarkdown(summary: any): string {
   if (typeof summary === "string") return summary;
   if (typeof summary !== "object" || summary === null) return String(summary);
@@ -1384,7 +1423,7 @@ export async function registerRoutes(
 
             Use clear headings (##), sub-headings (###), bullet points (-), and bold text (**) throughout. The summary MUST be a string value in the JSON, not a nested object.
             `}
-            Remember: ALL text content must be in ${outputLangName}.
+            Remember: ALL text content must be in ${outputLangName}. Do NOT generate random or nonsensical text. Every word must be meaningful and relevant.
           `;
 
           const response = await openai.chat.completions.create({
@@ -1393,7 +1432,8 @@ export async function registerRoutes(
                   { role: "system", content: systemPrompt },
                   { role: "user", content: transcriptText }
               ],
-              response_format: { type: "json_object" }
+              response_format: { type: "json_object" },
+              temperature: 0.3
           });
 
           const analysis = JSON.parse(response.choices[0].message.content || "{}");
@@ -1421,9 +1461,10 @@ export async function registerRoutes(
           }
 
           if (analysis.summary) {
+              const rawSummary = formatSummaryToMarkdown(analysis.summary);
               await storage.createSummary({
                   meetingId: id,
-                  content: formatSummaryToMarkdown(analysis.summary)
+                  content: cleanAiOutput(rawSummary)
               });
           }
 
@@ -1824,7 +1865,7 @@ export async function registerRoutes(
 
             Use clear headings (##), sub-headings (###), bullet points (-), and bold text (**) throughout. The summary MUST be a string value in the JSON, not a nested object.
             `}
-            Remember: ALL text content must be in ${outputLangName}.
+            Remember: ALL text content must be in ${outputLangName}. Do NOT generate random or nonsensical text. Every word must be meaningful and relevant.
           `;
 
           const response = await openai.chat.completions.create({
@@ -1833,7 +1874,8 @@ export async function registerRoutes(
                   { role: "system", content: systemPrompt },
                   { role: "user", content: transcriptText }
               ],
-              response_format: { type: "json_object" }
+              response_format: { type: "json_object" },
+              temperature: 0.3
           });
 
           const analysis = JSON.parse(response.choices[0].message.content || "{}");
@@ -1861,9 +1903,10 @@ export async function registerRoutes(
           }
 
           if (analysis.summary) {
+              const rawSummary = formatSummaryToMarkdown(analysis.summary);
               await storage.createSummary({
                   meetingId: id,
-                  content: formatSummaryToMarkdown(analysis.summary)
+                  content: cleanAiOutput(rawSummary)
               });
           }
 
