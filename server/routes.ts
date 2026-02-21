@@ -1343,7 +1343,6 @@ export async function registerRoutes(
             1. Action Items (assignee if clear, otherwise 'Unknown')
             2. Key Topics (title, summary, relevance score 1-100)
             3. Executive Summary as a structured report in Markdown format
-            ${templateFormatInstructions}
             ${contextSection ? `\nTake the following context into account when generating your analysis:${contextSection}` : ""}
             
             Return JSON in this format:
@@ -1353,8 +1352,15 @@ export async function registerRoutes(
                 "summary": "<markdown report string>"
             }
 
-            CRITICAL: The "summary" field MUST be a single Markdown-formatted string (NOT a JSON object). Structure it as a professional report with the following format:
+            CRITICAL: The "summary" field MUST be a single Markdown-formatted string (NOT a JSON object).
             ${policyPromptSection}
+            ${templateFormatInstructions ? `
+            SUMMARY FORMAT INSTRUCTIONS (from selected template — follow these closely):
+            ${templateFormatInstructions}
+
+            Structure the summary using the template instructions above. Use clear Markdown formatting with headings (##), sub-headings (###), bullet points (-), and bold text (**). The summary MUST be a string value in the JSON, not a nested object.
+            ` : `
+            Structure it as a professional report with the following format:
 
             ## Executive Summary
             A brief 2-3 sentence overview of the meeting.
@@ -1376,7 +1382,9 @@ export async function registerRoutes(
             ## Constraints & Considerations
             - Any limitations or important notes
 
-            Use clear headings (##), sub-headings (###), bullet points (-), and bold text (**) throughout. The summary MUST be a string value in the JSON, not a nested object. Remember: ALL text content must be in ${outputLangName}.
+            Use clear headings (##), sub-headings (###), bullet points (-), and bold text (**) throughout. The summary MUST be a string value in the JSON, not a nested object.
+            `}
+            Remember: ALL text content must be in ${outputLangName}.
           `;
 
           const response = await openai.chat.completions.create({
@@ -1775,7 +1783,6 @@ export async function registerRoutes(
             1. Action Items (assignee if clear, otherwise 'Unknown')
             2. Key Topics (title, summary, relevance score 1-100)
             3. Executive Summary as a structured report in Markdown format
-            ${templateFormatInstructions}
             ${contextSection ? `\nTake the following context into account when generating your analysis:${contextSection}` : ""}
             
             Return JSON in this format:
@@ -1785,8 +1792,15 @@ export async function registerRoutes(
                 "summary": "<markdown report string>"
             }
 
-            CRITICAL: The "summary" field MUST be a single Markdown-formatted string (NOT a JSON object). Structure it as a professional report with the following format:
+            CRITICAL: The "summary" field MUST be a single Markdown-formatted string (NOT a JSON object).
             ${reprocessPolicyPromptSection}
+            ${templateFormatInstructions ? `
+            SUMMARY FORMAT INSTRUCTIONS (from selected template — follow these closely):
+            ${templateFormatInstructions}
+
+            Structure the summary using the template instructions above. Use clear Markdown formatting with headings (##), sub-headings (###), bullet points (-), and bold text (**). The summary MUST be a string value in the JSON, not a nested object.
+            ` : `
+            Structure it as a professional report with the following format:
 
             ## Executive Summary
             A brief 2-3 sentence overview of the meeting.
@@ -1808,7 +1822,9 @@ export async function registerRoutes(
             ## Constraints & Considerations
             - Any limitations or important notes
 
-            Use clear headings (##), sub-headings (###), bullet points (-), and bold text (**) throughout. The summary MUST be a string value in the JSON, not a nested object. Remember: ALL text content must be in ${outputLangName}.
+            Use clear headings (##), sub-headings (###), bullet points (-), and bold text (**) throughout. The summary MUST be a string value in the JSON, not a nested object.
+            `}
+            Remember: ALL text content must be in ${outputLangName}.
           `;
 
           const response = await openai.chat.completions.create({
