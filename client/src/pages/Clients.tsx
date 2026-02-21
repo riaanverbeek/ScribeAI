@@ -1,7 +1,7 @@
 import { Link } from "wouter";
 import { useClients, useDeleteClient } from "@/hooks/use-clients";
 import { format } from "date-fns";
-import { Plus, ChevronRight, MoreVertical, Trash2, Users, Building2, Mail } from "lucide-react";
+import { Plus, ChevronRight, MoreVertical, Trash2, Users, Building2, Mail, CheckSquare } from "lucide-react";
 import { useViewMode } from "@/hooks/use-view-mode";
 import { ViewToggle } from "@/components/ViewToggle";
 import { motion } from "framer-motion";
@@ -225,10 +225,18 @@ export default function Clients() {
                       )}
                     </div>
 
-                    <div className="mt-6 flex items-center text-primary font-medium text-sm">
-                      View Meetings
-                      <ChevronRight className="w-4 h-4 ml-1 transition-transform group-hover:translate-x-1" />
+                    <div className="mt-6 flex items-center gap-4">
+                      <span className="flex items-center text-primary font-medium text-sm">
+                        View Meetings
+                        <ChevronRight className="w-4 h-4 ml-1 transition-transform group-hover:translate-x-1" />
+                      </span>
                     </div>
+                  </div>
+                </Link>
+                <Link href={`/client/${client.id}?tab=tasks`}>
+                  <div className="flex items-center text-slate-500 hover:text-primary font-medium text-sm cursor-pointer mt-2 transition-colors" data-testid={`link-client-tasks-${client.id}`}>
+                    <CheckSquare className="w-4 h-4 mr-1.5" />
+                    View Tasks
                   </div>
                 </Link>
               </motion.div>
@@ -275,6 +283,12 @@ export default function Clients() {
                       </div>
                       <ChevronRight className="w-4 h-4 text-slate-400 shrink-0 transition-transform group-hover:translate-x-1" />
                     </div>
+                  </Link>
+                  <Link href={`/client/${client.id}?tab=tasks`}>
+                    <Button variant="ghost" size="sm" className="text-slate-500 shrink-0 text-xs" data-testid={`button-list-tasks-${client.id}`}>
+                      <CheckSquare className="w-3.5 h-3.5 mr-1" />
+                      Tasks
+                    </Button>
                   </Link>
                   <DropdownMenu>
                     <DropdownMenuTrigger asChild>

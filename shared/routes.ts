@@ -181,6 +181,24 @@ export const api = {
       },
     },
   },
+  actionItems: {
+    listByClient: {
+      method: 'GET' as const,
+      path: '/api/clients/:clientId/action-items',
+      responses: {
+        200: z.array(z.custom<typeof actionItems.$inferSelect & { meetingTitle: string; meetingDate: string }>()),
+      },
+    },
+    updateStatus: {
+      method: 'PATCH' as const,
+      path: '/api/action-items/:id/status',
+      input: z.object({ status: z.enum(["pending", "completed"]) }),
+      responses: {
+        200: z.custom<typeof actionItems.$inferSelect>(),
+        404: errorSchemas.notFound,
+      },
+    },
+  },
 };
 
 export type CreateMeetingRequest = z.infer<typeof insertMeetingSchema>;

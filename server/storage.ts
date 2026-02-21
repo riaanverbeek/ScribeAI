@@ -70,6 +70,9 @@ export interface IStorage {
 
     // Action Items
     getActionItems(meetingId: number): Promise<ActionItem[]>;
+    getClientActionItems(clientId: number, userId: number): Promise<(ActionItem & { meetingTitle: string; meetingDate: Date })[]>;
+    getActionItem(id: number): Promise<ActionItem | undefined>;
+    updateActionItemStatus(id: number, status: "pending" | "completed"): Promise<ActionItem>;
     createActionItem(item: InsertActionItem): Promise<ActionItem>;
 
     // Topics
@@ -377,6 +380,34 @@ export class DatabaseStorage implements IStorage {
     // Action Items
     async getActionItems(meetingId: number): Promise<ActionItem[]> {
         return await db.select().from(actionItems).where(eq(actionItems.meetingId, meetingId));
+    }
+
+    async getActionItem(id: number): Promise<ActionItem | undefined> {
+        const [item] = await db.select().from(actionItems).where(eq(actionItems.id, id));
+        return item;
+    }
+
+    async getClientActionItems(clientId: number, userId: number): Promise<(ActionItem & { meetingTitle: string; meetingDate: Date })[]> {
+        const rows = await db
+            .select({
+                id: actionItems.id,
+                meetingId: actionItems.meetingId,
+                content: actionItems.content,
+                assignee: actionItems.assignee,
+                status: actionItems.status,
+                meetingTitle: meetings.title,
+                meetingDate: meetings.date,
+            })
+            .from(actionItems)
+            .innerJoin(meetings, eq(actionItems.meetingId, meetings.id))
+            .where(and(eq(meetings.clientId, clientId), eq(meetings.userId, userId)))
+            .orderBy(desc(meetings.date));
+        return rows as any;
+    }
+
+    async updateActionItemStatus(id: number, status: "pending" | "completed"): Promise<ActionItem> {
+        const [item] = await db.update(actionItems).set({ status }).where(eq(actionItems.id, id)).returning();
+        return item;
     }
 
     async createActionItem(insertItem: InsertActionItem): Promise<ActionItem> {

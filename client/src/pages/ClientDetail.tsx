@@ -1,6 +1,6 @@
 import { useClient } from "@/hooks/use-clients";
-import { useRoute, Link } from "wouter";
-import { ChevronLeft, Calendar, Clock, ChevronRight, Users, Building2, Mail, Shield, Plus, Trash2, Pencil, X, Check, CircleDot } from "lucide-react";
+import { useRoute, Link, useSearch } from "wouter";
+import { ChevronLeft, Calendar, Clock, ChevronRight, Users, Building2, Mail, Shield, Plus, Trash2, Pencil, X, Check, CircleDot, CheckSquare, Circle, Filter, Loader2 } from "lucide-react";
 import { useViewMode } from "@/hooks/use-view-mode";
 import { ViewToggle } from "@/components/ViewToggle";
 import { Button } from "@/components/ui/button";
@@ -9,7 +9,7 @@ import { format } from "date-fns";
 import { motion } from "framer-motion";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { queryClient, apiRequest } from "@/lib/queryClient";
-import { POLICY_TYPES, type Policy } from "@shared/schema";
+import { POLICY_TYPES, type Policy, type ActionItem } from "@shared/schema";
 import { useState } from "react";
 import { Card } from "@/components/ui/card";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -221,10 +221,126 @@ function PolicySection({ clientId }: { clientId: number }) {
   );
 }
 
+type ClientActionItem = ActionItem & { meetingTitle: string; meetingDate: string };
+
+function TasksSection({ clientId }: { clientId: number }) {
+  const { toast } = useToast();
+  const [statusFilter, setStatusFilter] = useState<"all" | "pending" | "completed">("all");
+
+  const { data: tasks = [], isLoading } = useQuery<ClientActionItem[]>({
+    queryKey: ["/api/clients", clientId, "action-items"],
+    queryFn: () => fetch(`/api/clients/${clientId}/action-items`, { credentials: "include" }).then(r => r.json()),
+  });
+
+  const toggleMutation = useMutation({
+    mutationFn: ({ id, status }: { id: number; status: "pending" | "completed" }) =>
+      apiRequest("PATCH", `/api/action-items/${id}/status`, { status }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/clients", clientId, "action-items"] });
+    },
+    onError: () => {
+      toast({ title: "Failed to update task", variant: "destructive" });
+    },
+  });
+
+  const filtered = statusFilter === "all" ? tasks : tasks.filter(t => t.status === statusFilter);
+  const pendingCount = tasks.filter(t => t.status === "pending").length;
+  const completedCount = tasks.filter(t => t.status === "completed").length;
+
+  return (
+    <div className="space-y-4">
+      <div className="flex items-center justify-between gap-3 flex-wrap">
+        <div className="flex items-center gap-2">
+          <CheckSquare className="w-5 h-5 text-slate-400" />
+          <h2 className="text-lg font-semibold text-slate-900 dark:text-foreground">
+            Tasks ({tasks.length})
+          </h2>
+          {tasks.length > 0 && (
+            <div className="flex items-center gap-2 ml-2">
+              <Badge variant="outline" className="text-xs">{pendingCount} pending</Badge>
+              <Badge variant="secondary" className="text-xs">{completedCount} done</Badge>
+            </div>
+          )}
+        </div>
+        <div className="flex items-center gap-2">
+          <Filter className="w-4 h-4 text-slate-400" />
+          <Select value={statusFilter} onValueChange={(v) => setStatusFilter(v as any)}>
+            <SelectTrigger className="w-[140px] h-8 text-xs" data-testid="select-task-filter">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">All Tasks</SelectItem>
+              <SelectItem value="pending">Pending</SelectItem>
+              <SelectItem value="completed">Completed</SelectItem>
+            </SelectContent>
+          </Select>
+        </div>
+      </div>
+
+      {isLoading ? (
+        <div className="flex items-center justify-center py-10">
+          <Loader2 className="w-5 h-5 animate-spin text-slate-400" />
+        </div>
+      ) : filtered.length === 0 ? (
+        <div className="flex flex-col items-center justify-center py-10 bg-slate-50 dark:bg-muted/30 rounded-2xl border-2 border-dashed border-slate-200 dark:border-border">
+          <CheckSquare className="w-10 h-10 text-slate-300 mb-3" />
+          <p className="text-sm text-slate-500">
+            {tasks.length === 0 ? "No tasks from meetings yet" : `No ${statusFilter} tasks`}
+          </p>
+        </div>
+      ) : (
+        <div className="space-y-2">
+          {filtered.map((task) => (
+            <Card
+              key={task.id}
+              className={`flex items-start gap-3 p-4 transition-all ${task.status === "completed" ? "opacity-60" : ""}`}
+              data-testid={`card-task-${task.id}`}
+            >
+              <button
+                onClick={() => toggleMutation.mutate({
+                  id: task.id,
+                  status: task.status === "completed" ? "pending" : "completed",
+                })}
+                className="mt-0.5 shrink-0 focus:outline-none"
+                disabled={toggleMutation.isPending}
+                data-testid={`button-toggle-task-${task.id}`}
+              >
+                {task.status === "completed" ? (
+                  <CheckSquare className="w-5 h-5 text-green-500" />
+                ) : (
+                  <Circle className="w-5 h-5 text-slate-300 hover:text-primary transition-colors" />
+                )}
+              </button>
+              <div className="min-w-0 flex-1">
+                <p className={`text-sm ${task.status === "completed" ? "line-through text-slate-400" : "text-slate-900 dark:text-foreground"}`} data-testid={`text-task-content-${task.id}`}>
+                  {task.content}
+                </p>
+                {task.assignee && (
+                  <p className="text-xs text-slate-500 mt-1">
+                    Assigned to: {task.assignee}
+                  </p>
+                )}
+                <Link href={`/meeting/${task.meetingId}`}>
+                  <span className="text-xs text-primary hover:underline mt-1 inline-block cursor-pointer" data-testid={`link-task-meeting-${task.id}`}>
+                    {task.meetingTitle} — {format(new Date(task.meetingDate), "MMM d, yyyy")}
+                  </span>
+                </Link>
+              </div>
+            </Card>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
 export default function ClientDetail() {
   const [, params] = useRoute("/client/:id");
   const id = params ? parseInt(params.id) : null;
   const { data: client, isLoading, error } = useClient(id);
+  const searchString = useSearch();
+  const initialTab = new URLSearchParams(searchString).get("tab") === "tasks" ? "tasks" : "meetings";
+  const [activeTab, setActiveTab] = useState<"meetings" | "tasks">(initialTab);
 
   const [viewMode, setViewMode] = useViewMode("client-detail-view");
 
@@ -278,17 +394,42 @@ export default function ClientDetail() {
 
       <div className="flex-1 overflow-y-auto">
         <div className="p-4 sm:p-6 md:p-8 max-w-5xl mx-auto space-y-6">
-          <div className="flex items-center justify-between gap-3 flex-wrap">
-            <div className="flex items-center gap-2">
-              <Users className="w-5 h-5 text-slate-400" />
-              <h2 className="text-lg font-semibold text-slate-900 dark:text-foreground">
-                Meetings ({client.meetings?.length || 0})
-              </h2>
-            </div>
-            <ViewToggle mode={viewMode} onChange={setViewMode} />
+          <div className="flex items-center gap-1 border-b border-slate-200 dark:border-border">
+            <button
+              onClick={() => setActiveTab("meetings")}
+              className={`px-4 py-2.5 text-sm font-medium border-b-2 transition-colors ${
+                activeTab === "meetings"
+                  ? "border-primary text-primary"
+                  : "border-transparent text-slate-500 hover:text-slate-700"
+              }`}
+              data-testid="tab-meetings"
+            >
+              <Users className="w-4 h-4 inline mr-1.5 -mt-0.5" />
+              Meetings ({client.meetings?.length || 0})
+            </button>
+            <button
+              onClick={() => setActiveTab("tasks")}
+              className={`px-4 py-2.5 text-sm font-medium border-b-2 transition-colors ${
+                activeTab === "tasks"
+                  ? "border-primary text-primary"
+                  : "border-transparent text-slate-500 hover:text-slate-700"
+              }`}
+              data-testid="tab-tasks"
+            >
+              <CheckSquare className="w-4 h-4 inline mr-1.5 -mt-0.5" />
+              Tasks
+            </button>
           </div>
 
           <PolicySection clientId={client.id} />
+
+          {activeTab === "tasks" && <TasksSection clientId={client.id} />}
+
+          {activeTab === "meetings" && (
+          <>
+          <div className="flex items-center justify-end">
+            <ViewToggle mode={viewMode} onChange={setViewMode} />
+          </div>
 
           {client.meetings && client.meetings.length > 0 ? (
             viewMode === "tile" ? (
@@ -385,6 +526,8 @@ export default function ClientDetail() {
                 <Button variant="outline" className="rounded-xl">Create Meeting</Button>
               </Link>
             </div>
+          )}
+          </>
           )}
         </div>
       </div>

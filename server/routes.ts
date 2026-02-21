@@ -1044,6 +1044,35 @@ export async function registerRoutes(
     res.json({ message: "Policies updated" });
   });
 
+  // ========== ACTION ITEM ROUTES ==========
+
+  app.get(api.actionItems.listByClient.path, requireAuth, requireVerified, requireSubscription, async (req, res) => {
+    const clientId = Number(req.params.clientId);
+    const user = (req as any).user as User;
+    const client = await storage.getClient(clientId);
+    if (!client || client.userId !== user.id) {
+      return res.status(404).json({ message: "Client not found" });
+    }
+    const items = await storage.getClientActionItems(clientId, user.id);
+    res.json(items);
+  });
+
+  app.patch(api.actionItems.updateStatus.path, requireAuth, requireVerified, async (req, res) => {
+    const id = Number(req.params.id);
+    const { status } = api.actionItems.updateStatus.input.parse(req.body);
+    const user = (req as any).user as User;
+    const existing = await storage.getActionItem(id);
+    if (!existing) {
+      return res.status(404).json({ message: "Action item not found" });
+    }
+    const meeting = await storage.getMeeting(existing.meetingId);
+    if (!meeting || meeting.userId !== user.id) {
+      return res.status(404).json({ message: "Action item not found" });
+    }
+    const updated = await storage.updateActionItemStatus(id, status);
+    res.json(updated);
+  });
+
   // ========== MEETING ROUTES ==========
 
   app.get(api.meetings.list.path, requireAuth, requireVerified, async (req, res) => {
