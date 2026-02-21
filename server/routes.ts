@@ -623,7 +623,18 @@ export async function registerRoutes(
 
   app.get("/api/superuser/meetings", requireAuth, requireVerified, requireSuperuser, async (req, res) => {
     const allMeetings = await storage.getAllMeetings();
-    res.json(allMeetings);
+    const userIdFilter = req.query.userId ? Number(req.query.userId) : null;
+    if (userIdFilter) {
+      res.json(allMeetings.filter(m => m.userId === userIdFilter));
+    } else {
+      res.json(allMeetings);
+    }
+  });
+
+  app.get("/api/superuser/users/:id/clients", requireAuth, requireVerified, requireSuperuser, async (req, res) => {
+    const userId = Number(req.params.id);
+    const allClients = await storage.getAllClients();
+    res.json(allClients.filter(c => c.userId === userId));
   });
 
   app.get("/api/superuser/meetings/:id", requireAuth, requireVerified, requireSuperuser, async (req, res) => {

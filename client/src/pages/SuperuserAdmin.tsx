@@ -12,17 +12,233 @@ import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
-import { Pencil, Trash2, Plus, Users, Briefcase, Calendar, FileText, Shield, ShieldCheck, Tag } from "lucide-react";
+import { Pencil, Trash2, Plus, Users, Briefcase, Calendar, FileText, Shield, ShieldCheck, Tag, ArrowLeft, Eye, ChevronRight, Loader2 } from "lucide-react";
 import { format } from "date-fns";
-import type { SafeUser, Client, Meeting, Template, Role } from "@shared/schema";
+import type { SafeUser, Client, Meeting, Template, Role, Transcript, ActionItem, Topic, MeetingSummary } from "@shared/schema";
 
 type SuperuserUser = SafeUser & { isSuperuser: boolean };
+
+type MeetingDetail = Meeting & {
+  transcript?: Transcript | null;
+  actionItems?: ActionItem[];
+  topics?: Topic[];
+  summary?: MeetingSummary | null;
+};
+
+function UserAccountView({ user, onBack }: { user: SuperuserUser; onBack: () => void }) {
+  const [viewingMeeting, setViewingMeeting] = useState<number | null>(null);
+
+  const { data: meetings = [], isLoading: meetingsLoading } = useQuery<Meeting[]>({
+    queryKey: ["/api/superuser/meetings", { userId: user.id }],
+    queryFn: async () => {
+      const res = await fetch(`/api/superuser/meetings?userId=${user.id}`, { credentials: "include" });
+      if (!res.ok) throw new Error("Failed to load meetings");
+      return res.json();
+    },
+  });
+
+  const { data: clients = [], isLoading: clientsLoading } = useQuery<Client[]>({
+    queryKey: ["/api/superuser/users", user.id, "clients"],
+    queryFn: async () => {
+      const res = await fetch(`/api/superuser/users/${user.id}/clients`, { credentials: "include" });
+      if (!res.ok) throw new Error("Failed to load clients");
+      return res.json();
+    },
+  });
+
+  const { data: meetingDetail, isLoading: detailLoading } = useQuery<MeetingDetail>({
+    queryKey: ["/api/superuser/meetings", viewingMeeting],
+    queryFn: async () => {
+      const res = await fetch(`/api/superuser/meetings/${viewingMeeting}`, { credentials: "include" });
+      if (!res.ok) throw new Error("Failed to load meeting");
+      return res.json();
+    },
+    enabled: viewingMeeting !== null,
+  });
+
+  if (viewingMeeting !== null) {
+    return (
+      <div className="space-y-4">
+        <Button variant="ghost" size="sm" onClick={() => setViewingMeeting(null)} data-testid="button-back-to-user">
+          <ArrowLeft className="w-4 h-4 mr-1.5" /> Back to {user.firstName}'s account
+        </Button>
+
+        {detailLoading ? (
+          <div className="flex items-center justify-center py-12">
+            <Loader2 className="w-6 h-6 animate-spin text-muted-foreground" />
+          </div>
+        ) : meetingDetail ? (
+          <div className="space-y-4">
+            <div>
+              <h3 className="text-lg font-semibold" data-testid="text-meeting-detail-title">{meetingDetail.title}</h3>
+              <div className="flex items-center gap-2 mt-1 flex-wrap">
+                <Badge variant={meetingDetail.status === "completed" ? "default" : meetingDetail.status === "failed" ? "destructive" : "secondary"}>
+                  {meetingDetail.status}
+                </Badge>
+                {meetingDetail.date && <span className="text-xs text-muted-foreground">{format(new Date(meetingDetail.date), "MMM d, yyyy 'at' h:mm a")}</span>}
+                {meetingDetail.outputLanguage && <Badge variant="outline" className="text-xs">{meetingDetail.outputLanguage === "af" ? "Afrikaans" : "English"}</Badge>}
+                {meetingDetail.isInternal && <Badge variant="outline" className="text-xs">Internal</Badge>}
+              </div>
+            </div>
+
+            {meetingDetail.summary && (
+              <Card>
+                <CardHeader className="pb-2">
+                  <CardTitle className="text-sm">Summary</CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <div className="prose prose-sm dark:prose-invert max-w-none text-sm whitespace-pre-wrap" data-testid="text-meeting-summary">
+                    {meetingDetail.summary.content}
+                  </div>
+                </CardContent>
+              </Card>
+            )}
+
+            {meetingDetail.transcript && (
+              <Card>
+                <CardHeader className="pb-2">
+                  <CardTitle className="text-sm">Transcript</CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <p className="text-sm whitespace-pre-wrap max-h-60 overflow-y-auto" data-testid="text-meeting-transcript">
+                    {meetingDetail.transcript.content}
+                  </p>
+                </CardContent>
+              </Card>
+            )}
+
+            {meetingDetail.actionItems && meetingDetail.actionItems.length > 0 && (
+              <Card>
+                <CardHeader className="pb-2">
+                  <CardTitle className="text-sm">Action Items ({meetingDetail.actionItems.length})</CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <ul className="space-y-2">
+                    {meetingDetail.actionItems.map((item) => (
+                      <li key={item.id} className="text-sm flex items-start gap-2">
+                        <Badge variant={item.status === "completed" ? "default" : "secondary"} className="text-[10px] mt-0.5 shrink-0">{item.status}</Badge>
+                        <div>
+                          <span>{item.content}</span>
+                          {item.assignee && <span className="text-muted-foreground ml-1">— {item.assignee}</span>}
+                        </div>
+                      </li>
+                    ))}
+                  </ul>
+                </CardContent>
+              </Card>
+            )}
+
+            {meetingDetail.topics && meetingDetail.topics.length > 0 && (
+              <Card>
+                <CardHeader className="pb-2">
+                  <CardTitle className="text-sm">Topics ({meetingDetail.topics.length})</CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <ul className="space-y-2">
+                    {meetingDetail.topics.map((topic) => (
+                      <li key={topic.id} className="text-sm">
+                        <span className="font-medium">{topic.title}</span>
+                        {topic.relevanceScore !== null && <Badge variant="outline" className="text-[10px] ml-2">{topic.relevanceScore}%</Badge>}
+                        {topic.summary && <p className="text-muted-foreground text-xs mt-0.5">{topic.summary}</p>}
+                      </li>
+                    ))}
+                  </ul>
+                </CardContent>
+              </Card>
+            )}
+          </div>
+        ) : (
+          <p className="text-sm text-muted-foreground">Meeting not found.</p>
+        )}
+      </div>
+    );
+  }
+
+  return (
+    <div className="space-y-4">
+      <Button variant="ghost" size="sm" onClick={onBack} data-testid="button-back-to-users">
+        <ArrowLeft className="w-4 h-4 mr-1.5" /> Back to Users
+      </Button>
+
+      <div className="rounded-lg border p-4 bg-muted/30">
+        <div className="flex items-center gap-2 flex-wrap">
+          <h3 className="text-lg font-semibold" data-testid="text-user-account-name">{user.firstName} {user.lastName}</h3>
+          {user.isSuperuser && <Badge variant="default" className="text-[10px]"><ShieldCheck className="w-3 h-3 mr-1" />Superuser</Badge>}
+          {user.isAdmin && !user.isSuperuser && <Badge variant="secondary" className="text-[10px]"><Shield className="w-3 h-3 mr-1" />Admin</Badge>}
+        </div>
+        <p className="text-sm text-muted-foreground">{user.email}</p>
+        <div className="flex items-center gap-2 mt-1 flex-wrap">
+          <Badge variant={user.subscriptionStatus === "active" || user.subscriptionStatus === "trialing" ? "default" : "secondary"} className="text-[10px]">
+            {user.subscriptionStatus}
+          </Badge>
+          {!user.isVerified && <Badge variant="destructive" className="text-[10px]">Unverified</Badge>}
+          {user.createdAt && <span className="text-[10px] text-muted-foreground">Joined {format(new Date(user.createdAt), "MMM d, yyyy")}</span>}
+        </div>
+      </div>
+
+      <div>
+        <h4 className="text-sm font-semibold mb-2 flex items-center gap-1.5">
+          <Calendar className="w-4 h-4" /> Meetings ({meetings.length})
+        </h4>
+        {meetingsLoading ? (
+          <p className="text-sm text-muted-foreground">Loading meetings...</p>
+        ) : meetings.length === 0 ? (
+          <p className="text-sm text-muted-foreground p-3 border rounded-md bg-muted/20">No meetings found for this user.</p>
+        ) : (
+          <div className="space-y-1 rounded-lg border overflow-hidden divide-y">
+            {meetings.map((m) => (
+              <button
+                key={m.id}
+                className="w-full flex items-center gap-3 px-3 py-2.5 text-left hover:bg-muted/50 transition-colors"
+                onClick={() => setViewingMeeting(m.id)}
+                data-testid={`button-view-meeting-${m.id}`}
+              >
+                <div className="flex-1 min-w-0">
+                  <span className="text-sm font-medium truncate block">{m.title}</span>
+                  <div className="flex items-center gap-2 mt-0.5 flex-wrap">
+                    <Badge variant={m.status === "completed" ? "default" : m.status === "failed" ? "destructive" : "secondary"} className="text-[10px]">
+                      {m.status}
+                    </Badge>
+                    {m.date && <span className="text-[10px] text-muted-foreground">{format(new Date(m.date), "MMM d, yyyy")}</span>}
+                  </div>
+                </div>
+                <ChevronRight className="w-4 h-4 text-muted-foreground shrink-0" />
+              </button>
+            ))}
+          </div>
+        )}
+      </div>
+
+      <div>
+        <h4 className="text-sm font-semibold mb-2 flex items-center gap-1.5">
+          <Briefcase className="w-4 h-4" /> Clients ({clients.length})
+        </h4>
+        {clientsLoading ? (
+          <p className="text-sm text-muted-foreground">Loading clients...</p>
+        ) : clients.length === 0 ? (
+          <p className="text-sm text-muted-foreground p-3 border rounded-md bg-muted/20">No clients found for this user.</p>
+        ) : (
+          <div className="space-y-1 rounded-lg border overflow-hidden divide-y">
+            {clients.map((c) => (
+              <div key={c.id} className="px-3 py-2.5">
+                <span className="text-sm font-medium">{c.name}</span>
+                {c.email && <p className="text-xs text-muted-foreground">{c.email}</p>}
+                {c.company && <p className="text-xs text-muted-foreground">{c.company}</p>}
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
 
 function UsersTab() {
   const { toast } = useToast();
   const { data: users = [], isLoading } = useQuery<SuperuserUser[]>({ queryKey: ["/api/superuser/users"] });
   const [editUser, setEditUser] = useState<SuperuserUser | null>(null);
   const [deleteUser, setDeleteUser] = useState<SuperuserUser | null>(null);
+  const [viewingUser, setViewingUser] = useState<SuperuserUser | null>(null);
   const [editForm, setEditForm] = useState({ firstName: "", lastName: "", email: "", isAdmin: false, isVerified: false, subscriptionStatus: "none" as string });
 
   const updateMutation = useMutation({
@@ -57,12 +273,20 @@ function UsersTab() {
 
   if (isLoading) return <div className="p-6 text-muted-foreground">Loading users...</div>;
 
+  if (viewingUser) {
+    return <UserAccountView user={viewingUser} onBack={() => setViewingUser(null)} />;
+  }
+
   return (
     <div className="space-y-3">
       {users.map((u) => (
         <Card key={u.id}>
           <CardContent className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 p-4">
-            <div className="min-w-0 flex-1">
+            <button
+              className="min-w-0 flex-1 text-left hover:opacity-80 transition-opacity"
+              onClick={() => setViewingUser(u)}
+              data-testid={`button-view-user-${u.id}`}
+            >
               <div className="flex items-center gap-2 flex-wrap">
                 <span className="font-medium text-sm" data-testid={`text-user-name-${u.id}`}>{u.firstName} {u.lastName}</span>
                 {u.isSuperuser && <Badge variant="default" className="text-[10px]"><ShieldCheck className="w-3 h-3 mr-1" />Superuser</Badge>}
@@ -76,8 +300,11 @@ function UsersTab() {
                 </Badge>
                 {u.createdAt && <span className="text-[10px] text-muted-foreground">{format(new Date(u.createdAt), "MMM d, yyyy")}</span>}
               </div>
-            </div>
-            <div className="flex items-center gap-1">
+            </button>
+            <div className="flex items-center gap-1 shrink-0">
+              <Button size="icon" variant="ghost" onClick={() => setViewingUser(u)} title="View account" data-testid={`button-view-account-${u.id}`}>
+                <Eye className="w-4 h-4" />
+              </Button>
               <Button size="icon" variant="ghost" onClick={() => openEdit(u)} disabled={u.isSuperuser} data-testid={`button-edit-user-${u.id}`}>
                 <Pencil className="w-4 h-4" />
               </Button>
@@ -289,6 +516,17 @@ function MeetingsTab() {
   const { data: meetings = [], isLoading } = useQuery<Meeting[]>({ queryKey: ["/api/superuser/meetings"] });
   const { data: users = [] } = useQuery<SuperuserUser[]>({ queryKey: ["/api/superuser/users"] });
   const [deleteMeeting, setDeleteMeeting] = useState<Meeting | null>(null);
+  const [viewingMeeting, setViewingMeeting] = useState<number | null>(null);
+
+  const { data: meetingDetail, isLoading: detailLoading } = useQuery<MeetingDetail>({
+    queryKey: ["/api/superuser/meetings", viewingMeeting],
+    queryFn: async () => {
+      const res = await fetch(`/api/superuser/meetings/${viewingMeeting}`, { credentials: "include" });
+      if (!res.ok) throw new Error("Failed to load meeting");
+      return res.json();
+    },
+    enabled: viewingMeeting !== null,
+  });
 
   const deleteMutation = useMutation({
     mutationFn: async (id: number) => {
@@ -310,13 +548,102 @@ function MeetingsTab() {
 
   if (isLoading) return <div className="p-6 text-muted-foreground">Loading meetings...</div>;
 
+  if (viewingMeeting !== null) {
+    return (
+      <div className="space-y-4">
+        <Button variant="ghost" size="sm" onClick={() => setViewingMeeting(null)} data-testid="button-back-to-meetings">
+          <ArrowLeft className="w-4 h-4 mr-1.5" /> Back to Meetings
+        </Button>
+
+        {detailLoading ? (
+          <div className="flex items-center justify-center py-12">
+            <Loader2 className="w-6 h-6 animate-spin text-muted-foreground" />
+          </div>
+        ) : meetingDetail ? (
+          <div className="space-y-4">
+            <div>
+              <h3 className="text-lg font-semibold">{meetingDetail.title}</h3>
+              <div className="flex items-center gap-2 mt-1 flex-wrap">
+                <Badge variant={meetingDetail.status === "completed" ? "default" : meetingDetail.status === "failed" ? "destructive" : "secondary"}>
+                  {meetingDetail.status}
+                </Badge>
+                <span className="text-xs text-muted-foreground">Owner: {getUserName(meetingDetail.userId)}</span>
+                {meetingDetail.date && <span className="text-xs text-muted-foreground">{format(new Date(meetingDetail.date), "MMM d, yyyy 'at' h:mm a")}</span>}
+              </div>
+            </div>
+
+            {meetingDetail.summary && (
+              <Card>
+                <CardHeader className="pb-2"><CardTitle className="text-sm">Summary</CardTitle></CardHeader>
+                <CardContent>
+                  <div className="prose prose-sm dark:prose-invert max-w-none text-sm whitespace-pre-wrap">{meetingDetail.summary.content}</div>
+                </CardContent>
+              </Card>
+            )}
+
+            {meetingDetail.transcript && (
+              <Card>
+                <CardHeader className="pb-2"><CardTitle className="text-sm">Transcript</CardTitle></CardHeader>
+                <CardContent>
+                  <p className="text-sm whitespace-pre-wrap max-h-60 overflow-y-auto">{meetingDetail.transcript.content}</p>
+                </CardContent>
+              </Card>
+            )}
+
+            {meetingDetail.actionItems && meetingDetail.actionItems.length > 0 && (
+              <Card>
+                <CardHeader className="pb-2"><CardTitle className="text-sm">Action Items ({meetingDetail.actionItems.length})</CardTitle></CardHeader>
+                <CardContent>
+                  <ul className="space-y-2">
+                    {meetingDetail.actionItems.map((item) => (
+                      <li key={item.id} className="text-sm flex items-start gap-2">
+                        <Badge variant={item.status === "completed" ? "default" : "secondary"} className="text-[10px] mt-0.5 shrink-0">{item.status}</Badge>
+                        <div>
+                          <span>{item.content}</span>
+                          {item.assignee && <span className="text-muted-foreground ml-1">— {item.assignee}</span>}
+                        </div>
+                      </li>
+                    ))}
+                  </ul>
+                </CardContent>
+              </Card>
+            )}
+
+            {meetingDetail.topics && meetingDetail.topics.length > 0 && (
+              <Card>
+                <CardHeader className="pb-2"><CardTitle className="text-sm">Topics ({meetingDetail.topics.length})</CardTitle></CardHeader>
+                <CardContent>
+                  <ul className="space-y-2">
+                    {meetingDetail.topics.map((topic) => (
+                      <li key={topic.id} className="text-sm">
+                        <span className="font-medium">{topic.title}</span>
+                        {topic.relevanceScore !== null && <Badge variant="outline" className="text-[10px] ml-2">{topic.relevanceScore}%</Badge>}
+                        {topic.summary && <p className="text-muted-foreground text-xs mt-0.5">{topic.summary}</p>}
+                      </li>
+                    ))}
+                  </ul>
+                </CardContent>
+              </Card>
+            )}
+          </div>
+        ) : (
+          <p className="text-sm text-muted-foreground">Meeting not found.</p>
+        )}
+      </div>
+    );
+  }
+
   return (
     <div className="space-y-3">
       {meetings.length === 0 && <p className="text-sm text-muted-foreground p-4">No meetings found.</p>}
       {meetings.map((m) => (
         <Card key={m.id}>
           <CardContent className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 p-4">
-            <div className="min-w-0 flex-1">
+            <button
+              className="min-w-0 flex-1 text-left hover:opacity-80 transition-opacity"
+              onClick={() => setViewingMeeting(m.id)}
+              data-testid={`button-view-meeting-${m.id}`}
+            >
               <span className="font-medium text-sm" data-testid={`text-meeting-title-${m.id}`}>{m.title}</span>
               <div className="flex items-center gap-2 mt-1 flex-wrap">
                 <Badge variant={m.status === "completed" ? "default" : m.status === "failed" ? "destructive" : "secondary"} className="text-[10px]">
@@ -325,8 +652,11 @@ function MeetingsTab() {
                 <span className="text-[10px] text-muted-foreground">Owner: {getUserName(m.userId)}</span>
                 {m.date && <span className="text-[10px] text-muted-foreground">{format(new Date(m.date), "MMM d, yyyy")}</span>}
               </div>
-            </div>
-            <div className="flex items-center gap-1">
+            </button>
+            <div className="flex items-center gap-1 shrink-0">
+              <Button size="icon" variant="ghost" onClick={() => setViewingMeeting(m.id)} title="View details" data-testid={`button-view-meeting-detail-${m.id}`}>
+                <Eye className="w-4 h-4" />
+              </Button>
               <Button size="icon" variant="ghost" onClick={() => setDeleteMeeting(m)} data-testid={`button-delete-meeting-${m.id}`}>
                 <Trash2 className="w-4 h-4" />
               </Button>
