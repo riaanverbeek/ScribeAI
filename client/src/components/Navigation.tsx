@@ -42,11 +42,11 @@ export function Navigation() {
 
       <div
         className={cn(
-          "fixed inset-y-0 left-0 z-50 w-72 bg-slate-50 dark:bg-background border-r transform transition-transform duration-200 ease-in-out md:hidden flex flex-col",
+          "fixed inset-y-0 left-0 z-50 w-72 bg-slate-50 dark:bg-background border-r transform transition-transform duration-200 ease-in-out md:hidden flex flex-col overflow-hidden",
           mobileMenuOpen ? "translate-x-0" : "-translate-x-full"
         )}
       >
-        <div className="flex items-center justify-between px-5 py-5 border-b">
+        <div className="flex items-center justify-between px-5 py-5 border-b shrink-0">
           <div className="flex items-center gap-3">
             <div className="w-9 h-9 rounded-xl bg-gradient-to-br from-primary to-slate-800 flex items-center justify-center shadow-lg shadow-primary/20">
               <Mic className="text-white w-5 h-5" />
@@ -85,7 +85,7 @@ export function Navigation() {
           })}
         </div>
 
-        <div className="p-4 border-t">
+        <div className="p-4 border-t shrink-0">
           {user && (
             <div className="px-2 mb-3">
               <p className="text-sm font-semibold text-slate-900 dark:text-foreground truncate">
