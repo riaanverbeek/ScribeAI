@@ -1073,6 +1073,42 @@ export async function registerRoutes(
     res.json(updated);
   });
 
+  app.post(api.actionItems.create.path, requireAuth, requireVerified, async (req, res) => {
+    const meetingId = Number(req.params.id);
+    const user = (req as any).user as User;
+    const meeting = await storage.getMeeting(meetingId);
+    if (!meeting || meeting.userId !== user.id) {
+      return res.status(404).json({ message: "Meeting not found" });
+    }
+    const { content, assignee } = api.actionItems.create.input.parse(req.body);
+    const item = await storage.createActionItem({
+      meetingId,
+      content,
+      assignee: assignee || null,
+      status: "pending",
+      isManual: true,
+    });
+    res.status(201).json(item);
+  });
+
+  app.delete(api.actionItems.delete.path, requireAuth, requireVerified, async (req, res) => {
+    const id = Number(req.params.id);
+    const user = (req as any).user as User;
+    const existing = await storage.getActionItem(id);
+    if (!existing) {
+      return res.status(404).json({ message: "Action item not found" });
+    }
+    if (!existing.isManual) {
+      return res.status(400).json({ message: "Only manual tasks can be deleted" });
+    }
+    const meeting = await storage.getMeeting(existing.meetingId);
+    if (!meeting || meeting.userId !== user.id) {
+      return res.status(404).json({ message: "Action item not found" });
+    }
+    await storage.deleteActionItem(id);
+    res.status(204).send();
+  });
+
   // ========== MEETING ROUTES ==========
 
   app.get(api.meetings.list.path, requireAuth, requireVerified, async (req, res) => {

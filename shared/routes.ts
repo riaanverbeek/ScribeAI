@@ -198,6 +198,23 @@ export const api = {
         404: errorSchemas.notFound,
       },
     },
+    create: {
+      method: 'POST' as const,
+      path: '/api/meetings/:id/action-items',
+      input: z.object({ content: z.string().min(1), assignee: z.string().optional() }),
+      responses: {
+        201: z.custom<typeof actionItems.$inferSelect>(),
+        404: errorSchemas.notFound,
+      },
+    },
+    delete: {
+      method: 'DELETE' as const,
+      path: '/api/action-items/:id',
+      responses: {
+        204: z.void(),
+        404: errorSchemas.notFound,
+      },
+    },
   },
 };
 

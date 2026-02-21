@@ -91,6 +91,7 @@ export const actionItems = pgTable("action_items", {
   content: text("content").notNull(),
   assignee: text("assignee"),
   status: text("status", { enum: ["pending", "completed"] }).default("pending"),
+  isManual: boolean("is_manual").notNull().default(false),
 });
 
 export const topics = pgTable("topics", {

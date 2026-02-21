@@ -74,6 +74,7 @@ export interface IStorage {
     getActionItem(id: number): Promise<ActionItem | undefined>;
     updateActionItemStatus(id: number, status: "pending" | "completed"): Promise<ActionItem>;
     createActionItem(item: InsertActionItem): Promise<ActionItem>;
+    deleteActionItem(id: number): Promise<void>;
 
     // Topics
     getTopics(meetingId: number): Promise<Topic[]>;
@@ -415,6 +416,10 @@ export class DatabaseStorage implements IStorage {
         return item;
     }
 
+    async deleteActionItem(id: number): Promise<void> {
+        await db.delete(actionItems).where(eq(actionItems.id, id));
+    }
+
     // Topics
     async getTopics(meetingId: number): Promise<Topic[]> {
         return await db.select().from(topics).where(eq(topics.meetingId, meetingId));
@@ -477,7 +482,7 @@ export class DatabaseStorage implements IStorage {
     }
 
     async clearMeetingAnalysis(meetingId: number): Promise<void> {
-        await db.delete(actionItems).where(eq(actionItems.meetingId, meetingId));
+        await db.delete(actionItems).where(and(eq(actionItems.meetingId, meetingId), eq(actionItems.isManual, false)));
         await db.delete(topics).where(eq(topics.meetingId, meetingId));
         await db.delete(meetingSummaries).where(eq(meetingSummaries.meetingId, meetingId));
     }

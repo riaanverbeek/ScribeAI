@@ -168,6 +168,39 @@ export default function MeetingDetail() {
   const [editDetailLevel, setEditDetailLevel] = useState<"high" | "medium" | "low">("high");
   const [editPolicyIds, setEditPolicyIds] = useState<number[]>([]);
   const [isSavingContext, setIsSavingContext] = useState(false);
+  const [showAddTask, setShowAddTask] = useState(false);
+  const [newTaskContent, setNewTaskContent] = useState("");
+  const [newTaskAssignee, setNewTaskAssignee] = useState("");
+
+  const addTaskMutation = useMutation({
+    mutationFn: async ({ meetingId, content, assignee }: { meetingId: number; content: string; assignee?: string }) => {
+      const res = await apiRequest("POST", `/api/meetings/${meetingId}/action-items`, { content, assignee: assignee || undefined });
+      return res.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/meetings", id] });
+      setNewTaskContent("");
+      setNewTaskAssignee("");
+      setShowAddTask(false);
+      toast({ title: "Task added" });
+    },
+    onError: () => {
+      toast({ title: "Failed to add task", variant: "destructive" });
+    },
+  });
+
+  const deleteTaskMutation = useMutation({
+    mutationFn: async (taskId: number) => {
+      await apiRequest("DELETE", `/api/action-items/${taskId}`);
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/meetings", id] });
+      toast({ title: "Task removed" });
+    },
+    onError: () => {
+      toast({ title: "Failed to remove task", variant: "destructive" });
+    },
+  });
 
   const { data: clientPolicies = [] } = useQuery<Policy[]>({
     queryKey: ["/api/clients", meeting?.clientId, "policies"],
@@ -1090,12 +1123,70 @@ export default function MeetingDetail() {
                 </TabsContent>
 
                 <TabsContent value="actions" className="outline-none">
-                  {meeting.actionItems && meeting.actionItems.length > 0 ? (
-                    <div className="grid grid-cols-1 gap-4">
-                      <div className="flex justify-end">
+                  <div className="grid grid-cols-1 gap-4">
+                    <div className="flex justify-between items-center">
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => setShowAddTask(!showAddTask)}
+                        data-testid="button-add-task"
+                      >
+                        <Plus className="w-4 h-4 mr-1.5" />
+                        Add Task
+                      </Button>
+                      {meeting.actionItems && meeting.actionItems.length > 0 && (
                         <CopyButton getText={getActionItemsText} label="Action Items" />
-                      </div>
-                      {meeting.actionItems.map((item, idx) => (
+                      )}
+                    </div>
+
+                    {showAddTask && (
+                      <Card>
+                        <CardContent className="p-4 space-y-3">
+                          <div>
+                            <Label htmlFor="task-content">Task</Label>
+                            <Textarea
+                              id="task-content"
+                              placeholder="Describe the task..."
+                              value={newTaskContent}
+                              onChange={(e) => setNewTaskContent(e.target.value)}
+                              data-testid="input-task-content"
+                            />
+                          </div>
+                          <div>
+                            <Label htmlFor="task-assignee">Assignee (optional)</Label>
+                            <Input
+                              id="task-assignee"
+                              placeholder="Who is responsible?"
+                              value={newTaskAssignee}
+                              onChange={(e) => setNewTaskAssignee(e.target.value)}
+                              data-testid="input-task-assignee"
+                            />
+                          </div>
+                          <div className="flex gap-2">
+                            <Button
+                              size="sm"
+                              disabled={!newTaskContent.trim() || addTaskMutation.isPending}
+                              onClick={() => addTaskMutation.mutate({ meetingId: meeting.id, content: newTaskContent.trim(), assignee: newTaskAssignee.trim() || undefined })}
+                              data-testid="button-save-task"
+                            >
+                              {addTaskMutation.isPending ? <Loader2 className="w-4 h-4 mr-1.5 animate-spin" /> : null}
+                              Save
+                            </Button>
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              onClick={() => { setShowAddTask(false); setNewTaskContent(""); setNewTaskAssignee(""); }}
+                              data-testid="button-cancel-task"
+                            >
+                              Cancel
+                            </Button>
+                          </div>
+                        </CardContent>
+                      </Card>
+                    )}
+
+                    {meeting.actionItems && meeting.actionItems.length > 0 ? (
+                      meeting.actionItems.map((item: any, idx: number) => (
                         <motion.div 
                           key={item.id} 
                           initial={{ opacity: 0, x: -20 }}
@@ -1108,7 +1199,12 @@ export default function MeetingDetail() {
                                  <input type="checkbox" className="w-5 h-5 rounded border-input cursor-pointer" />
                                </div>
                                <div className="flex-1">
-                                 <p className="font-medium">{item.content}</p>
+                                 <div className="flex items-center gap-2">
+                                   <p className="font-medium">{item.content}</p>
+                                   {item.isManual && (
+                                     <Badge variant="outline" className="text-xs shrink-0">Manual</Badge>
+                                   )}
+                                 </div>
                                  {item.assignee && (
                                    <div className="mt-2 inline-flex items-center px-2 py-1 rounded bg-muted text-xs font-medium text-muted-foreground">
                                      <User className="w-3 h-3 mr-1" />
@@ -1116,14 +1212,25 @@ export default function MeetingDetail() {
                                    </div>
                                  )}
                                </div>
+                               {item.isManual && (
+                                 <Button
+                                   variant="ghost"
+                                   size="sm"
+                                   className="text-muted-foreground shrink-0"
+                                   onClick={() => deleteTaskMutation.mutate(item.id)}
+                                   data-testid={`button-delete-task-${item.id}`}
+                                 >
+                                   <X className="w-4 h-4" />
+                                 </Button>
+                               )}
                              </CardContent>
                            </Card>
                         </motion.div>
-                      ))}
-                    </div>
-                  ) : (
-                    <EmptyState type="action items" status={meeting.status} onRetry={() => retryProcessMutation.mutate(meeting.id)} isRetrying={retryProcessMutation.isPending} />
-                  )}
+                      ))
+                    ) : (
+                      !showAddTask && <EmptyState type="action items" status={meeting.status} onRetry={() => retryProcessMutation.mutate(meeting.id)} isRetrying={retryProcessMutation.isPending} />
+                    )}
+                  </div>
                 </TabsContent>
 
                 <TabsContent value="topics" className="outline-none">
