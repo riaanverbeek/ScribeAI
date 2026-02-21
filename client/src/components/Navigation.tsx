@@ -7,7 +7,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 
 const navItems = [
-  { label: "Dashboard", icon: LayoutDashboard, href: "/" },
+  { label: "Sessions", icon: LayoutDashboard, href: "/" },
   { label: "New Session", icon: PlusCircle, href: "/new" },
   { label: "Quick Record", icon: Phone, href: "/quick-record" },
   { label: "Clients", icon: Users, href: "/clients", requiresSubscription: true },
