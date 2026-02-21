@@ -167,6 +167,7 @@ export default function MeetingDetail() {
   const [editIsInternal, setEditIsInternal] = useState(false);
   const [editDetailLevel, setEditDetailLevel] = useState<"high" | "medium" | "low">("high");
   const [editPolicyIds, setEditPolicyIds] = useState<number[]>([]);
+  const [isSavingContext, setIsSavingContext] = useState(false);
 
   const { data: clientPolicies = [] } = useQuery<Policy[]>({
     queryKey: ["/api/clients", meeting?.clientId, "policies"],
@@ -295,6 +296,7 @@ export default function MeetingDetail() {
 
   const handleSaveContextAndReprocess = async () => {
     if (!id) return;
+    setIsSavingContext(true);
     try {
       const contextPayload: any = {
         templateId: editTemplateId ? Number(editTemplateId) : null,
@@ -332,6 +334,8 @@ export default function MeetingDetail() {
       reprocessMutation.mutate(id);
     } catch (err: any) {
       toast({ title: "Failed to update", description: err.message, variant: "destructive" });
+    } finally {
+      setIsSavingContext(false);
     }
   };
 
@@ -871,11 +875,11 @@ export default function MeetingDetail() {
                         <div className="flex items-center gap-2 pt-2">
                           <Button
                             onClick={handleSaveContextAndReprocess}
-                            disabled={reprocessMutation.isPending}
+                            disabled={isSavingContext || reprocessMutation.isPending}
                             data-testid="button-regenerate"
                           >
-                            {reprocessMutation.isPending ? (
-                              <><Loader2 className="mr-2 w-4 h-4 animate-spin" /> Regenerating...</>
+                            {isSavingContext || reprocessMutation.isPending ? (
+                              <><RefreshCw className="w-4 h-4 mr-1.5 animate-spin" /> {isSavingContext ? "Saving..." : "Regenerating..."}</>
                             ) : (
                               <><RefreshCw className="w-4 h-4 mr-1.5" /> Save & Regenerate</>
                             )}
@@ -884,7 +888,7 @@ export default function MeetingDetail() {
                             variant="ghost"
                             size="sm"
                             onClick={() => setIsEditingContext(false)}
-                            disabled={reprocessMutation.isPending}
+                            disabled={isSavingContext || reprocessMutation.isPending}
                             data-testid="button-cancel-edit-context"
                           >
                             Cancel
