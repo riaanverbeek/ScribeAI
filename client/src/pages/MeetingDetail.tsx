@@ -5,8 +5,8 @@ import { useMeeting, useUpdateMeetingClient } from "@/hooks/use-meetings";
 import { useClients, useCreateClient } from "@/hooks/use-clients";
 import { useSubscriptionStatus } from "@/hooks/use-auth";
 import { useRoute, Link } from "wouter";
-import { ChevronLeft, Calendar, User, LayoutList, FileText, CheckSquare, Sparkles, Users, Plus, Loader2, X, Pencil, Lock, CreditCard, Paperclip, MessageSquareText, RefreshCw, Copy, Check, Download, Mail, Globe, Shield, SlidersHorizontal } from "lucide-react";
-import type { Template, Policy } from "@shared/schema";
+import { ChevronLeft, Calendar, User, LayoutList, FileText, CheckSquare, Sparkles, Users, Plus, Loader2, X, Pencil, Lock, CreditCard, Paperclip, MessageSquareText, RefreshCw, Copy, Check, Download, Mail, Globe, SlidersHorizontal } from "lucide-react";
+import type { Template } from "@shared/schema";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { StatusBadge } from "@/components/StatusBadge";
@@ -145,12 +145,6 @@ export default function MeetingDetail() {
     },
   });
 
-  const { data: meetingPolicies = [] } = useQuery<Policy[]>({
-    queryKey: ["/api/meetings", id, "policies"],
-    queryFn: () => fetch(`/api/meetings/${id}/policies`, { credentials: "include" }).then(r => r.json()),
-    enabled: !!id,
-  });
-
   const [isEditingClient, setIsEditingClient] = useState(false);
   const [selectedClientId, setSelectedClientId] = useState<string>("");
   const [dialogOpen, setDialogOpen] = useState(false);
@@ -166,7 +160,6 @@ export default function MeetingDetail() {
   const [editOutputLanguage, setEditOutputLanguage] = useState("en");
   const [editIsInternal, setEditIsInternal] = useState(false);
   const [editDetailLevel, setEditDetailLevel] = useState<"high" | "medium" | "low">("high");
-  const [editPolicyIds, setEditPolicyIds] = useState<number[]>([]);
   const [isSavingContext, setIsSavingContext] = useState(false);
   const [showAddTask, setShowAddTask] = useState(false);
   const [newTaskContent, setNewTaskContent] = useState("");
@@ -200,12 +193,6 @@ export default function MeetingDetail() {
     onError: () => {
       toast({ title: "Failed to remove task", variant: "destructive" });
     },
-  });
-
-  const { data: clientPolicies = [] } = useQuery<Policy[]>({
-    queryKey: ["/api/clients", meeting?.clientId, "policies"],
-    queryFn: () => fetch(`/api/clients/${meeting?.clientId}/policies`, { credentials: "include" }).then(r => r.json()),
-    enabled: !!meeting?.clientId,
   });
 
   const getSummaryText = () => {
@@ -323,7 +310,6 @@ export default function MeetingDetail() {
     setEditOutputLanguage(meeting.outputLanguage || "en");
     setEditIsInternal(meeting.isInternal ?? false);
     setEditDetailLevel((meeting.detailLevel as "high" | "medium" | "low") || "high");
-    setEditPolicyIds(meetingPolicies.map((p: Policy) => p.id));
     setIsEditingContext(true);
   };
 
@@ -351,19 +337,8 @@ export default function MeetingDetail() {
         });
       }
 
-      const policyRes = await fetch(`/api/meetings/${id}/policies`, {
-        method: "PUT",
-        headers: { "Content-Type": "application/json" },
-        credentials: "include",
-        body: JSON.stringify({ policyIds: editPolicyIds }),
-      });
-      if (!policyRes.ok) {
-        throw new Error("Failed to update linked policies");
-      }
-
       setIsEditingContext(false);
       queryClient.invalidateQueries({ queryKey: ["/api/meetings/:id", id] });
-      queryClient.invalidateQueries({ queryKey: ["/api/meetings", id, "policies"] });
       reprocessMutation.mutate(id);
     } catch (err: any) {
       toast({ title: "Failed to update", description: err.message, variant: "destructive" });
@@ -581,35 +556,6 @@ export default function MeetingDetail() {
               </Card>
             </motion.section>
 
-            {meetingPolicies.length > 0 && !(hasFullAccess && (meeting.status === "completed" || meeting.status === "failed")) && (
-              <motion.section {...fadeIn}>
-                <Card>
-                  <CardContent className="p-4 sm:p-5">
-                    <div className="flex items-center gap-3 mb-3">
-                      <div className="w-9 h-9 rounded-md bg-muted flex items-center justify-center shrink-0">
-                        <Shield className="w-4 h-4 text-muted-foreground" />
-                      </div>
-                      <p className="text-sm font-medium text-muted-foreground">Linked Policies</p>
-                    </div>
-                    <div className="space-y-2">
-                      {meetingPolicies.map((policy) => (
-                        <div
-                          key={policy.id}
-                          className="flex items-center gap-3 p-3 rounded-md bg-muted/50"
-                          data-testid={`meeting-policy-${policy.id}`}
-                        >
-                          <div className="min-w-0 flex-1">
-                            <span className="text-sm font-medium text-foreground">{policy.type}</span>
-                            <span className="text-sm text-muted-foreground ml-2">{policy.insurer} - {policy.policyNumber}</span>
-                          </div>
-                        </div>
-                      ))}
-                    </div>
-                  </CardContent>
-                </Card>
-              </motion.section>
-            )}
-
             {hasFullAccess && (meeting.status === "completed" || meeting.status === "failed") && (
               <motion.section {...fadeIn}>
                 <Card>
@@ -705,24 +651,7 @@ export default function MeetingDetail() {
                             </p>
                           </div>
                         </div>
-                        {meetingPolicies.length > 0 && (
-                          <div className="flex items-start gap-3">
-                            <div className="w-9 h-9 rounded-md bg-muted flex items-center justify-center shrink-0 mt-0.5">
-                              <Shield className="w-4 h-4 text-muted-foreground" />
-                            </div>
-                            <div className="flex-1 min-w-0">
-                              <p className="text-xs text-muted-foreground">Linked Policies</p>
-                              <div className="space-y-1 mt-1">
-                                {meetingPolicies.map((policy: Policy) => (
-                                  <p key={policy.id} className="text-sm text-foreground" data-testid={`text-linked-policy-${policy.id}`}>
-                                    {policy.type} <span className="text-muted-foreground">- {policy.insurer} ({policy.policyNumber})</span>
-                                  </p>
-                                ))}
-                              </div>
-                            </div>
-                          </div>
-                        )}
-                        {!linkedTemplate && !meeting.contextText && !meeting.contextFileName && !meeting.includePreviousContext && !meeting.isInternal && meetingPolicies.length === 0 && (
+                        {!linkedTemplate && !meeting.contextText && !meeting.contextFileName && !meeting.includePreviousContext && !meeting.isInternal && (
                           <p className="text-sm text-muted-foreground">No template or context set. Edit to add one and regenerate the analysis.</p>
                         )}
                       </div>
@@ -869,41 +798,6 @@ export default function MeetingDetail() {
                           </Select>
                           <p className="text-xs text-muted-foreground">Controls how detailed the AI analysis will be.</p>
                         </div>
-
-                        {meeting.clientId && clientPolicies.length > 0 && (
-                          <div className="space-y-2">
-                            <Label className="text-sm">Linked Policies</Label>
-                            <p className="text-xs text-muted-foreground -mt-1">Select the policies relevant to this session. Their details will appear at the beginning of the AI summary.</p>
-                            <div className="space-y-2">
-                              {clientPolicies.filter((p: Policy) => p.isActive).map((policy: Policy) => (
-                                <div
-                                  key={policy.id}
-                                  className="flex items-start gap-3"
-                                  data-testid={`edit-policy-option-${policy.id}`}
-                                >
-                                  <input
-                                    type="checkbox"
-                                    id={`edit-policy-${policy.id}`}
-                                    checked={editPolicyIds.includes(policy.id)}
-                                    onChange={() =>
-                                      setEditPolicyIds(prev =>
-                                        prev.includes(policy.id)
-                                          ? prev.filter(pid => pid !== policy.id)
-                                          : [...prev, policy.id]
-                                      )
-                                    }
-                                    className="mt-1 h-4 w-4 rounded border-input accent-primary cursor-pointer"
-                                    data-testid={`edit-checkbox-policy-${policy.id}`}
-                                  />
-                                  <label htmlFor={`edit-policy-${policy.id}`} className="flex-1 cursor-pointer select-none">
-                                    <span className="font-medium text-sm text-foreground">{policy.type}</span>
-                                    <span className="text-sm text-muted-foreground ml-2">{policy.insurer} - {policy.policyNumber}</span>
-                                  </label>
-                                </div>
-                              ))}
-                            </div>
-                          </div>
-                        )}
 
                         <div className="flex items-center gap-2 pt-2">
                           <Button

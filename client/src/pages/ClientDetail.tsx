@@ -1,6 +1,6 @@
 import { useClient } from "@/hooks/use-clients";
 import { useRoute, Link, useSearch } from "wouter";
-import { ChevronLeft, Calendar, Clock, ChevronRight, Users, Building2, Mail, Shield, Plus, Trash2, Pencil, X, Check, CircleDot, CheckSquare, Circle, Filter, Loader2 } from "lucide-react";
+import { ChevronLeft, Calendar, Clock, ChevronRight, Users, Building2, Mail, CheckSquare, Circle, Filter, Loader2 } from "lucide-react";
 import { useViewMode } from "@/hooks/use-view-mode";
 import { ViewToggle } from "@/components/ViewToggle";
 import { Button } from "@/components/ui/button";
@@ -9,217 +9,12 @@ import { format } from "date-fns";
 import { motion } from "framer-motion";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { queryClient, apiRequest } from "@/lib/queryClient";
-import { POLICY_TYPES, type Policy, type ActionItem } from "@shared/schema";
+import type { ActionItem } from "@shared/schema";
 import { useState } from "react";
 import { Card } from "@/components/ui/card";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
 import { useToast } from "@/hooks/use-toast";
 import { Badge } from "@/components/ui/badge";
-
-function PolicySection({ clientId }: { clientId: number }) {
-  const { toast } = useToast();
-  const [showForm, setShowForm] = useState(false);
-  const [editingId, setEditingId] = useState<number | null>(null);
-  const [formData, setFormData] = useState({ type: "", insurer: "", policyNumber: "" });
-
-  const { data: policyList = [], isLoading } = useQuery<Policy[]>({
-    queryKey: ["/api/clients", clientId, "policies"],
-    queryFn: () => fetch(`/api/clients/${clientId}/policies`, { credentials: "include" }).then(r => r.json()),
-  });
-
-  const createMutation = useMutation({
-    mutationFn: (data: { type: string; insurer: string; policyNumber: string }) =>
-      apiRequest("POST", `/api/clients/${clientId}/policies`, data),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["/api/clients", clientId, "policies"] });
-      setShowForm(false);
-      setFormData({ type: "", insurer: "", policyNumber: "" });
-      toast({ title: "Policy added" });
-    },
-  });
-
-  const updateMutation = useMutation({
-    mutationFn: ({ id, data }: { id: number; data: { type: string; insurer: string; policyNumber: string } }) =>
-      apiRequest("PATCH", `/api/policies/${id}`, data),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["/api/clients", clientId, "policies"] });
-      setEditingId(null);
-      toast({ title: "Policy updated" });
-    },
-  });
-
-  const deleteMutation = useMutation({
-    mutationFn: (id: number) => apiRequest("DELETE", `/api/policies/${id}`),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["/api/clients", clientId, "policies"] });
-      toast({ title: "Policy removed" });
-    },
-  });
-
-  const toggleActiveMutation = useMutation({
-    mutationFn: ({ id, isActive }: { id: number; isActive: boolean }) =>
-      apiRequest("PATCH", `/api/policies/${id}`, { isActive }),
-    onSuccess: (_data, variables) => {
-      queryClient.invalidateQueries({ queryKey: ["/api/clients", clientId, "policies"] });
-      toast({ title: variables.isActive ? "Policy activated" : "Policy deactivated" });
-    },
-  });
-
-  const handleSubmit = () => {
-    if (!formData.type || !formData.insurer || !formData.policyNumber) return;
-    if (editingId) {
-      updateMutation.mutate({ id: editingId, data: formData });
-    } else {
-      createMutation.mutate(formData);
-    }
-  };
-
-  const startEdit = (policy: Policy) => {
-    setEditingId(policy.id);
-    setFormData({ type: policy.type, insurer: policy.insurer, policyNumber: policy.policyNumber });
-    setShowForm(true);
-  };
-
-  const cancelForm = () => {
-    setShowForm(false);
-    setEditingId(null);
-    setFormData({ type: "", insurer: "", policyNumber: "" });
-  };
-
-  return (
-    <div className="space-y-4">
-      <div className="flex items-center justify-between gap-3 flex-wrap">
-        <div className="flex items-center gap-2">
-          <Shield className="w-5 h-5 text-slate-400" />
-          <h2 className="text-lg font-semibold text-slate-900 dark:text-foreground">
-            Policies ({policyList.length})
-          </h2>
-        </div>
-        {!showForm && (
-          <Button variant="outline" size="sm" onClick={() => setShowForm(true)} data-testid="button-add-policy">
-            <Plus className="w-4 h-4 mr-1" />
-            Add Policy
-          </Button>
-        )}
-      </div>
-
-      {showForm && (
-        <Card className="p-4 space-y-4">
-          <div className="flex items-center justify-between gap-2">
-            <h3 className="font-medium text-slate-900 dark:text-foreground">
-              {editingId ? "Edit Policy" : "Add Policy"}
-            </h3>
-            <Button variant="ghost" size="icon" onClick={cancelForm} data-testid="button-cancel-policy">
-              <X className="w-4 h-4" />
-            </Button>
-          </div>
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-            <div className="space-y-2">
-              <Label>Type</Label>
-              <Select value={formData.type} onValueChange={(v) => setFormData({ ...formData, type: v })}>
-                <SelectTrigger data-testid="select-policy-type">
-                  <SelectValue placeholder="Select type" />
-                </SelectTrigger>
-                <SelectContent>
-                  {POLICY_TYPES.map((t) => (
-                    <SelectItem key={t} value={t}>{t}</SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-            <div className="space-y-2">
-              <Label>Insurer</Label>
-              <Input
-                value={formData.insurer}
-                onChange={(e) => setFormData({ ...formData, insurer: e.target.value })}
-                placeholder="e.g. Sanlam"
-                data-testid="input-policy-insurer"
-              />
-            </div>
-            <div className="space-y-2">
-              <Label>Policy Number</Label>
-              <Input
-                value={formData.policyNumber}
-                onChange={(e) => setFormData({ ...formData, policyNumber: e.target.value })}
-                placeholder="e.g. POL-12345"
-                data-testid="input-policy-number"
-              />
-            </div>
-          </div>
-          <div className="flex justify-end gap-2">
-            <Button variant="outline" size="sm" onClick={cancelForm}>Cancel</Button>
-            <Button
-              size="sm"
-              onClick={handleSubmit}
-              disabled={!formData.type || !formData.insurer || !formData.policyNumber || createMutation.isPending || updateMutation.isPending}
-              data-testid="button-save-policy"
-            >
-              <Check className="w-4 h-4 mr-1" />
-              {editingId ? "Update" : "Add"}
-            </Button>
-          </div>
-        </Card>
-      )}
-
-      {isLoading ? (
-        <div className="text-sm text-slate-500">Loading policies...</div>
-      ) : policyList.length === 0 && !showForm ? (
-        <div className="flex flex-col items-center justify-center py-10 bg-slate-50 dark:bg-muted/30 rounded-2xl border-2 border-dashed border-slate-200 dark:border-border">
-          <Shield className="w-10 h-10 text-slate-300 mb-3" />
-          <p className="text-sm text-slate-500">No policies added yet</p>
-        </div>
-      ) : (
-        <div className="space-y-2">
-          {policyList.map((policy) => (
-            <Card
-              key={policy.id}
-              className={`flex items-center gap-4 p-4 ${!policy.isActive ? "opacity-60" : ""}`}
-              data-testid={`card-policy-${policy.id}`}
-            >
-              <div className="min-w-0 flex-1">
-                <div className="flex items-center gap-2 flex-wrap">
-                  <span className="font-medium text-slate-900 dark:text-foreground" data-testid={`text-policy-type-${policy.id}`}>
-                    {policy.type}
-                  </span>
-                  <Badge
-                    variant={policy.isActive ? "default" : "secondary"}
-                    className="cursor-pointer select-none text-xs"
-                    onClick={() => toggleActiveMutation.mutate({ id: policy.id, isActive: !policy.isActive })}
-                    data-testid={`badge-policy-status-${policy.id}`}
-                  >
-                    <CircleDot className="w-3 h-3 mr-1" />
-                    {policy.isActive ? "Active" : "Inactive"}
-                  </Badge>
-                </div>
-                <div className="flex items-center gap-3 mt-1 text-sm text-slate-500 flex-wrap">
-                  <span>{policy.insurer}</span>
-                  <span className="text-slate-300 dark:text-muted-foreground">|</span>
-                  <span data-testid={`text-policy-number-${policy.id}`}>{policy.policyNumber}</span>
-                </div>
-              </div>
-              <div className="flex items-center gap-1 shrink-0">
-                <Button variant="ghost" size="icon" onClick={() => startEdit(policy)} data-testid={`button-edit-policy-${policy.id}`}>
-                  <Pencil className="w-4 h-4" />
-                </Button>
-                <Button
-                  variant="ghost"
-                  size="icon"
-                  onClick={() => deleteMutation.mutate(policy.id)}
-                  disabled={deleteMutation.isPending}
-                  data-testid={`button-delete-policy-${policy.id}`}
-                >
-                  <Trash2 className="w-4 h-4 text-destructive" />
-                </Button>
-              </div>
-            </Card>
-          ))}
-        </div>
-      )}
-    </div>
-  );
-}
 
 type ClientActionItem = ActionItem & { meetingTitle: string; meetingDate: string };
 
@@ -420,8 +215,6 @@ export default function ClientDetail() {
               Tasks
             </button>
           </div>
-
-          <PolicySection clientId={client.id} />
 
           {activeTab === "tasks" && <TasksSection clientId={client.id} />}
 

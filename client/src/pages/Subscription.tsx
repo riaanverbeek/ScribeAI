@@ -133,7 +133,7 @@ export default function Subscription() {
                 <li className="flex items-center gap-2"><CheckCircle className="h-4 w-4 text-green-600 shrink-0" /> Executive session summaries</li>
                 <li className="flex items-center gap-2"><CheckCircle className="h-4 w-4 text-green-600 shrink-0" /> Action item extraction</li>
                 <li className="flex items-center gap-2"><CheckCircle className="h-4 w-4 text-green-600 shrink-0" /> Topic analysis with relevance scores</li>
-                <li className="flex items-center gap-2"><CheckCircle className="h-4 w-4 text-green-600 shrink-0" /> Client & policy management</li>
+                <li className="flex items-center gap-2"><CheckCircle className="h-4 w-4 text-green-600 shrink-0" /> Client management</li>
                 <li className="flex items-center gap-2"><CheckCircle className="h-4 w-4 text-green-600 shrink-0" /> Word document export</li>
                 <li className="flex items-center gap-2"><CheckCircle className="h-4 w-4 text-green-600 shrink-0" /> Custom AI summary templates</li>
               </ul>
