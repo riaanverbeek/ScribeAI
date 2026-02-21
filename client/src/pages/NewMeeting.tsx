@@ -25,7 +25,10 @@ import {
   DialogTitle,
   DialogTrigger,
 } from "@/components/ui/dialog";
-import { Mic, UploadCloud, ChevronLeft, Loader2, Plus, Users, FileText, Paperclip, WifiOff, Wifi, Pause, Play, Square, Globe, ClipboardPaste, FileUp, AlertTriangle, ShieldCheck } from "lucide-react";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from "@/components/ui/command";
+import { Mic, UploadCloud, ChevronLeft, Loader2, Plus, Users, FileText, Paperclip, WifiOff, Wifi, Pause, Play, Square, Globe, ClipboardPaste, FileUp, AlertTriangle, ShieldCheck, Check, ChevronsUpDown } from "lucide-react";
+import { cn } from "@/lib/utils";
 import { useToast } from "@/hooks/use-toast";
 import { useVoiceRecorder } from "@/replit_integrations/audio";
 import { motion } from "framer-motion";
@@ -40,6 +43,7 @@ export default function NewMeeting() {
   const [file, setFile] = useState<File | null>(null);
   const [selectedClientId, setSelectedClientId] = useState<string>("");
   const [selectedTemplateId, setSelectedTemplateId] = useState<string>("");
+  const [templateOpen, setTemplateOpen] = useState(false);
   const [contextText, setContextText] = useState("");
   const [contextFile, setContextFile] = useState<File | null>(null);
   const [includePreviousContext, setIncludePreviousContext] = useState(false);
@@ -431,24 +435,61 @@ export default function NewMeeting() {
         {isOnline && templates && templates.length > 0 && (
           <div className="space-y-3">
             <Label className="text-base font-semibold text-slate-900">Summary Template</Label>
-            <Select value={selectedTemplateId} onValueChange={setSelectedTemplateId}>
-              <SelectTrigger className="h-12 rounded-xl border-slate-200" data-testid="select-template">
-                <div className="flex items-center gap-2">
-                  <FileText className="w-4 h-4 text-slate-400" />
-                  <SelectValue placeholder="Select a template (optional)" />
-                </div>
-              </SelectTrigger>
-              <SelectContent>
-                {templates.map((tpl) => (
-                  <SelectItem key={tpl.id} value={String(tpl.id)} data-testid={`select-template-option-${tpl.id}`}>
-                    <div className="flex flex-col">
-                      <span>{tpl.name}</span>
-                      {tpl.description && <span className="text-xs text-slate-500">{tpl.description}</span>}
-                    </div>
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+            <Popover open={templateOpen} onOpenChange={setTemplateOpen}>
+              <PopoverTrigger asChild>
+                <Button
+                  variant="outline"
+                  role="combobox"
+                  aria-expanded={templateOpen}
+                  className="w-full h-12 rounded-xl border-slate-200 justify-between font-normal"
+                  data-testid="select-template"
+                >
+                  <div className="flex items-center gap-2 truncate">
+                    <FileText className="w-4 h-4 text-slate-400 shrink-0" />
+                    <span className={cn("truncate", !selectedTemplateId && "text-muted-foreground")}>
+                      {selectedTemplateId
+                        ? templates.find((t) => String(t.id) === selectedTemplateId)?.name
+                        : "Search templates..."}
+                    </span>
+                  </div>
+                  <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+                </Button>
+              </PopoverTrigger>
+              <PopoverContent className="w-[--radix-popover-trigger-width] p-0" align="start">
+                <Command>
+                  <CommandInput placeholder="Search templates..." data-testid="search-template-input" />
+                  <CommandList>
+                    <CommandEmpty>No templates found.</CommandEmpty>
+                    <CommandGroup>
+                      {templates.map((tpl) => (
+                        <CommandItem
+                          key={tpl.id}
+                          value={tpl.name}
+                          onSelect={() => {
+                            setSelectedTemplateId(
+                              String(tpl.id) === selectedTemplateId ? "" : String(tpl.id)
+                            );
+                            setTemplateOpen(false);
+                          }}
+                          data-testid={`select-template-option-${tpl.id}`}
+                        >
+                          <Check
+                            className={cn(
+                              "mr-2 h-4 w-4",
+                              selectedTemplateId === String(tpl.id) ? "opacity-100" : "opacity-0"
+                            )}
+                          />
+                          <div className="flex flex-col">
+                            <span>{tpl.name}</span>
+                            {tpl.description && <span className="text-xs text-slate-500">{tpl.description}</span>}
+                          </div>
+                        </CommandItem>
+                      ))}
+                    </CommandGroup>
+                  </CommandList>
+                </Command>
+              </PopoverContent>
+            </Popover>
             <p className="text-xs text-muted-foreground">Controls how the AI structures the session summary.</p>
           </div>
         )}
