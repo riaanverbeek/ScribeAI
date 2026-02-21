@@ -20,7 +20,7 @@ export const users = pgTable("users", {
   resetTokenExpiry: timestamp("reset_token_expiry"),
   trialEndsAt: timestamp("trial_ends_at"),
   subscriptionStatus: text("subscription_status", {
-    enum: ["none", "trialing", "active", "cancelled", "expired"]
+    enum: ["none", "trialing", "active", "cancelled", "expired", "lifetime"]
   }).notNull().default("none"),
   payfastToken: text("payfast_token"),
   payfastSubscriptionId: text("payfast_subscription_id"),

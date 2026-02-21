@@ -569,7 +569,7 @@ export async function registerRoutes(
         email: z.string().email().optional(),
         isAdmin: z.boolean().optional(),
         isVerified: z.boolean().optional(),
-        subscriptionStatus: z.enum(["none", "trialing", "active", "cancelled", "expired"]).optional(),
+        subscriptionStatus: z.enum(["none", "trialing", "active", "cancelled", "expired", "lifetime"]).optional(),
       }).parse(req.body);
       const updated = await storage.updateUser(id, data);
       const { passwordHash, resetToken, resetTokenExpiry, ...safe } = updated;

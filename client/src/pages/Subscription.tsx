@@ -50,6 +50,7 @@ export default function Subscription() {
   }
 
   const statusConfig: Record<string, { label: string; variant: "default" | "secondary" | "destructive" | "outline"; icon: typeof CheckCircle }> = {
+    lifetime: { label: "Lifetime Access", variant: "default", icon: CheckCircle },
     trialing: { label: "Free Trial", variant: "secondary", icon: Clock },
     active: { label: "Active", variant: "default", icon: CheckCircle },
     cancelled: { label: "Cancelled", variant: "outline", icon: XCircle },
@@ -89,6 +90,13 @@ export default function Subscription() {
               <p className="text-sm text-muted-foreground mt-1">
                 After your trial ends, you'll still be able to record and upload sessions, but AI analysis, client management, and exports will require a subscription.
               </p>
+            </div>
+          )}
+
+          {status === "lifetime" && (
+            <div className="rounded-md bg-secondary p-4" data-testid="text-lifetime-info">
+              <p className="text-sm font-medium">You have lifetime access to all features</p>
+              <p className="text-sm text-muted-foreground mt-1">Your account has been granted permanent full access. No subscription payments are required.</p>
             </div>
           )}
 

@@ -13,7 +13,10 @@ export function sanitizeUser(user: User): SafeUser {
   return safe;
 }
 
-export function getEffectiveSubscriptionStatus(user: User): "trialing" | "active" | "expired" | "cancelled" | "none" {
+export function getEffectiveSubscriptionStatus(user: User): "trialing" | "active" | "expired" | "cancelled" | "none" | "lifetime" {
+  if (user.subscriptionStatus === "lifetime") {
+    return "lifetime";
+  }
   if (user.subscriptionStatus === "trialing") {
     if (user.trialEndsAt && new Date(user.trialEndsAt) > new Date()) {
       return "trialing";
@@ -37,7 +40,7 @@ export function getEffectiveSubscriptionStatus(user: User): "trialing" | "active
 
 export function hasFullAccess(user: User): boolean {
   const status = getEffectiveSubscriptionStatus(user);
-  return status === "trialing" || status === "active";
+  return status === "trialing" || status === "active" || status === "lifetime";
 }
 
 export async function requireAuth(req: Request, res: Response, next: NextFunction) {

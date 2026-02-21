@@ -168,8 +168,8 @@ function UserAccountView({ user, onBack }: { user: SuperuserUser; onBack: () => 
         </div>
         <p className="text-sm text-muted-foreground">{user.email}</p>
         <div className="flex items-center gap-2 mt-1 flex-wrap">
-          <Badge variant={user.subscriptionStatus === "active" || user.subscriptionStatus === "trialing" ? "default" : "secondary"} className="text-[10px]">
-            {user.subscriptionStatus}
+          <Badge variant={user.subscriptionStatus === "active" || user.subscriptionStatus === "trialing" || user.subscriptionStatus === "lifetime" ? "default" : "secondary"} className="text-[10px]">
+            {user.subscriptionStatus === "lifetime" ? "Lifetime Access" : user.subscriptionStatus}
           </Badge>
           {!user.isVerified && <Badge variant="destructive" className="text-[10px]">Unverified</Badge>}
           {user.createdAt && <span className="text-[10px] text-muted-foreground">Joined {format(new Date(user.createdAt), "MMM d, yyyy")}</span>}
@@ -295,8 +295,8 @@ function UsersTab() {
               </div>
               <p className="text-xs text-muted-foreground truncate" data-testid={`text-user-email-${u.id}`}>{u.email}</p>
               <div className="flex items-center gap-2 mt-1 flex-wrap">
-                <Badge variant={u.subscriptionStatus === "active" || u.subscriptionStatus === "trialing" ? "default" : "secondary"} className="text-[10px]">
-                  {u.subscriptionStatus}
+                <Badge variant={u.subscriptionStatus === "active" || u.subscriptionStatus === "trialing" || u.subscriptionStatus === "lifetime" ? "default" : "secondary"} className="text-[10px]">
+                  {u.subscriptionStatus === "lifetime" ? "Lifetime Access" : u.subscriptionStatus}
                 </Badge>
                 {u.createdAt && <span className="text-[10px] text-muted-foreground">{format(new Date(u.createdAt), "MMM d, yyyy")}</span>}
               </div>
@@ -362,6 +362,7 @@ function UsersTab() {
                   <SelectItem value="active">Active</SelectItem>
                   <SelectItem value="cancelled">Cancelled</SelectItem>
                   <SelectItem value="expired">Expired</SelectItem>
+                  <SelectItem value="lifetime">Lifetime Access</SelectItem>
                 </SelectContent>
               </Select>
             </div>
