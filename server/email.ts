@@ -55,7 +55,7 @@ export async function sendVerificationEmail(toEmail: string, firstName: string, 
       <div style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; max-width: 560px; margin: 0 auto; padding: 40px 20px;">
         <h1 style="font-size: 24px; color: #1a1a1a; margin-bottom: 24px;">Welcome to ScribeAI, ${firstName}!</h1>
         <p style="font-size: 16px; color: #4a4a4a; line-height: 1.6; margin-bottom: 24px;">
-          Thanks for signing up. Please verify your email address by clicking the button below to activate your account and start your 7-day free trial.
+          Thanks for signing up. Please verify your email address by clicking the button below to activate your account and start your 1-month free trial.
         </p>
         <a href="${verificationUrl}" style="display: inline-block; background: #18181b; color: #ffffff; padding: 12px 32px; border-radius: 8px; text-decoration: none; font-size: 16px; font-weight: 600;">
           Verify My Email

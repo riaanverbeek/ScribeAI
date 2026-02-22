@@ -64,14 +64,14 @@ export default function Register() {
               <UserPlus className="h-5 w-5" />
               Sign Up
             </CardTitle>
-            <CardDescription>Start with a 7-day free trial — no payment required</CardDescription>
+            <CardDescription>Start with a 1-month free trial — no payment required</CardDescription>
           </CardHeader>
           <form onSubmit={handleSubmit}>
             <CardContent className="space-y-4">
               <div className="rounded-lg border bg-muted/30 p-3 space-y-2">
                 <p className="text-sm font-medium flex items-center gap-1.5">
                   <CheckCircle2 className="h-4 w-4 text-green-600 shrink-0" />
-                  7-day free trial — full access to everything
+                  1-month free trial — full access to everything
                 </p>
                 <ul className="text-xs text-muted-foreground space-y-1 pl-5.5 ml-0.5">
                   <li className="flex items-center gap-1.5"><span className="text-green-600">&#10003;</span> AI transcription (English & Afrikaans)</li>

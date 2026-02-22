@@ -127,7 +127,7 @@ export class DatabaseStorage implements IStorage {
 
     async verifyUser(id: number): Promise<User> {
         const trialEnd = new Date();
-        trialEnd.setDate(trialEnd.getDate() + 7);
+        trialEnd.setMonth(trialEnd.getMonth() + 1);
         const [user] = await db.update(users).set({
             isVerified: true,
             verificationToken: null,
