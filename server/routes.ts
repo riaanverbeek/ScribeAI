@@ -1374,9 +1374,18 @@ export async function registerRoutes(
             }
           }
 
+          let clientName = "";
+          if (meeting.clientId) {
+            const client = await storage.getClient(meeting.clientId);
+            if (client) clientName = client.name;
+          }
+
           let contextSection = "";
           if (meeting.userRole) {
             contextSection += `\n\nThe person who recorded this meeting has the following role/position: ${meeting.userRole}`;
+          }
+          if (clientName) {
+            contextSection += `\n\nClient name: ${clientName}`;
           }
           if (meeting.contextText) {
             contextSection += `\n\nAdditional context provided by the user:\n${meeting.contextText}`;
@@ -1468,6 +1477,7 @@ export async function registerRoutes(
             }
 
             CRITICAL: The "summary" field MUST be a single Markdown-formatted string (NOT a JSON object).
+            ${clientName ? `\n            CLIENT NAME INSTRUCTION: The very first line of the summary MUST be "# ${clientName}" as a top-level heading, followed by a blank line, before any other content. This ensures the client is clearly identified at the top of every report.` : ""}
             ${policyPromptSection}
             ${templateFormatInstructions ? `
             SUMMARY FORMAT INSTRUCTIONS (from selected template — follow these closely):
@@ -1816,9 +1826,18 @@ export async function registerRoutes(
             }
           }
 
+          let clientName = "";
+          if (freshMeeting.clientId) {
+            const client = await storage.getClient(freshMeeting.clientId);
+            if (client) clientName = client.name;
+          }
+
           let contextSection = "";
           if (freshMeeting.userRole) {
             contextSection += `\n\nThe person who recorded this meeting has the following role/position: ${freshMeeting.userRole}`;
+          }
+          if (clientName) {
+            contextSection += `\n\nClient name: ${clientName}`;
           }
           if (freshMeeting.contextText) {
             contextSection += `\n\nAdditional context provided by the user:\n${freshMeeting.contextText}`;
@@ -1910,6 +1929,7 @@ export async function registerRoutes(
             }
 
             CRITICAL: The "summary" field MUST be a single Markdown-formatted string (NOT a JSON object).
+            ${clientName ? `\n            CLIENT NAME INSTRUCTION: The very first line of the summary MUST be "# ${clientName}" as a top-level heading, followed by a blank line, before any other content. This ensures the client is clearly identified at the top of every report.` : ""}
             ${reprocessPolicyPromptSection}
             ${templateFormatInstructions ? `
             SUMMARY FORMAT INSTRUCTIONS (from selected template — follow these closely):
