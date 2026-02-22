@@ -1,6 +1,6 @@
 import crypto from "crypto";
 
-const PAYFAST_SANDBOX = true;
+const PAYFAST_SANDBOX = false;
 const PAYFAST_HOST = PAYFAST_SANDBOX ? "sandbox.payfast.co.za" : "www.payfast.co.za";
 const PAYFAST_API_HOST = PAYFAST_SANDBOX ? "api.sandbox.payfast.co.za" : "api.payfast.co.za";
 
