@@ -18,7 +18,7 @@ export interface IStorage {
     setResetToken(id: number, token: string, expiry: Date): Promise<void>;
     updatePassword(id: number, passwordHash: string): Promise<void>;
     clearResetToken(id: number): Promise<void>;
-    updateUserSubscription(id: number, data: Partial<Pick<User, "subscriptionStatus" | "payfastToken" | "payfastSubscriptionId" | "subscriptionCurrentPeriodEnd" | "cancelledAt" | "trialEndsAt">>): Promise<User>;
+    updateUserSubscription(id: number, data: Partial<Pick<User, "subscriptionStatus" | "payfastToken" | "payfastSubscriptionId" | "stripeCustomerId" | "stripeSubscriptionId" | "subscriptionCurrentPeriodEnd" | "cancelledAt" | "trialEndsAt">>): Promise<User>;
     makeSuperuser(id: number): Promise<void>;
     getAllUsers(): Promise<User[]>;
     updateUser(id: number, data: Partial<Pick<User, "firstName" | "lastName" | "email" | "isAdmin" | "isSuperuser" | "isVerified" | "subscriptionStatus">>): Promise<User>;
@@ -159,7 +159,7 @@ export class DatabaseStorage implements IStorage {
         await db.update(users).set({ resetToken: null, resetTokenExpiry: null }).where(eq(users.id, id));
     }
 
-    async updateUserSubscription(id: number, data: Partial<Pick<User, "subscriptionStatus" | "payfastToken" | "payfastSubscriptionId" | "subscriptionCurrentPeriodEnd" | "cancelledAt" | "trialEndsAt">>): Promise<User> {
+    async updateUserSubscription(id: number, data: Partial<Pick<User, "subscriptionStatus" | "payfastToken" | "payfastSubscriptionId" | "stripeCustomerId" | "stripeSubscriptionId" | "subscriptionCurrentPeriodEnd" | "cancelledAt" | "trialEndsAt">>): Promise<User> {
         const [user] = await db.update(users).set(data).where(eq(users.id, id)).returning();
         return user;
     }

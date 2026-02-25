@@ -64,6 +64,11 @@ Preferred communication style: Simple, everyday language.
 
 ### Payment
 - **PayFast**: Subscription payments, including checkout and ITN webhook processing.
+- **Stripe** (via Replit Integration): Alternative payment option for card payments. Uses Stripe Checkout for subscriptions, with webhook handling for status updates. Both PayFast and Stripe feed into the same `subscriptionStatus` system on the `users` table.
+  - Key files: `server/stripeClient.ts` (client/credentials), `server/webhookHandlers.ts` (webhook processing)
+  - Routes: `POST /api/stripe/checkout`, `POST /api/stripe/webhook`, `POST /api/stripe/cancel`
+  - DB fields: `stripe_customer_id`, `stripe_subscription_id` on users table
+  - Subscription status endpoint (`/api/subscription/status`) returns `provider` field ("payfast", "stripe", or "none")
 
 ### Email
 - **Resend** (via Replit Integrations): Sending verification and other transactional emails.

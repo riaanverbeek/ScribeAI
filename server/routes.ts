@@ -104,6 +104,7 @@ function parseMarkdownBold(text: string, TextRun: any): any[] {
   return runs.length > 0 ? runs : [new TextRun({ text })];
 }
 import { generatePayfastSubscriptionUrl, validatePayfastSignature, cancelPayfastSubscription } from "./payfast";
+import { getUncachableStripeClient } from "./stripeClient";
 import { sendPasswordResetEmail, sendVerificationEmail, sendMeetingCompletedEmail } from "./email";
 import { requireAuth, requireAdmin, requireVerified, requireSubscription, requireSuperuser, sanitizeUser, getEffectiveSubscriptionStatus, hasFullAccess, SUPERUSER_EMAIL, SUPERUSER_PASSWORD } from "./auth";
 import { passwordSchema } from "@shared/passwordValidation";
@@ -519,15 +520,226 @@ export async function registerRoutes(
     }
   });
 
+  // ========== STRIPE ROUTES ==========
+
+  app.post("/api/stripe/checkout", requireAuth, requireVerified, async (req, res) => {
+    try {
+      const user = (req as any).user as User;
+      
+      if (user.subscriptionStatus === "active" && (user.stripeSubscriptionId || user.payfastToken)) {
+        return res.status(400).json({ message: "You already have an active subscription" });
+      }
+
+      const stripe = await getUncachableStripeClient();
+
+      let customerId = user.stripeCustomerId;
+      if (!customerId) {
+        const customer = await stripe.customers.create({
+          email: user.email,
+          name: `${user.firstName} ${user.lastName}`,
+          metadata: { userId: String(user.id) },
+        });
+        customerId = customer.id;
+        await storage.updateUserSubscription(user.id, { stripeCustomerId: customerId });
+      }
+
+      const baseUrl = process.env.REPLIT_DEV_DOMAIN
+        ? `https://${process.env.REPLIT_DEV_DOMAIN}`
+        : process.env.REPLIT_DOMAINS
+          ? `https://${process.env.REPLIT_DOMAINS.split(',')[0]}`
+          : 'http://localhost:5000';
+
+      const session = await stripe.checkout.sessions.create({
+        customer: customerId,
+        payment_method_types: ['card'],
+        line_items: [{
+          price_data: {
+            currency: 'zar',
+            product_data: {
+              name: 'ScribeAI Monthly Subscription',
+              description: 'Full access to AI transcription, summaries, action items, and more',
+            },
+            unit_amount: 19900,
+            recurring: { interval: 'month' },
+          },
+          quantity: 1,
+        }],
+        mode: 'subscription',
+        success_url: `${baseUrl}/subscription/success`,
+        cancel_url: `${baseUrl}/subscription/cancel`,
+        metadata: { userId: String(user.id) },
+      });
+
+      res.json({ url: session.url });
+    } catch (error: any) {
+      console.error("Stripe checkout error:", error);
+      res.status(500).json({ message: "Failed to create checkout session" });
+    }
+  });
+
+  app.post("/api/stripe/webhook", async (req, res) => {
+    try {
+      const stripe = await getUncachableStripeClient();
+      const signature = req.headers['stripe-signature'] as string;
+
+      if (!signature) {
+        return res.status(400).json({ error: 'Missing stripe-signature' });
+      }
+
+      const payload = (req as any).rawBody;
+      if (!payload) {
+        console.error("Stripe webhook: rawBody is missing");
+        return res.status(400).json({ error: 'Missing raw body' });
+      }
+
+      const webhookSecret = process.env.STRIPE_WEBHOOK_SECRET;
+      let event;
+      if (webhookSecret) {
+        event = stripe.webhooks.constructEvent(payload, signature, webhookSecret);
+      } else {
+        console.warn("STRIPE WEBHOOK: No STRIPE_WEBHOOK_SECRET set — using raw parse (dev only)");
+        event = JSON.parse(typeof payload === 'string' ? payload : payload.toString());
+      }
+
+      console.log(`Stripe webhook received: ${event.type}`);
+
+      const findUserByCustomerId = async (customerId: string) => {
+        const allUsers = await storage.getAllUsers();
+        return allUsers.find(u => u.stripeCustomerId === customerId);
+      };
+
+      switch (event.type) {
+        case 'checkout.session.completed': {
+          const session = event.data.object;
+          const userId = parseInt(session.metadata?.userId);
+          if (userId && session.subscription) {
+            const subscription = await stripe.subscriptions.retrieve(session.subscription as string);
+            const periodEnd = new Date((subscription as any).current_period_end * 1000);
+            await storage.updateUserSubscription(userId, {
+              subscriptionStatus: "active",
+              stripeSubscriptionId: session.subscription as string,
+              stripeCustomerId: session.customer as string,
+              subscriptionCurrentPeriodEnd: periodEnd,
+              cancelledAt: null,
+            });
+            console.log(`Stripe: User ${userId} subscription activated`);
+          }
+          break;
+        }
+        case 'invoice.payment_succeeded': {
+          const invoice = event.data.object;
+          const subscriptionId = invoice.subscription as string;
+          if (subscriptionId) {
+            const subscription = await stripe.subscriptions.retrieve(subscriptionId);
+            const periodEnd = new Date((subscription as any).current_period_end * 1000);
+            const matchedUser = await findUserByCustomerId(invoice.customer as string);
+            if (matchedUser) {
+              await storage.updateUserSubscription(matchedUser.id, {
+                subscriptionStatus: "active",
+                subscriptionCurrentPeriodEnd: periodEnd,
+                cancelledAt: null,
+              });
+              console.log(`Stripe: User ${matchedUser.id} subscription renewed`);
+            }
+          }
+          break;
+        }
+        case 'invoice.payment_failed': {
+          const invoice = event.data.object;
+          const matchedUser = await findUserByCustomerId(invoice.customer as string);
+          if (matchedUser) {
+            console.log(`Stripe: User ${matchedUser.id} payment failed for invoice ${invoice.id}`);
+          }
+          break;
+        }
+        case 'customer.subscription.updated': {
+          const subscription = event.data.object;
+          const matchedUser = await findUserByCustomerId(subscription.customer as string);
+          if (matchedUser) {
+            const periodEnd = new Date((subscription as any).current_period_end * 1000);
+            if (subscription.cancel_at_period_end) {
+              await storage.updateUserSubscription(matchedUser.id, {
+                subscriptionStatus: "cancelled",
+                subscriptionCurrentPeriodEnd: periodEnd,
+                cancelledAt: new Date(),
+              });
+              console.log(`Stripe: User ${matchedUser.id} subscription set to cancel at period end`);
+            } else if ((subscription as any).status === 'active') {
+              await storage.updateUserSubscription(matchedUser.id, {
+                subscriptionStatus: "active",
+                subscriptionCurrentPeriodEnd: periodEnd,
+                cancelledAt: null,
+              });
+              console.log(`Stripe: User ${matchedUser.id} subscription updated (active)`);
+            }
+          }
+          break;
+        }
+        case 'customer.subscription.deleted': {
+          const subscription = event.data.object;
+          const matchedUser = await findUserByCustomerId(subscription.customer as string);
+          if (matchedUser) {
+            await storage.updateUserSubscription(matchedUser.id, {
+              subscriptionStatus: "expired",
+              cancelledAt: matchedUser.cancelledAt || new Date(),
+            });
+            console.log(`Stripe: User ${matchedUser.id} subscription expired/deleted`);
+          }
+          break;
+        }
+      }
+
+      res.status(200).json({ received: true });
+    } catch (error: any) {
+      console.error("Stripe webhook error:", error);
+      res.status(400).json({ error: 'Webhook processing failed' });
+    }
+  });
+
+  app.post("/api/stripe/cancel", requireAuth, requireVerified, async (req, res) => {
+    try {
+      const user = (req as any).user as User;
+      if (!user.stripeSubscriptionId) {
+        return res.status(400).json({ message: "No active Stripe subscription to cancel" });
+      }
+
+      const stripe = await getUncachableStripeClient();
+      await stripe.subscriptions.update(user.stripeSubscriptionId, {
+        cancel_at_period_end: true,
+      });
+
+      await storage.updateUserSubscription(user.id, {
+        subscriptionStatus: "cancelled",
+        cancelledAt: new Date(),
+      });
+
+      res.json({ message: "Subscription cancelled. You'll retain access until the end of your billing period." });
+    } catch (error: any) {
+      console.error("Stripe cancel error:", error);
+      res.status(500).json({ message: "Failed to cancel subscription" });
+    }
+  });
+
+  // ========== SUBSCRIPTION STATUS ==========
+
   app.get("/api/subscription/status", requireAuth, async (req, res) => {
     const user = (req as any).user as User;
     const effectiveStatus = getEffectiveSubscriptionStatus(user);
+
+    let provider: "payfast" | "stripe" | "none" = "none";
+    if (user.stripeSubscriptionId && (user.subscriptionStatus === "active" || user.subscriptionStatus === "cancelled")) {
+      provider = "stripe";
+    } else if (user.payfastToken && (user.subscriptionStatus === "active" || user.subscriptionStatus === "cancelled")) {
+      provider = "payfast";
+    }
+
     res.json({
       status: effectiveStatus,
       trialEndsAt: user.trialEndsAt,
       currentPeriodEnd: user.subscriptionCurrentPeriodEnd,
       cancelledAt: user.cancelledAt,
       hasFullAccess: hasFullAccess(user),
+      provider,
     });
   });
 

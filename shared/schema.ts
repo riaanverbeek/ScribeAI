@@ -24,6 +24,8 @@ export const users = pgTable("users", {
   }).notNull().default("none"),
   payfastToken: text("payfast_token"),
   payfastSubscriptionId: text("payfast_subscription_id"),
+  stripeCustomerId: text("stripe_customer_id"),
+  stripeSubscriptionId: text("stripe_subscription_id"),
   subscriptionCurrentPeriodEnd: timestamp("subscription_current_period_end"),
   roleId: integer("role_id").references(() => roles.id, { onDelete: "set null" }),
   customRole: text("custom_role"),

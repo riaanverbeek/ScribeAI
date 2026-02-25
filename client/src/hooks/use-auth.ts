@@ -75,6 +75,7 @@ export function useSubscriptionStatus() {
     currentPeriodEnd: data?.currentPeriodEnd,
     cancelledAt: data?.cancelledAt,
     hasFullAccess: data?.hasFullAccess ?? false,
+    provider: data?.provider ?? "none" as "payfast" | "stripe" | "none",
     isLoading,
   };
 }
