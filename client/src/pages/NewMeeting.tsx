@@ -27,7 +27,7 @@ import {
 } from "@/components/ui/dialog";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from "@/components/ui/command";
-import { Mic, UploadCloud, ChevronLeft, Loader2, Plus, Users, FileText, Paperclip, WifiOff, Wifi, Pause, Play, Square, Globe, ClipboardPaste, FileUp, AlertTriangle, ShieldCheck, Check, ChevronsUpDown } from "lucide-react";
+import { Mic, UploadCloud, ChevronLeft, Loader2, Plus, Users, FileText, Paperclip, WifiOff, Wifi, Pause, Play, Square, Globe, ClipboardPaste, FileUp, AlertTriangle, ShieldCheck, Check, ChevronsUpDown, RotateCcw, Trash2 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useToast } from "@/hooks/use-toast";
 import { useVoiceRecorder } from "@/replit_integrations/audio";
@@ -624,6 +624,51 @@ export default function NewMeeting() {
             <TabsContent value="record">
               <Card className="border-2 border-dashed border-slate-200 bg-slate-50/50 shadow-none rounded-xl">
                 <CardContent className="flex flex-col items-center justify-center py-12">
+                  {recorder.hasRecoverableRecording && (recorder.state === "idle" || recorder.state === "stopped") && !file && (
+                    <div className="mb-6 w-full max-w-sm rounded-lg border border-blue-200 bg-blue-50 dark:bg-blue-950/20 dark:border-blue-800 p-4" data-testid="banner-recovery-newmeeting">
+                      <div className="flex items-start gap-3">
+                        <RotateCcw className="w-5 h-5 text-blue-600 dark:text-blue-400 shrink-0 mt-0.5" />
+                        <div className="flex-1">
+                          <p className="text-sm font-medium text-blue-900 dark:text-blue-200">
+                            Interrupted recording found
+                          </p>
+                          <p className="text-xs text-blue-700 dark:text-blue-400 mt-1">
+                            A previous recording was interrupted. Would you like to recover it?
+                          </p>
+                          <div className="flex gap-2 mt-3">
+                            <Button
+                              size="sm"
+                              onClick={async () => {
+                                const recovered = await recorder.recoverRecording();
+                                if (recovered) {
+                                  const ext = recovered.mimeType.includes("webm") ? ".webm" : recovered.mimeType.includes("mp4") ? ".mp4" : ".webm";
+                                  const recoveredFile = new File([recovered.blob], `recovered${ext}`, { type: recovered.mimeType });
+                                  setFile(recoveredFile);
+                                  toast({ title: "Recording Recovered", description: "Your interrupted recording has been restored." });
+                                } else {
+                                  toast({ title: "Recovery Failed", variant: "destructive" });
+                                }
+                              }}
+                              data-testid="button-recover-newmeeting"
+                            >
+                              <RotateCcw className="w-3.5 h-3.5 mr-1.5" />
+                              Recover
+                            </Button>
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              onClick={() => recorder.discardRecovery()}
+                              data-testid="button-discard-recovery-newmeeting"
+                            >
+                              <Trash2 className="w-3.5 h-3.5 mr-1.5" />
+                              Discard
+                            </Button>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  )}
+
                   {(recorder.state === "idle" || recorder.state === "stopped") && (
                     <>
                       <div className="relative mb-6">
@@ -649,34 +694,48 @@ export default function NewMeeting() {
                         </button>
                       </div>
                       <div className="text-center">
-                        <h3 className="font-semibold text-slate-900">Click to Record</h3>
-                        <p className="text-sm text-slate-500 mt-1">Ensure microphone permission is granted</p>
+                        <h3 className="font-semibold text-slate-900 dark:text-slate-100">Click to Record</h3>
+                        <p className="text-sm text-slate-500 dark:text-slate-400 mt-1">Ensure microphone permission is granted</p>
                       </div>
                     </>
                   )}
 
                   {(recorder.state === "recording" || recorder.state === "paused") && (
                     <>
-                      <div className="relative mb-6">
+                      <div className="relative mb-6 flex items-center justify-center">
                         {recorder.state === "recording" && (
-                          <div className="absolute inset-0 bg-red-500 rounded-full animate-pulse-ring opacity-50" />
+                          <>
+                            <motion.div
+                              className="absolute rounded-full bg-red-500/10"
+                              style={{ width: 100, height: 100 }}
+                              animate={{ scale: 1 + recorder.audioLevel * 0.8, opacity: 0.3 + recorder.audioLevel * 0.4 }}
+                              transition={{ duration: 0.1 }}
+                            />
+                            <motion.div
+                              className="absolute rounded-full bg-red-500/20"
+                              style={{ width: 88, height: 88 }}
+                              animate={{ scale: 1 + recorder.audioLevel * 0.5, opacity: 0.4 + recorder.audioLevel * 0.3 }}
+                              transition={{ duration: 0.1 }}
+                            />
+                          </>
                         )}
                         <div
                           className={`relative z-10 w-20 h-20 rounded-full flex items-center justify-center ${
                             recorder.state === "recording"
-                              ? "bg-red-500 shadow-lg shadow-red-500/30 scale-110"
+                              ? "bg-red-500 shadow-lg shadow-red-500/30"
                               : "bg-amber-500 shadow-lg shadow-amber-500/30"
-                          } text-white transition-all duration-300`}
+                          } text-white transition-colors duration-300`}
+                          style={recorder.state === "recording" ? { transform: `scale(${1 + recorder.audioLevel * 0.1})`, transition: "transform 0.1s ease-out" } : undefined}
                         >
                           <Mic className="w-8 h-8" />
                         </div>
                       </div>
 
                       <div className="text-center mb-6">
-                        <h3 className="font-semibold text-slate-900">
+                        <h3 className="font-semibold text-slate-900 dark:text-slate-100">
                           {recorder.state === "recording" ? "Recording..." : "Paused"}
                         </h3>
-                        <p className="text-sm text-slate-500 mt-1">
+                        <p className="text-sm text-slate-500 dark:text-slate-400 mt-1">
                           {recorder.state === "recording" ? "Speak clearly into your microphone" : "Recording is paused. Resume or stop when ready."}
                         </p>
                       </div>
@@ -714,7 +773,7 @@ export default function NewMeeting() {
                   )}
 
                   {file && recorder.state === "stopped" && (
-                    <div className="mt-6 px-4 py-2 bg-green-50 text-green-700 rounded-lg text-sm font-medium flex items-center animate-in fade-in slide-in-from-bottom-2">
+                    <div className="mt-6 px-4 py-2 bg-green-50 text-green-700 dark:bg-green-900/30 dark:text-green-400 rounded-lg text-sm font-medium flex items-center animate-in fade-in slide-in-from-bottom-2">
                       Recording saved ready for processing
                     </div>
                   )}

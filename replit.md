@@ -21,7 +21,7 @@ Preferred communication style: Simple, everyday language.
 - **Styling**: Tailwind CSS with shadcn/ui components
 - **Build Tool**: Vite
 - **Animations**: Framer Motion
-- **Audio Recording**: Auto-detects supported MIME types (WebM/Opus preferred, MP4/AAC fallback for iOS Safari). Server converts all non-WAV formats (WebM, MP4, M4A, OGG, AAC, CAF) to WAV via ffmpeg before storage.
+- **Audio Recording**: Auto-detects supported MIME types (WebM/Opus preferred, MP4/AAC fallback for iOS Safari). Server converts all non-WAV formats (WebM, MP4, M4A, OGG, AAC, CAF) to WAV via ffmpeg before storage. Includes periodic auto-save of recording chunks to IndexedDB every 5 seconds for resilience against iOS Safari call interruptions, with recovery UI on both QuickRecord and NewMeeting pages. Recording button features audio-reactive animation that pulses based on real-time microphone input volume.
 - **Audio Visualization**: WaveSurfer.js for waveform display and playback
 - **Offline Support**: IndexedDB for offline audio recording storage and a Service Worker for PWA capabilities and offline access.
 - **UI/UX**: Support for tile and list views on key pages, with preference persistence.

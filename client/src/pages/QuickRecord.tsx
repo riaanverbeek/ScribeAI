@@ -21,12 +21,19 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import { Mic, Square, ChevronLeft, Loader2, Phone, WifiOff, Check, Pause, Play, ShieldCheck, AlertTriangle } from "lucide-react";
+import { Mic, Square, ChevronLeft, Loader2, Phone, WifiOff, Check, Pause, Play, ShieldCheck, AlertTriangle, RotateCcw, Trash2 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { motion, AnimatePresence } from "framer-motion";
 import { format } from "date-fns";
 
 type Phase = "ready" | "recording" | "paused" | "saving";
+
+function getFileExtensionFromMime(mimeType: string): string {
+  if (mimeType.includes("webm")) return ".webm";
+  if (mimeType.includes("mp4")) return ".mp4";
+  if (mimeType.includes("ogg")) return ".ogg";
+  return ".webm";
+}
 
 export default function QuickRecord() {
   const [, setLocation] = useLocation();
@@ -44,9 +51,7 @@ export default function QuickRecord() {
 
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
-  const analyserRef = useRef<AnalyserNode | null>(null);
   const animFrameRef = useRef<number | null>(null);
-  const streamRef = useRef<MediaStream | null>(null);
 
   const recorder = useVoiceRecorder();
   const createMutation = useCreateMeeting();
@@ -65,6 +70,10 @@ export default function QuickRecord() {
     }
   }, [phase]);
 
+  useEffect(() => {
+    recorder.setElapsedRef(elapsed);
+  }, [elapsed, recorder.setElapsedRef]);
+
   const formatTime = (seconds: number) => {
     const m = Math.floor(seconds / 60);
     const s = seconds % 60;
@@ -72,58 +81,48 @@ export default function QuickRecord() {
   };
 
   const drawWaveform = useCallback(() => {
-    const analyser = analyserRef.current;
     const canvas = canvasRef.current;
-    if (!analyser || !canvas) return;
+    if (!canvas) return;
 
     const ctx = canvas.getContext("2d");
     if (!ctx) return;
 
-    const bufferLength = analyser.frequencyBinCount;
-    const dataArray = new Uint8Array(bufferLength);
+    let lastLevel = 0;
+    const bars = 40;
+    const barHeights = new Float32Array(bars);
 
     const draw = () => {
       animFrameRef.current = requestAnimationFrame(draw);
-      analyser.getByteTimeDomainData(dataArray);
+      const level = recorder.audioLevel;
+      lastLevel = lastLevel * 0.7 + level * 0.3;
+
+      for (let i = bars - 1; i > 0; i--) {
+        barHeights[i] = barHeights[i - 1];
+      }
+      barHeights[0] = lastLevel;
 
       const w = canvas.width;
       const h = canvas.height;
       ctx.clearRect(0, 0, w, h);
 
-      ctx.lineWidth = 2;
       const style = getComputedStyle(document.documentElement);
       const primary = style.getPropertyValue("--primary").trim();
-      ctx.strokeStyle = primary ? `hsl(${primary})` : "#6366f1";
-      ctx.beginPath();
+      ctx.fillStyle = primary ? `hsl(${primary})` : "#6366f1";
 
-      const sliceWidth = w / bufferLength;
-      let x = 0;
-      for (let i = 0; i < bufferLength; i++) {
-        const v = dataArray[i] / 128.0;
-        const y = (v * h) / 2;
-        if (i === 0) ctx.moveTo(x, y);
-        else ctx.lineTo(x, y);
-        x += sliceWidth;
+      const barWidth = w / bars - 2;
+      for (let i = 0; i < bars; i++) {
+        const barH = Math.max(2, barHeights[i] * h * 0.9);
+        const x = i * (barWidth + 2);
+        const y = (h - barH) / 2;
+        ctx.fillRect(x, y, barWidth, barH);
       }
-      ctx.lineTo(w, h / 2);
-      ctx.stroke();
     };
 
     draw();
-  }, []);
+  }, [recorder.audioLevel]);
 
   const startRecording = async () => {
     try {
-      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-      streamRef.current = stream;
-
-      const audioCtx = new AudioContext();
-      const source = audioCtx.createMediaStreamSource(stream);
-      const analyser = audioCtx.createAnalyser();
-      analyser.fftSize = 2048;
-      source.connect(analyser);
-      analyserRef.current = analyser;
-
       await recorder.startRecording();
 
       setPhase("recording");
@@ -178,11 +177,6 @@ export default function QuickRecord() {
       animFrameRef.current = null;
     }
 
-    if (streamRef.current) {
-      streamRef.current.getTracks().forEach((t) => t.stop());
-      streamRef.current = null;
-    }
-
     const blob = await recorder.stopRecording();
     const ext = recorder.recordingExtension || ".webm";
     const mime = recorder.recordingMimeType || "audio/webm";
@@ -192,6 +186,34 @@ export default function QuickRecord() {
     const now = new Date();
     setTitle(`Phone Call - ${format(now, "MMM d, yyyy h:mm a")}`);
     setPhase("saving");
+  };
+
+  const handleRecover = async () => {
+    const recovered = await recorder.recoverRecording();
+    if (recovered) {
+      const ext = getFileExtensionFromMime(recovered.mimeType);
+      const file = new File([recovered.blob], `recovered-call${ext}`, { type: recovered.mimeType });
+      setAudioFile(file);
+      setElapsed(recovered.elapsed);
+      const now = new Date();
+      setTitle(`Recovered Call - ${format(now, "MMM d, yyyy h:mm a")}`);
+      setPhase("saving");
+      toast({
+        title: "Recording Recovered",
+        description: `${formatTime(recovered.elapsed)} of audio has been recovered.`,
+      });
+    } else {
+      toast({
+        title: "Recovery Failed",
+        description: "The interrupted recording could not be recovered.",
+        variant: "destructive",
+      });
+    }
+  };
+
+  const handleDiscardRecovery = async () => {
+    await recorder.discardRecovery();
+    toast({ title: "Recording discarded" });
   };
 
   const handleSave = async () => {
@@ -220,6 +242,9 @@ export default function QuickRecord() {
           includePreviousContext: false,
           createdAt: new Date().toISOString(),
           status: "pending",
+          outputLanguage: "english",
+          isInternal: false,
+          policyIds: [],
         });
         toast({
           title: "Saved Offline",
@@ -259,13 +284,12 @@ export default function QuickRecord() {
     return () => {
       if (timerRef.current) clearInterval(timerRef.current);
       if (animFrameRef.current) cancelAnimationFrame(animFrameRef.current);
-      if (streamRef.current) {
-        streamRef.current.getTracks().forEach((t) => t.stop());
-      }
     };
   }, []);
 
   const isPending = isSaving || createMutation.isPending || uploadMutation.isPending;
+
+  const pulseScale = 1 + recorder.audioLevel * 0.6;
 
   return (
     <div className="flex flex-col items-center justify-center min-h-[calc(100vh-4rem)] p-4 sm:p-6">
@@ -288,6 +312,7 @@ export default function QuickRecord() {
           <p className="text-sm text-muted-foreground">
             {phase === "ready" && "Tap the button to start recording your call"}
             {phase === "recording" && "Recording in progress..."}
+            {phase === "paused" && "Recording paused"}
             {phase === "saving" && "Save your recording"}
           </p>
         </div>
@@ -298,6 +323,32 @@ export default function QuickRecord() {
             <p className="text-sm text-amber-800 dark:text-amber-300">
               You're offline. Recording will be saved locally.
             </p>
+          </div>
+        )}
+
+        {recorder.hasRecoverableRecording && phase === "ready" && (
+          <div className="mb-6 rounded-lg border border-blue-200 bg-blue-50 dark:bg-blue-950/20 dark:border-blue-800 p-4" data-testid="banner-recovery">
+            <div className="flex items-start gap-3">
+              <RotateCcw className="w-5 h-5 text-blue-600 dark:text-blue-400 shrink-0 mt-0.5" />
+              <div className="flex-1">
+                <p className="text-sm font-medium text-blue-900 dark:text-blue-200">
+                  Interrupted recording found
+                </p>
+                <p className="text-xs text-blue-700 dark:text-blue-400 mt-1">
+                  A previous recording was interrupted ({formatTime(recorder.recoverableElapsed)} captured). Would you like to recover it?
+                </p>
+                <div className="flex gap-2 mt-3">
+                  <Button size="sm" onClick={handleRecover} data-testid="button-recover">
+                    <RotateCcw className="w-3.5 h-3.5 mr-1.5" />
+                    Recover
+                  </Button>
+                  <Button size="sm" variant="outline" onClick={handleDiscardRecovery} data-testid="button-discard-recovery">
+                    <Trash2 className="w-3.5 h-3.5 mr-1.5" />
+                    Discard
+                  </Button>
+                </div>
+              </div>
+            </div>
           </div>
         )}
 
@@ -342,20 +393,30 @@ export default function QuickRecord() {
 
               {(phase === "recording" || phase === "paused") && (
                 <>
-                  <div className="relative">
+                  <div className="relative flex items-center justify-center">
                     {phase === "recording" && (
-                      <motion.div
-                        className="absolute inset-0 rounded-full bg-red-500/20"
-                        animate={{ scale: [1, 1.4, 1] }}
-                        transition={{ duration: 2, repeat: Infinity, ease: "easeInOut" }}
-                      />
+                      <>
+                        <motion.div
+                          className="absolute rounded-full bg-red-500/10"
+                          style={{ width: 160, height: 160 }}
+                          animate={{ scale: pulseScale * 1.2, opacity: 0.3 + recorder.audioLevel * 0.4 }}
+                          transition={{ duration: 0.1 }}
+                        />
+                        <motion.div
+                          className="absolute rounded-full bg-red-500/20"
+                          style={{ width: 140, height: 140 }}
+                          animate={{ scale: pulseScale, opacity: 0.4 + recorder.audioLevel * 0.3 }}
+                          transition={{ duration: 0.1 }}
+                        />
+                      </>
                     )}
                     <div
                       className={`relative z-10 w-28 h-28 sm:w-32 sm:h-32 rounded-full flex items-center justify-center ${
                         phase === "recording"
                           ? "bg-red-500 shadow-lg shadow-red-500/30"
                           : "bg-amber-500 shadow-lg shadow-amber-500/30"
-                      } text-white transition-all duration-300`}
+                      } text-white transition-colors duration-300`}
+                      style={phase === "recording" ? { transform: `scale(${1 + recorder.audioLevel * 0.08})`, transition: "transform 0.1s ease-out" } : undefined}
                     >
                       <Mic className="w-10 h-10 sm:w-12 sm:h-12" />
                     </div>
@@ -377,7 +438,7 @@ export default function QuickRecord() {
                   <div className="flex items-center gap-2 bg-amber-500/10 border border-amber-500/30 rounded-lg px-3 py-2 max-w-xs" data-testid="warning-stay-on-screen">
                     <AlertTriangle className="w-4 h-4 text-amber-500 shrink-0" />
                     <p className="text-xs text-amber-700 dark:text-amber-400">
-                      Keep this screen open while recording. Switching apps (especially on iPhone) may stop the recording.
+                      If a call interrupts your recording, come back to this page to recover it.
                     </p>
                   </div>
 
