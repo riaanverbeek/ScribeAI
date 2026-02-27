@@ -12,9 +12,10 @@ import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
-import { Pencil, Trash2, Plus, Users, Briefcase, Calendar, FileText, Shield, ShieldCheck, Tag, ArrowLeft, Eye, ChevronRight, Loader2 } from "lucide-react";
+import { Switch } from "@/components/ui/switch";
+import { Pencil, Trash2, Plus, Users, Briefcase, Calendar, FileText, Shield, ShieldCheck, Tag, ArrowLeft, Eye, ChevronRight, Loader2, Building2, Globe, Palette } from "lucide-react";
 import { format } from "date-fns";
-import type { SafeUser, Client, Meeting, Template, Role, Transcript, ActionItem, Topic, MeetingSummary } from "@shared/schema";
+import type { SafeUser, Client, Meeting, Template, Role, Transcript, ActionItem, Topic, MeetingSummary, Tenant } from "@shared/schema";
 
 type SuperuserUser = SafeUser & { isSuperuser: boolean };
 
@@ -970,6 +971,236 @@ function RolesTab() {
   );
 }
 
+function TenantsTab() {
+  const { toast } = useToast();
+  const { data: tenantsList = [], isLoading } = useQuery<Tenant[]>({ queryKey: ["/api/tenants"] });
+  const [editTenant, setEditTenant] = useState<Tenant | null>(null);
+  const [showCreate, setShowCreate] = useState(false);
+  const [deleteTenant, setDeleteTenant] = useState<Tenant | null>(null);
+  const [form, setForm] = useState({
+    name: "",
+    slug: "",
+    domain: "",
+    logoUrl: "",
+    primaryColor: "",
+    accentColor: "",
+    tagline: "",
+    isActive: true,
+  });
+
+  const resetForm = () => {
+    setForm({ name: "", slug: "", domain: "", logoUrl: "", primaryColor: "", accentColor: "", tagline: "", isActive: true });
+  };
+
+  const openCreate = () => {
+    resetForm();
+    setShowCreate(true);
+  };
+
+  const openEdit = (t: Tenant) => {
+    setForm({
+      name: t.name,
+      slug: t.slug,
+      domain: t.domain || "",
+      logoUrl: t.logoUrl || "",
+      primaryColor: t.primaryColor || "",
+      accentColor: t.accentColor || "",
+      tagline: t.tagline || "",
+      isActive: t.isActive,
+    });
+    setEditTenant(t);
+  };
+
+  const createMutation = useMutation({
+    mutationFn: async (data: Record<string, unknown>) => {
+      const res = await apiRequest("POST", "/api/tenants", data);
+      return res.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/tenants"] });
+      setShowCreate(false);
+      resetForm();
+      toast({ title: "Tenant created" });
+    },
+    onError: (err: Error) => toast({ title: "Error", description: err.message, variant: "destructive" }),
+  });
+
+  const updateMutation = useMutation({
+    mutationFn: async ({ id, data }: { id: number; data: Record<string, unknown> }) => {
+      const res = await apiRequest("PATCH", `/api/tenants/${id}`, data);
+      return res.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/tenants"] });
+      setEditTenant(null);
+      resetForm();
+      toast({ title: "Tenant updated" });
+    },
+    onError: (err: Error) => toast({ title: "Error", description: err.message, variant: "destructive" }),
+  });
+
+  const deleteMutation = useMutation({
+    mutationFn: async (id: number) => {
+      await apiRequest("DELETE", `/api/tenants/${id}`);
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/tenants"] });
+      setDeleteTenant(null);
+      toast({ title: "Tenant deactivated" });
+    },
+    onError: (err: Error) => toast({ title: "Error", description: err.message, variant: "destructive" }),
+  });
+
+  const handleSave = () => {
+    const payload: Record<string, unknown> = {
+      name: form.name,
+      slug: form.slug,
+      domain: form.domain || null,
+      logoUrl: form.logoUrl || null,
+      primaryColor: form.primaryColor || null,
+      accentColor: form.accentColor || null,
+      tagline: form.tagline || null,
+      isActive: form.isActive,
+    };
+
+    if (editTenant) {
+      updateMutation.mutate({ id: editTenant.id, data: payload });
+    } else {
+      createMutation.mutate(payload);
+    }
+  };
+
+  if (isLoading) return <div className="p-6 text-muted-foreground">Loading tenants...</div>;
+
+  return (
+    <div className="space-y-3">
+      <div className="flex justify-end">
+        <Button size="sm" onClick={openCreate} data-testid="button-create-tenant">
+          <Plus className="w-4 h-4 mr-1" /> New Tenant
+        </Button>
+      </div>
+
+      {tenantsList.length === 0 && <p className="text-sm text-muted-foreground p-4">No tenants found.</p>}
+
+      {tenantsList.map((t) => (
+        <Card key={t.id}>
+          <CardContent className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 p-4">
+            <div className="min-w-0 flex-1">
+              <div className="flex items-center gap-2 flex-wrap">
+                <Building2 className="w-4 h-4 text-muted-foreground shrink-0" />
+                <span className="font-medium text-sm" data-testid={`text-tenant-name-${t.id}`}>{t.name}</span>
+                <Badge variant={t.isActive ? "default" : "secondary"} className="text-[10px]" data-testid={`badge-tenant-status-${t.id}`}>
+                  {t.isActive ? "Active" : "Inactive"}
+                </Badge>
+              </div>
+              <div className="flex items-center gap-3 mt-1 flex-wrap">
+                <span className="text-xs text-muted-foreground" data-testid={`text-tenant-slug-${t.id}`}>/{t.slug}</span>
+                {t.domain && (
+                  <span className="text-xs text-muted-foreground flex items-center gap-1">
+                    <Globe className="w-3 h-3" />
+                    <span data-testid={`text-tenant-domain-${t.id}`}>{t.domain}</span>
+                  </span>
+                )}
+                {(t.primaryColor || t.accentColor) && (
+                  <span className="flex items-center gap-1">
+                    {t.primaryColor && <span className="w-3 h-3 rounded-full border" style={{ backgroundColor: t.primaryColor }} />}
+                    {t.accentColor && <span className="w-3 h-3 rounded-full border" style={{ backgroundColor: t.accentColor }} />}
+                  </span>
+                )}
+              </div>
+              {t.tagline && <p className="text-xs text-muted-foreground mt-0.5 truncate" data-testid={`text-tenant-tagline-${t.id}`}>{t.tagline}</p>}
+            </div>
+            <div className="flex items-center gap-1 shrink-0">
+              <Button size="icon" variant="ghost" onClick={() => openEdit(t)} data-testid={`button-edit-tenant-${t.id}`}>
+                <Pencil className="w-4 h-4" />
+              </Button>
+              <Button size="icon" variant="ghost" onClick={() => setDeleteTenant(t)} data-testid={`button-delete-tenant-${t.id}`}>
+                <Trash2 className="w-4 h-4" />
+              </Button>
+            </div>
+          </CardContent>
+        </Card>
+      ))}
+
+      <Dialog open={showCreate || !!editTenant} onOpenChange={(open) => { if (!open) { setShowCreate(false); setEditTenant(null); resetForm(); } }}>
+        <DialogContent className="max-w-lg">
+          <DialogHeader><DialogTitle>{editTenant ? "Edit Tenant" : "New Tenant"}</DialogTitle></DialogHeader>
+          <div className="space-y-3">
+            <div>
+              <Label>Name</Label>
+              <Input value={form.name} onChange={(e) => setForm(f => ({ ...f, name: e.target.value }))} placeholder="Organization name" data-testid="input-tenant-name" />
+            </div>
+            <div>
+              <Label>Slug</Label>
+              <Input value={form.slug} onChange={(e) => setForm(f => ({ ...f, slug: e.target.value.toLowerCase().replace(/[^a-z0-9-]/g, "") }))} placeholder="unique-slug" data-testid="input-tenant-slug" />
+              <p className="text-[10px] text-muted-foreground mt-0.5">Used in URLs. Lowercase letters, numbers, and hyphens only.</p>
+            </div>
+            <div>
+              <Label>Custom Domain</Label>
+              <Input value={form.domain} onChange={(e) => setForm(f => ({ ...f, domain: e.target.value }))} placeholder="app.example.com (optional)" data-testid="input-tenant-domain" />
+            </div>
+            <div>
+              <Label>Logo URL</Label>
+              <Input value={form.logoUrl} onChange={(e) => setForm(f => ({ ...f, logoUrl: e.target.value }))} placeholder="https://example.com/logo.png (optional)" data-testid="input-tenant-logo-url" />
+            </div>
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <Label>Primary Color</Label>
+                <div className="flex items-center gap-2">
+                  <Input value={form.primaryColor} onChange={(e) => setForm(f => ({ ...f, primaryColor: e.target.value }))} placeholder="#3b82f6" data-testid="input-tenant-primary-color" />
+                  {form.primaryColor && <span className="w-8 h-8 rounded-md border shrink-0" style={{ backgroundColor: form.primaryColor }} />}
+                </div>
+              </div>
+              <div>
+                <Label>Accent Color</Label>
+                <div className="flex items-center gap-2">
+                  <Input value={form.accentColor} onChange={(e) => setForm(f => ({ ...f, accentColor: e.target.value }))} placeholder="#f59e0b" data-testid="input-tenant-accent-color" />
+                  {form.accentColor && <span className="w-8 h-8 rounded-md border shrink-0" style={{ backgroundColor: form.accentColor }} />}
+                </div>
+              </div>
+            </div>
+            <div>
+              <Label>Tagline</Label>
+              <Input value={form.tagline} onChange={(e) => setForm(f => ({ ...f, tagline: e.target.value }))} placeholder="Your meetings, simplified (optional)" data-testid="input-tenant-tagline" />
+            </div>
+            <div className="flex items-center justify-between">
+              <Label>Active</Label>
+              <Switch checked={form.isActive} onCheckedChange={(checked) => setForm(f => ({ ...f, isActive: checked }))} data-testid="switch-tenant-active" />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => { setShowCreate(false); setEditTenant(null); resetForm(); }}>Cancel</Button>
+            <Button
+              onClick={handleSave}
+              disabled={!form.name.trim() || !form.slug.trim() || createMutation.isPending || updateMutation.isPending}
+              data-testid="button-save-tenant"
+            >
+              {(createMutation.isPending || updateMutation.isPending) ? "Saving..." : "Save"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <AlertDialog open={!!deleteTenant} onOpenChange={(open) => !open && setDeleteTenant(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Deactivate Tenant</AlertDialogTitle>
+            <AlertDialogDescription>
+              This will deactivate "{deleteTenant?.name}". Users under this tenant will no longer be able to access the platform.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction onClick={() => deleteTenant && deleteMutation.mutate(deleteTenant.id)} data-testid="button-confirm-delete-tenant">
+              Deactivate
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+    </div>
+  );
+}
+
 export default function SuperuserAdmin() {
   return (
     <div className="p-4 sm:p-6 lg:p-8 max-w-5xl mx-auto">
@@ -978,11 +1209,11 @@ export default function SuperuserAdmin() {
           <ShieldCheck className="w-6 h-6 text-primary" />
           <h1 className="text-2xl font-bold" data-testid="text-superuser-heading">Superuser Panel</h1>
         </div>
-        <p className="text-sm text-muted-foreground">Manage all users, clients, sessions, templates, and roles across the platform.</p>
+        <p className="text-sm text-muted-foreground">Manage all users, clients, sessions, templates, roles, and tenants across the platform.</p>
       </div>
 
       <Tabs defaultValue="users">
-        <TabsList className="w-full grid grid-cols-5 mb-4" data-testid="tabs-superuser">
+        <TabsList className="w-full grid grid-cols-6 mb-4" data-testid="tabs-superuser">
           <TabsTrigger value="users" className="gap-1" data-testid="tab-users">
             <Users className="w-4 h-4 hidden sm:block" /> Users
           </TabsTrigger>
@@ -998,6 +1229,9 @@ export default function SuperuserAdmin() {
           <TabsTrigger value="roles" className="gap-1" data-testid="tab-roles">
             <Tag className="w-4 h-4 hidden sm:block" /> Roles
           </TabsTrigger>
+          <TabsTrigger value="tenants" className="gap-1" data-testid="tab-tenants">
+            <Building2 className="w-4 h-4 hidden sm:block" /> Tenants
+          </TabsTrigger>
         </TabsList>
 
         <TabsContent value="users"><UsersTab /></TabsContent>
@@ -1005,6 +1239,7 @@ export default function SuperuserAdmin() {
         <TabsContent value="meetings"><MeetingsTab /></TabsContent>
         <TabsContent value="templates"><TemplatesTab /></TabsContent>
         <TabsContent value="roles"><RolesTab /></TabsContent>
+        <TabsContent value="tenants"><TenantsTab /></TabsContent>
       </Tabs>
     </div>
   );

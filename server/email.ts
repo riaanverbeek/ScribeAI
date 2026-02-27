@@ -38,22 +38,23 @@ async function getUncachableResendClient() {
   };
 }
 
-export async function sendVerificationEmail(toEmail: string, firstName: string, verificationToken: string) {
+export async function sendVerificationEmail(toEmail: string, firstName: string, verificationToken: string, tenantName?: string) {
   const { client, fromEmail } = await getUncachableResendClient();
 
+  const appName = tenantName || 'ScribeAI';
   const baseUrl = getBaseUrl();
   const verificationUrl = `${baseUrl}/verify-email?token=${verificationToken}`;
-  const sender = 'ScribeAI <noreply@email.fant-app.com>';
+  const sender = `${appName} <noreply@email.fant-app.com>`;
 
   console.log(`[email] Sending verification email to=${toEmail}, from=${sender}, baseUrl=${baseUrl}`);
 
   const result = await client.emails.send({
     from: sender,
     to: toEmail,
-    subject: 'Verify your ScribeAI account',
+    subject: `Verify your ${appName} account`,
     html: `
       <div style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; max-width: 560px; margin: 0 auto; padding: 40px 20px;">
-        <h1 style="font-size: 24px; color: #1a1a1a; margin-bottom: 24px;">Welcome to ScribeAI, ${firstName}!</h1>
+        <h1 style="font-size: 24px; color: #1a1a1a; margin-bottom: 24px;">Welcome to ${appName}, ${firstName}!</h1>
         <p style="font-size: 16px; color: #4a4a4a; line-height: 1.6; margin-bottom: 24px;">
           Thanks for signing up. Please verify your email address by clicking the button below to activate your account and start your 1-month free trial.
         </p>
@@ -61,10 +62,10 @@ export async function sendVerificationEmail(toEmail: string, firstName: string, 
           Verify My Email
         </a>
         <p style="font-size: 14px; color: #888; margin-top: 32px; line-height: 1.5;">
-          This link expires in 24 hours. If you didn't create a ScribeAI account, you can safely ignore this email.
+          This link expires in 24 hours. If you didn't create a ${appName} account, you can safely ignore this email.
         </p>
         <p style="font-size: 12px; color: #aaa; margin-top: 40px; border-top: 1px solid #eee; padding-top: 20px;">
-          ScribeAI - Session Transcription & Analysis
+          ${appName} - Session Transcription & Analysis
         </p>
       </div>
     `,
@@ -73,19 +74,20 @@ export async function sendVerificationEmail(toEmail: string, firstName: string, 
   console.log(`[email] Verification email result:`, JSON.stringify(result));
 }
 
-export async function sendPasswordResetEmail(toEmail: string, firstName: string, resetToken: string) {
+export async function sendPasswordResetEmail(toEmail: string, firstName: string, resetToken: string, tenantName?: string) {
   const { client, fromEmail } = await getUncachableResendClient();
 
+  const appName = tenantName || 'ScribeAI';
   const baseUrl = getBaseUrl();
   const resetUrl = `${baseUrl}/reset-password?token=${resetToken}`;
-  const sender = 'ScribeAI <noreply@email.fant-app.com>';
+  const sender = `${appName} <noreply@email.fant-app.com>`;
 
   console.log(`[email] Sending password reset email to=${toEmail}, from=${sender}, baseUrl=${baseUrl}`);
 
   const result = await client.emails.send({
     from: sender,
     to: toEmail,
-    subject: 'Reset your ScribeAI password',
+    subject: `Reset your ${appName} password`,
     html: `
       <div style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; max-width: 560px; margin: 0 auto; padding: 40px 20px;">
         <h1 style="font-size: 24px; color: #1a1a1a; margin-bottom: 24px;">Password Reset</h1>
@@ -99,7 +101,7 @@ export async function sendPasswordResetEmail(toEmail: string, firstName: string,
           This link expires in 1 hour. If you didn't request a password reset, you can safely ignore this email.
         </p>
         <p style="font-size: 12px; color: #aaa; margin-top: 40px; border-top: 1px solid #eee; padding-top: 20px;">
-          ScribeAI - Session Transcription & Analysis
+          ${appName} - Session Transcription & Analysis
         </p>
       </div>
     `,

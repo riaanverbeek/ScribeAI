@@ -40,9 +40,20 @@ Preferred communication style: Simple, everyday language.
 - **Internal Meeting Flag**: Meetings can be marked as "Internal Meeting" (internal discussion/dictation without the client present). When checked, the AI is instructed not to look for client responses and frames the summary as internal notes.
 - **Transcript Upload**: Users can paste transcript text directly or upload a text file (.txt, .md, .csv, .json) instead of audio. The transcript is saved via `POST /api/meetings/:id/transcript` and the process route skips audio transcription when a transcript already exists.
 
+### Multi-Tenancy
+- **Model**: Shared database with `tenantId` foreign key on all data tables (users, clients, meetings, templates, roles)
+- **Tenant Table**: `tenants` table with fields: id, name, slug (unique), domain (unique, nullable), logoUrl, primaryColor, accentColor, tagline, isActive, createdAt
+- **Tenant Resolution**: Middleware in `server/tenant.ts` resolves tenant from `req.hostname` — matches against `domain` field, falls back to default tenant (id=1, slug="default"). In-memory cache with 60s TTL, invalidated on tenant writes via `invalidateTenantCache()`.
+- **Data Isolation**: All storage queries accept optional `tenantId` for scoping. User-facing routes pass `req.tenant.id`. Superuser routes optionally bypass tenant scoping.
+- **Auth Enforcement**: `requireAuth` middleware checks `user.tenantId === req.tenant.id` (superusers exempt). Login scopes `getUserByEmail` by tenant. Registration assigns new users to `req.tenant.id`.
+- **Frontend Branding**: `TenantContext` (`client/src/contexts/TenantContext.tsx`) fetches branding from `GET /api/tenant/branding` (public endpoint). Dynamically updates page title, CSS custom properties (`--primary`, `--accent`), and branding in Login, Register, and Navigation components.
+- **Tenant Management**: Superuser-only CRUD at `/api/tenants`. UI in SuperuserAdmin.tsx "Tenants" tab with create/edit/delete dialogs.
+- **Email**: Verification and password reset emails use tenant name in sender, subject, and body.
+- **Key files**: `server/tenant.ts` (middleware), `client/src/contexts/TenantContext.tsx` (frontend context), SuperuserAdmin.tsx (management UI)
+
 ### Data Layer
 - **Database**: PostgreSQL with Drizzle ORM
-- **Core Tables**: `users`, `clients`, `meetings`, `templates`, `transcripts`, `action_items`, `topics`, `meeting_summaries`.
+- **Core Tables**: `tenants`, `users`, `clients`, `meetings`, `templates`, `transcripts`, `action_items`, `topics`, `meeting_summaries`.
 - **Schema**: Defined in `shared/schema.ts`.
 - **Migrations**: Drizzle Kit.
 
@@ -51,7 +62,7 @@ Preferred communication style: Simple, everyday language.
 - **Storage Abstraction**: `server/storage.ts` for database operations.
 - **Status State Machine**: For tracking meeting processing status (`uploading`, `processing`, `completed`/`failed`).
 - **Polling**: Frontend polls for meeting status updates.
-- **Ownership Checks**: Enforced on all routes for data isolation.
+- **Ownership Checks**: Enforced on all routes for data isolation. Combined with tenant scoping for multi-tenant security.
 
 ### Build Configuration
 - **Development**: `tsx` and Vite for HMR.

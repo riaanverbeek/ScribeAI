@@ -5,6 +5,19 @@ import { relations, sql } from "drizzle-orm";
 
 // === TABLE DEFINITIONS ===
 
+export const tenants = pgTable("tenants", {
+  id: serial("id").primaryKey(),
+  name: text("name").notNull(),
+  slug: text("slug").notNull().unique(),
+  domain: text("domain").unique(),
+  logoUrl: text("logo_url"),
+  primaryColor: text("primary_color"),
+  accentColor: text("accent_color"),
+  tagline: text("tagline"),
+  isActive: boolean("is_active").notNull().default(true),
+  createdAt: timestamp("created_at").defaultNow(),
+});
+
 export const users = pgTable("users", {
   id: serial("id").primaryKey(),
   email: text("email").notNull().unique(),
@@ -30,12 +43,14 @@ export const users = pgTable("users", {
   roleId: integer("role_id").references(() => roles.id, { onDelete: "set null" }),
   customRole: text("custom_role"),
   cancelledAt: timestamp("cancelled_at"),
+  tenantId: integer("tenant_id").references(() => tenants.id, { onDelete: "cascade" }),
   createdAt: timestamp("created_at").defaultNow(),
 });
 
 export const roles = pgTable("roles", {
   id: serial("id").primaryKey(),
   name: text("name").notNull().unique(),
+  tenantId: integer("tenant_id").references(() => tenants.id, { onDelete: "cascade" }),
   createdAt: timestamp("created_at").defaultNow(),
 });
 
@@ -46,6 +61,7 @@ export const templates = pgTable("templates", {
   formatPrompt: text("format_prompt").notNull(),
   isDefault: boolean("is_default").default(false).notNull(),
   createdBy: integer("created_by").references(() => users.id, { onDelete: "set null" }),
+  tenantId: integer("tenant_id").references(() => tenants.id, { onDelete: "cascade" }),
   createdAt: timestamp("created_at").defaultNow(),
 });
 
@@ -55,6 +71,7 @@ export const clients = pgTable("clients", {
   email: text("email"),
   company: text("company"),
   userId: integer("user_id").references(() => users.id, { onDelete: "cascade" }),
+  tenantId: integer("tenant_id").references(() => tenants.id, { onDelete: "cascade" }),
   createdAt: timestamp("created_at").defaultNow(),
 });
 
@@ -76,6 +93,7 @@ export const meetings = pgTable("meetings", {
   clientRecordingConsent: text("client_recording_consent", { enum: ["not_asked", "yes", "no"] }).default("not_asked"),
   detailLevel: text("detail_level", { enum: ["high", "medium", "low"] }).default("high").notNull(),
   status: text("status", { enum: ["uploading", "processing", "completed", "failed"] }).notNull().default("uploading"),
+  tenantId: integer("tenant_id").references(() => tenants.id, { onDelete: "cascade" }),
   createdAt: timestamp("created_at").defaultNow(),
 });
 
@@ -156,18 +174,29 @@ export const messages = pgTable("messages", {
 
 // === RELATIONS ===
 
-export const templatesRelations = relations(templates, ({ one }) => ({
-  creator: one(users, { fields: [templates.createdBy], references: [users.id] }),
+export const tenantsRelations = relations(tenants, ({ many }) => ({
+  users: many(users),
+  clients: many(clients),
+  meetings: many(meetings),
+  templates: many(templates),
+  roles: many(roles),
 }));
 
-export const usersRelations = relations(users, ({ many }) => ({
+export const templatesRelations = relations(templates, ({ one }) => ({
+  creator: one(users, { fields: [templates.createdBy], references: [users.id] }),
+  tenant: one(tenants, { fields: [templates.tenantId], references: [tenants.id] }),
+}));
+
+export const usersRelations = relations(users, ({ one, many }) => ({
   meetings: many(meetings),
   clients: many(clients),
   templates: many(templates),
+  tenant: one(tenants, { fields: [users.tenantId], references: [tenants.id] }),
 }));
 
 export const clientsRelations = relations(clients, ({ one, many }) => ({
   user: one(users, { fields: [clients.userId], references: [users.id] }),
+  tenant: one(tenants, { fields: [clients.tenantId], references: [tenants.id] }),
   meetings: many(meetings),
   policies: many(policies),
 }));
@@ -192,6 +221,7 @@ export const meetingsRelations = relations(meetings, ({ one, many }) => ({
     fields: [meetings.templateId],
     references: [templates.id],
   }),
+  tenant: one(tenants, { fields: [meetings.tenantId], references: [tenants.id] }),
   transcript: one(transcripts, {
     fields: [meetings.id],
     references: [transcripts.meetingId],
@@ -234,6 +264,8 @@ export const meetingSummariesRelations = relations(meetingSummaries, ({ one }) =
 
 // === BASE SCHEMAS ===
 
+export const insertTenantSchema = createInsertSchema(tenants).omit({ id: true, createdAt: true });
+
 export const insertUserSchema = createInsertSchema(users).omit({
   id: true, createdAt: true, isVerified: true, verificationToken: true,
   verificationTokenExpiry: true, trialEndsAt: true, subscriptionStatus: true,
@@ -274,6 +306,9 @@ export const insertMessageSchema = createInsertSchema(messages).omit({
 });
 
 // === EXPLICIT API CONTRACT TYPES ===
+
+export type Tenant = typeof tenants.$inferSelect;
+export type InsertTenant = z.infer<typeof insertTenantSchema>;
 
 export type User = typeof users.$inferSelect;
 export type InsertUser = z.infer<typeof insertUserSchema>;

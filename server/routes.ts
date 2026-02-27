@@ -108,7 +108,8 @@ import { getUncachableStripeClient } from "./stripeClient";
 import { sendPasswordResetEmail, sendVerificationEmail, sendMeetingCompletedEmail } from "./email";
 import { requireAuth, requireAdmin, requireVerified, requireSubscription, requireSuperuser, sanitizeUser, getEffectiveSubscriptionStatus, hasFullAccess, SUPERUSER_EMAIL, SUPERUSER_PASSWORD } from "./auth";
 import { passwordSchema } from "@shared/passwordValidation";
-import type { User } from "@shared/schema";
+import type { User, Tenant } from "@shared/schema";
+import { resolveTenant, invalidateTenantCache } from "./tenant";
 
 const upload = multer({ dest: "uploads/", limits: { fileSize: 200 * 1024 * 1024 } });
 
@@ -150,6 +151,8 @@ export async function registerRoutes(
       sameSite: "lax",
     },
   }));
+
+  app.use(resolveTenant);
 
   app.use("/uploads", express.static(path.resolve("uploads")));
 
@@ -194,7 +197,8 @@ export async function registerRoutes(
 
       const password = passwordSchema.parse(req.body.password);
 
-      const existing = await storage.getUserByEmail(email);
+      const tenantId = req.tenant?.id;
+      const existing = await storage.getUserByEmail(email, tenantId);
       if (existing) {
         return res.status(400).json({ message: "An account with this email already exists" });
       }
@@ -206,6 +210,7 @@ export async function registerRoutes(
         passwordHash,
         firstName,
         lastName,
+        tenantId: tenantId ?? null,
       });
 
       const verificationToken = crypto.randomBytes(32).toString("hex");
@@ -213,7 +218,7 @@ export async function registerRoutes(
       await storage.setVerificationToken(user.id, verificationToken, expiry);
 
       try {
-        await sendVerificationEmail(user.email, user.firstName, verificationToken);
+        await sendVerificationEmail(user.email, user.firstName, verificationToken, req.tenant?.name);
       } catch (emailErr) {
         console.error("Failed to send verification email:", emailErr);
       }
@@ -245,6 +250,7 @@ export async function registerRoutes(
             passwordHash: hash,
             firstName: "Super",
             lastName: "Admin",
+            tenantId: req.tenant?.id ?? null,
           });
           await storage.makeSuperuser(superuser.id);
           superuser = await storage.getUserById(superuser.id);
@@ -253,7 +259,7 @@ export async function registerRoutes(
         return res.json({ user: sanitizeUser(superuser!) });
       }
 
-      const user = await storage.getUserByEmail(email);
+      const user = await storage.getUserByEmail(email, req.tenant?.id);
       if (!user) {
         return res.status(401).json({ message: "Invalid email or password" });
       }
@@ -330,7 +336,7 @@ export async function registerRoutes(
       await storage.setVerificationToken(user.id, verificationToken, expiry);
 
       try {
-        await sendVerificationEmail(user.email, user.firstName, verificationToken);
+        await sendVerificationEmail(user.email, user.firstName, verificationToken, req.tenant?.name);
       } catch (emailErr) {
         console.error("Failed to resend verification email:", emailErr);
         return res.status(500).json({ message: "Failed to send verification email. Please try again later." });
@@ -391,7 +397,7 @@ export async function registerRoutes(
       await storage.setResetToken(user.id, resetToken, expiry);
 
       try {
-        await sendPasswordResetEmail(user.email, user.firstName, resetToken);
+        await sendPasswordResetEmail(user.email, user.firstName, resetToken, req.tenant?.name);
       } catch (emailErr) {
         console.error("Failed to send reset email:", emailErr);
         return res.status(500).json({ message: "Failed to send reset email. Please try again later." });
@@ -761,6 +767,96 @@ export async function registerRoutes(
     }
   });
 
+  // ========== TENANT BRANDING (PUBLIC) ==========
+
+  app.get("/api/tenant/branding", async (req, res) => {
+    const tenant = req.tenant;
+    if (!tenant) {
+      return res.json({ name: "ScribeAI", tagline: "Session transcription & analysis", logoUrl: null, primaryColor: null, accentColor: null });
+    }
+    res.json({
+      name: tenant.name,
+      tagline: tenant.tagline || "Session transcription & analysis",
+      logoUrl: tenant.logoUrl,
+      primaryColor: tenant.primaryColor,
+      accentColor: tenant.accentColor,
+    });
+  });
+
+  // ========== TENANT MANAGEMENT (SUPERUSER) ==========
+
+  app.get("/api/tenants", requireAuth, requireVerified, requireSuperuser, async (_req, res) => {
+    const tenantList = await storage.getTenants();
+    res.json(tenantList);
+  });
+
+  app.post("/api/tenants", requireAuth, requireVerified, requireSuperuser, async (req, res) => {
+    try {
+      const input = z.object({
+        name: z.string().min(1),
+        slug: z.string().min(1).regex(/^[a-z0-9-]+$/, "Slug must be lowercase letters, numbers, and hyphens only"),
+        domain: z.string().nullable().optional(),
+        logoUrl: z.string().nullable().optional(),
+        primaryColor: z.string().nullable().optional(),
+        accentColor: z.string().nullable().optional(),
+        tagline: z.string().nullable().optional(),
+        isActive: z.boolean().optional(),
+      }).parse(req.body);
+      const tenant = await storage.createTenant({
+        ...input,
+        domain: input.domain || null,
+        logoUrl: input.logoUrl || null,
+        primaryColor: input.primaryColor || null,
+        accentColor: input.accentColor || null,
+        tagline: input.tagline || null,
+        isActive: input.isActive ?? true,
+      });
+      invalidateTenantCache();
+      res.status(201).json(tenant);
+    } catch (err) {
+      if (err instanceof z.ZodError) return res.status(400).json({ message: err.errors[0].message });
+      if ((err as any)?.code === "23505") return res.status(400).json({ message: "A tenant with that slug or domain already exists" });
+      throw err;
+    }
+  });
+
+  app.patch("/api/tenants/:id", requireAuth, requireVerified, requireSuperuser, async (req, res) => {
+    const id = Number(req.params.id);
+    const existing = await storage.getTenant(id);
+    if (!existing) return res.status(404).json({ message: "Tenant not found" });
+    try {
+      const data = z.object({
+        name: z.string().min(1).optional(),
+        slug: z.string().min(1).regex(/^[a-z0-9-]+$/).optional(),
+        domain: z.string().nullable().optional(),
+        logoUrl: z.string().nullable().optional(),
+        primaryColor: z.string().nullable().optional(),
+        accentColor: z.string().nullable().optional(),
+        tagline: z.string().nullable().optional(),
+        isActive: z.boolean().optional(),
+      }).parse(req.body);
+      const updated = await storage.updateTenant(id, data);
+      invalidateTenantCache();
+      res.json(updated);
+    } catch (err) {
+      if (err instanceof z.ZodError) return res.status(400).json({ message: err.errors[0].message });
+      if ((err as any)?.code === "23505") return res.status(400).json({ message: "A tenant with that slug or domain already exists" });
+      throw err;
+    }
+  });
+
+  app.delete("/api/tenants/:id", requireAuth, requireVerified, requireSuperuser, async (req, res) => {
+    const id = Number(req.params.id);
+    const existing = await storage.getTenant(id);
+    if (!existing) return res.status(404).json({ message: "Tenant not found" });
+    if (existing.slug === "default") return res.status(400).json({ message: "Cannot deactivate the default tenant" });
+    await storage.updateTenant(id, { isActive: false });
+    invalidateTenantCache();
+    res.json({ message: "Tenant deactivated" });
+  });
+
+  // ========== SUPERUSER USER ROUTES ==========
+
   app.get("/api/superuser/users", requireAuth, requireVerified, requireSuperuser, async (req, res) => {
     const allUsers = await storage.getAllUsers();
     const safeUsers = allUsers.map(u => {
@@ -883,7 +979,7 @@ export async function registerRoutes(
       }).parse(req.body);
       const user = (req as any).user as User;
       const template = await storage.createTemplate({
-        name, description: description || null, formatPrompt, isDefault: isDefault || false, createdBy: user.id,
+        name, description: description || null, formatPrompt, isDefault: isDefault || false, createdBy: user.id, tenantId: req.tenant?.id ?? null,
       });
       res.status(201).json(template);
     } catch (err) {
@@ -931,7 +1027,7 @@ export async function registerRoutes(
       const { name } = z.object({
         name: z.string().min(1, "Role name is required"),
       }).parse(req.body);
-      const role = await storage.createRole({ name });
+      const role = await storage.createRole({ name, tenantId: req.tenant?.id ?? null });
       res.status(201).json(role);
     } catch (err) {
       if (err instanceof z.ZodError) return res.status(400).json({ message: err.errors[0].message });
@@ -968,7 +1064,7 @@ export async function registerRoutes(
   // ========== ROLES (PUBLIC) ==========
 
   app.get("/api/roles", requireAuth, requireVerified, async (req, res) => {
-    const roleList = await storage.getRoles();
+    const roleList = await storage.getRoles(req.tenant?.id);
     res.json(roleList);
   });
 
@@ -992,7 +1088,7 @@ export async function registerRoutes(
   // ========== TEMPLATE ROUTES ==========
 
   app.get("/api/templates", requireAuth, requireVerified, async (req, res) => {
-    const templateList = await storage.getTemplates();
+    const templateList = await storage.getTemplates(req.tenant?.id);
     res.json(templateList);
   });
 
@@ -1021,6 +1117,7 @@ export async function registerRoutes(
         formatPrompt,
         isDefault: isDefault || false,
         createdBy: user.id,
+        tenantId: req.tenant?.id ?? null,
       });
       res.status(201).json(template);
     } catch (err) {
@@ -1144,7 +1241,7 @@ export async function registerRoutes(
     try {
       const user = (req as any).user as User;
       const input = api.clients.create.input.parse(req.body);
-      const client = await storage.createClient({ ...input, userId: user.id });
+      const client = await storage.createClient({ ...input, userId: user.id, tenantId: req.tenant?.id ?? null });
       res.status(201).json(client);
     } catch (err) {
       if (err instanceof z.ZodError) {
@@ -1369,7 +1466,7 @@ export async function registerRoutes(
         const role = await storage.getRole(user.roleId);
         if (role) userRole = role.name;
       }
-      const meeting = await storage.createMeeting({ ...input, userId: user.id, userRole });
+      const meeting = await storage.createMeeting({ ...input, userId: user.id, userRole, tenantId: req.tenant?.id ?? null });
       res.status(201).json(meeting);
     } catch (err) {
       if (err instanceof z.ZodError) {

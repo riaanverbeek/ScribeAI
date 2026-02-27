@@ -8,6 +8,7 @@ import { Label } from "@/components/ui/label";
 import { useToast } from "@/hooks/use-toast";
 import { LogIn, Mail, Lock } from "lucide-react";
 import { queryClient } from "@/lib/queryClient";
+import { useTenant } from "@/contexts/TenantContext";
 
 export default function Login() {
   const [email, setEmail] = useState("");
@@ -15,6 +16,7 @@ export default function Login() {
   const [, setLocation] = useLocation();
   const login = useLogin();
   const { toast } = useToast();
+  const { branding } = useTenant();
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -37,10 +39,13 @@ export default function Login() {
     <div className="min-h-screen bg-background flex items-center justify-center p-4">
       <div className="w-full max-w-md">
         <div className="text-center mb-8">
+          {branding.logoUrl && (
+            <img src={branding.logoUrl} alt={branding.name} className="h-12 mx-auto mb-2" data-testid="img-tenant-logo" />
+          )}
           <h1 className="text-3xl font-bold" style={{ fontFamily: "var(--font-display)" }} data-testid="text-login-title">
-            ScribeAI
+            {branding.name}
           </h1>
-          <p className="text-muted-foreground mt-2">Session transcription & analysis</p>
+          <p className="text-muted-foreground mt-2" data-testid="text-login-tagline">{branding.tagline}</p>
         </div>
 
         <Card>

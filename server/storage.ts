@@ -1,15 +1,23 @@
 import { db } from "./db";
 import { 
-    users, clients, meetings, transcripts, actionItems, topics, meetingSummaries, templates, roles, policies, meetingPolicies,
-    type InsertUser, type InsertClient, type InsertMeeting, type InsertTranscript, type InsertActionItem, type InsertTopic, type InsertMeetingSummary, type InsertTemplate, type InsertRole, type InsertPolicy, type InsertMeetingPolicy,
-    type User, type Client, type Meeting, type Transcript, type ActionItem, type Topic, type MeetingSummary, type Template, type Role, type Policy, type MeetingPolicy
+    users, clients, meetings, transcripts, actionItems, topics, meetingSummaries, templates, roles, policies, meetingPolicies, tenants,
+    type InsertUser, type InsertClient, type InsertMeeting, type InsertTranscript, type InsertActionItem, type InsertTopic, type InsertMeetingSummary, type InsertTemplate, type InsertRole, type InsertPolicy, type InsertMeetingPolicy, type InsertTenant,
+    type User, type Client, type Meeting, type Transcript, type ActionItem, type Topic, type MeetingSummary, type Template, type Role, type Policy, type MeetingPolicy, type Tenant
 } from "@shared/schema";
 import { eq, and, desc, lt, ne } from "drizzle-orm";
 
 export interface IStorage {
+    // Tenants
+    getTenants(): Promise<Tenant[]>;
+    getTenant(id: number): Promise<Tenant | undefined>;
+    getTenantByDomain(domain: string): Promise<Tenant | undefined>;
+    getTenantBySlug(slug: string): Promise<Tenant | undefined>;
+    createTenant(tenant: InsertTenant): Promise<Tenant>;
+    updateTenant(id: number, data: Partial<Pick<Tenant, "name" | "slug" | "domain" | "logoUrl" | "primaryColor" | "accentColor" | "tagline" | "isActive">>): Promise<Tenant>;
+
     // Users
     getUserById(id: number): Promise<User | undefined>;
-    getUserByEmail(email: string): Promise<User | undefined>;
+    getUserByEmail(email: string, tenantId?: number): Promise<User | undefined>;
     getUserByVerificationToken(token: string): Promise<User | undefined>;
     getUserByResetToken(token: string): Promise<User | undefined>;
     createUser(user: InsertUser): Promise<User>;
@@ -20,15 +28,15 @@ export interface IStorage {
     clearResetToken(id: number): Promise<void>;
     updateUserSubscription(id: number, data: Partial<Pick<User, "subscriptionStatus" | "payfastToken" | "payfastSubscriptionId" | "stripeCustomerId" | "stripeSubscriptionId" | "subscriptionCurrentPeriodEnd" | "cancelledAt" | "trialEndsAt">>): Promise<User>;
     makeSuperuser(id: number): Promise<void>;
-    getAllUsers(): Promise<User[]>;
+    getAllUsers(tenantId?: number): Promise<User[]>;
     updateUser(id: number, data: Partial<Pick<User, "firstName" | "lastName" | "email" | "isAdmin" | "isSuperuser" | "isVerified" | "subscriptionStatus">>): Promise<User>;
     deleteUser(id: number): Promise<void>;
-    getAllClients(): Promise<Client[]>;
-    getAllMeetings(): Promise<Meeting[]>;
+    getAllClients(tenantId?: number): Promise<Client[]>;
+    getAllMeetings(tenantId?: number): Promise<Meeting[]>;
     updateClient(id: number, data: Partial<Pick<Client, "name" | "email" | "company">>): Promise<Client>;
 
     // Roles
-    getRoles(): Promise<Role[]>;
+    getRoles(tenantId?: number): Promise<Role[]>;
     getRole(id: number): Promise<Role | undefined>;
     createRole(role: InsertRole): Promise<Role>;
     updateRole(id: number, data: { name: string }): Promise<Role>;
@@ -36,7 +44,7 @@ export interface IStorage {
     updateUserRole(userId: number, roleId: number | null, customRole: string | null): Promise<User>;
 
     // Templates
-    getTemplates(): Promise<Template[]>;
+    getTemplates(tenantId?: number): Promise<Template[]>;
     getTemplate(id: number): Promise<Template | undefined>;
     createTemplate(template: InsertTemplate): Promise<Template>;
     updateTemplate(id: number, data: Partial<Pick<Template, "name" | "description" | "formatPrompt" | "isDefault">>): Promise<Template>;
@@ -101,14 +109,48 @@ export interface IStorage {
 }
 
 export class DatabaseStorage implements IStorage {
+    // Tenants
+    async getTenants(): Promise<Tenant[]> {
+        return await db.select().from(tenants).orderBy(tenants.name);
+    }
+
+    async getTenant(id: number): Promise<Tenant | undefined> {
+        const [tenant] = await db.select().from(tenants).where(eq(tenants.id, id));
+        return tenant;
+    }
+
+    async getTenantByDomain(domain: string): Promise<Tenant | undefined> {
+        const [tenant] = await db.select().from(tenants).where(eq(tenants.domain, domain));
+        return tenant;
+    }
+
+    async getTenantBySlug(slug: string): Promise<Tenant | undefined> {
+        const [tenant] = await db.select().from(tenants).where(eq(tenants.slug, slug));
+        return tenant;
+    }
+
+    async createTenant(insertTenant: InsertTenant): Promise<Tenant> {
+        const [tenant] = await db.insert(tenants).values(insertTenant).returning();
+        return tenant;
+    }
+
+    async updateTenant(id: number, data: Partial<Pick<Tenant, "name" | "slug" | "domain" | "logoUrl" | "primaryColor" | "accentColor" | "tagline" | "isActive">>): Promise<Tenant> {
+        const [tenant] = await db.update(tenants).set(data).where(eq(tenants.id, id)).returning();
+        return tenant;
+    }
+
     // Users
     async getUserById(id: number): Promise<User | undefined> {
         const [user] = await db.select().from(users).where(eq(users.id, id));
         return user;
     }
 
-    async getUserByEmail(email: string): Promise<User | undefined> {
-        const [user] = await db.select().from(users).where(eq(users.email, email.toLowerCase()));
+    async getUserByEmail(email: string, tenantId?: number): Promise<User | undefined> {
+        const conditions = [eq(users.email, email.toLowerCase())];
+        if (tenantId) {
+            conditions.push(eq(users.tenantId, tenantId));
+        }
+        const [user] = await db.select().from(users).where(and(...conditions));
         return user;
     }
 
@@ -168,7 +210,10 @@ export class DatabaseStorage implements IStorage {
         await db.update(users).set({ isSuperuser: true, isAdmin: true, isVerified: true, subscriptionStatus: "active" }).where(eq(users.id, id));
     }
 
-    async getAllUsers(): Promise<User[]> {
+    async getAllUsers(tenantId?: number): Promise<User[]> {
+        if (tenantId) {
+            return await db.select().from(users).where(eq(users.tenantId, tenantId)).orderBy(desc(users.createdAt));
+        }
         return await db.select().from(users).orderBy(desc(users.createdAt));
     }
 
@@ -181,11 +226,17 @@ export class DatabaseStorage implements IStorage {
         await db.delete(users).where(eq(users.id, id));
     }
 
-    async getAllClients(): Promise<Client[]> {
+    async getAllClients(tenantId?: number): Promise<Client[]> {
+        if (tenantId) {
+            return await db.select().from(clients).where(eq(clients.tenantId, tenantId)).orderBy(clients.name);
+        }
         return await db.select().from(clients).orderBy(clients.name);
     }
 
-    async getAllMeetings(): Promise<Meeting[]> {
+    async getAllMeetings(tenantId?: number): Promise<Meeting[]> {
+        if (tenantId) {
+            return await db.select().from(meetings).where(eq(meetings.tenantId, tenantId)).orderBy(desc(meetings.createdAt));
+        }
         return await db.select().from(meetings).orderBy(desc(meetings.createdAt));
     }
 
@@ -195,7 +246,10 @@ export class DatabaseStorage implements IStorage {
     }
 
     // Roles
-    async getRoles(): Promise<Role[]> {
+    async getRoles(tenantId?: number): Promise<Role[]> {
+        if (tenantId) {
+            return await db.select().from(roles).where(eq(roles.tenantId, tenantId)).orderBy(roles.name);
+        }
         return await db.select().from(roles).orderBy(roles.name);
     }
 
@@ -225,7 +279,10 @@ export class DatabaseStorage implements IStorage {
     }
 
     // Templates
-    async getTemplates(): Promise<Template[]> {
+    async getTemplates(tenantId?: number): Promise<Template[]> {
+        if (tenantId) {
+            return await db.select().from(templates).where(eq(templates.tenantId, tenantId)).orderBy(desc(templates.createdAt));
+        }
         return await db.select().from(templates).orderBy(desc(templates.createdAt));
     }
 

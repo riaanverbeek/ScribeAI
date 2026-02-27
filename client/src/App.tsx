@@ -6,6 +6,7 @@ import { TooltipProvider } from "@/components/ui/tooltip";
 import { Layout } from "@/components/Layout";
 import { useAuth } from "@/hooks/use-auth";
 import { Loader2 } from "lucide-react";
+import { TenantProvider } from "@/contexts/TenantContext";
 import NotFound from "@/pages/not-found";
 import Dashboard from "@/pages/Dashboard";
 import NewMeeting from "@/pages/NewMeeting";
@@ -171,8 +172,10 @@ function App() {
   return (
     <QueryClientProvider client={queryClient}>
       <TooltipProvider>
-        <Toaster />
-        <Router />
+        <TenantProvider>
+          <Toaster />
+          <Router />
+        </TenantProvider>
       </TooltipProvider>
     </QueryClientProvider>
   );

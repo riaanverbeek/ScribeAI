@@ -52,6 +52,9 @@ export async function requireAuth(req: Request, res: Response, next: NextFunctio
     req.session.destroy(() => {});
     return res.status(401).json({ message: "User not found" });
   }
+  if (req.tenant && user.tenantId && user.tenantId !== req.tenant.id && !user.isSuperuser) {
+    return res.status(403).json({ message: "Access denied for this organization" });
+  }
   (req as any).user = user;
   next();
 }
