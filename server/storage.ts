@@ -4,7 +4,7 @@ import {
     type InsertUser, type InsertClient, type InsertMeeting, type InsertTranscript, type InsertActionItem, type InsertTopic, type InsertMeetingSummary, type InsertTemplate, type InsertRole, type InsertPolicy, type InsertMeetingPolicy, type InsertTenant,
     type User, type Client, type Meeting, type Transcript, type ActionItem, type Topic, type MeetingSummary, type Template, type Role, type Policy, type MeetingPolicy, type Tenant
 } from "@shared/schema";
-import { eq, and, desc, lt, ne } from "drizzle-orm";
+import { eq, and, desc, lt, ne, or, isNull, sql } from "drizzle-orm";
 
 export interface IStorage {
     // Tenants
@@ -148,7 +148,7 @@ export class DatabaseStorage implements IStorage {
     async getUserByEmail(email: string, tenantId?: number): Promise<User | undefined> {
         const conditions = [eq(users.email, email.toLowerCase())];
         if (tenantId) {
-            conditions.push(eq(users.tenantId, tenantId));
+            conditions.push(or(eq(users.tenantId, tenantId), isNull(users.tenantId))!);
         }
         const [user] = await db.select().from(users).where(and(...conditions));
         return user;
@@ -212,7 +212,7 @@ export class DatabaseStorage implements IStorage {
 
     async getAllUsers(tenantId?: number): Promise<User[]> {
         if (tenantId) {
-            return await db.select().from(users).where(eq(users.tenantId, tenantId)).orderBy(desc(users.createdAt));
+            return await db.select().from(users).where(or(eq(users.tenantId, tenantId), isNull(users.tenantId))).orderBy(desc(users.createdAt));
         }
         return await db.select().from(users).orderBy(desc(users.createdAt));
     }
@@ -228,14 +228,14 @@ export class DatabaseStorage implements IStorage {
 
     async getAllClients(tenantId?: number): Promise<Client[]> {
         if (tenantId) {
-            return await db.select().from(clients).where(eq(clients.tenantId, tenantId)).orderBy(clients.name);
+            return await db.select().from(clients).where(or(eq(clients.tenantId, tenantId), isNull(clients.tenantId))).orderBy(clients.name);
         }
         return await db.select().from(clients).orderBy(clients.name);
     }
 
     async getAllMeetings(tenantId?: number): Promise<Meeting[]> {
         if (tenantId) {
-            return await db.select().from(meetings).where(eq(meetings.tenantId, tenantId)).orderBy(desc(meetings.createdAt));
+            return await db.select().from(meetings).where(or(eq(meetings.tenantId, tenantId), isNull(meetings.tenantId))).orderBy(desc(meetings.createdAt));
         }
         return await db.select().from(meetings).orderBy(desc(meetings.createdAt));
     }
@@ -248,7 +248,7 @@ export class DatabaseStorage implements IStorage {
     // Roles
     async getRoles(tenantId?: number): Promise<Role[]> {
         if (tenantId) {
-            return await db.select().from(roles).where(eq(roles.tenantId, tenantId)).orderBy(roles.name);
+            return await db.select().from(roles).where(or(eq(roles.tenantId, tenantId), isNull(roles.tenantId))).orderBy(roles.name);
         }
         return await db.select().from(roles).orderBy(roles.name);
     }
@@ -281,7 +281,7 @@ export class DatabaseStorage implements IStorage {
     // Templates
     async getTemplates(tenantId?: number): Promise<Template[]> {
         if (tenantId) {
-            return await db.select().from(templates).where(eq(templates.tenantId, tenantId)).orderBy(desc(templates.createdAt));
+            return await db.select().from(templates).where(or(eq(templates.tenantId, tenantId), isNull(templates.tenantId))).orderBy(desc(templates.createdAt));
         }
         return await db.select().from(templates).orderBy(desc(templates.createdAt));
     }
