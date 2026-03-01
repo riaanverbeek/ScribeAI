@@ -15,11 +15,50 @@ export function AudioPlayer({ url }: AudioPlayerProps) {
   const [currentTime, setCurrentTime] = useState(0);
   const [isLoading, setIsLoading] = useState(true);
   const [wsError, setWsError] = useState(false);
+  const [audioSrc, setAudioSrc] = useState<string | null>(null);
+  const [resolveError, setResolveError] = useState(false);
 
   const resolvedUrl = url.startsWith("http") || url.startsWith("/") ? url : `/${url}`;
 
   useEffect(() => {
-    if (!containerRef.current) return;
+    let cancelled = false;
+
+    async function resolveAudioUrl() {
+      try {
+        const resp = await fetch(resolvedUrl, {
+          credentials: "include",
+          headers: { "Accept": "application/json" },
+        });
+        if (!resp.ok) {
+          setResolveError(true);
+          setIsLoading(false);
+          return;
+        }
+        const contentType = resp.headers.get("content-type") || "";
+        if (contentType.includes("application/json")) {
+          const data = await resp.json();
+          if (!cancelled && data.url) {
+            setAudioSrc(data.url);
+          }
+        } else {
+          if (!cancelled) {
+            setAudioSrc(resolvedUrl);
+          }
+        }
+      } catch {
+        if (!cancelled) {
+          setResolveError(true);
+          setIsLoading(false);
+        }
+      }
+    }
+
+    resolveAudioUrl();
+    return () => { cancelled = true; };
+  }, [resolvedUrl]);
+
+  useEffect(() => {
+    if (!containerRef.current || !audioSrc) return;
 
     setIsLoading(true);
     setWsError(false);
@@ -34,10 +73,7 @@ export function AudioPlayer({ url }: AudioPlayerProps) {
       barRadius: 3,
       height: 64,
       normalize: true,
-      url: resolvedUrl,
-      fetchParams: {
-        credentials: "include",
-      },
+      url: audioSrc,
     });
 
     wavesurfer.current.on("play", () => setIsPlaying(true));
@@ -55,7 +91,7 @@ export function AudioPlayer({ url }: AudioPlayerProps) {
     return () => {
       wavesurfer.current?.destroy();
     };
-  }, [resolvedUrl]);
+  }, [audioSrc]);
 
   const togglePlay = useCallback(() => {
     wavesurfer.current?.playPause();
@@ -75,6 +111,28 @@ export function AudioPlayer({ url }: AudioPlayerProps) {
     return `${mins}:${secs.toString().padStart(2, "0")}`;
   };
 
+  if (resolveError) {
+    return (
+      <div className="bg-white dark:bg-card rounded-2xl border border-slate-200 dark:border-border p-4 shadow-sm">
+        <div className="flex items-center gap-3 text-red-500">
+          <AlertCircle className="w-5 h-5 shrink-0" />
+          <p className="text-sm font-medium">Unable to load audio</p>
+        </div>
+      </div>
+    );
+  }
+
+  if (!audioSrc) {
+    return (
+      <div className="bg-white dark:bg-card rounded-2xl border border-slate-200 dark:border-border p-4 shadow-sm">
+        <div className="flex items-center gap-2 text-sm text-muted-foreground">
+          <Loader2 className="w-4 h-4 animate-spin" />
+          Loading audio...
+        </div>
+      </div>
+    );
+  }
+
   if (wsError) {
     return (
       <div className="bg-white dark:bg-card rounded-2xl border border-slate-200 dark:border-border p-4 shadow-sm">
@@ -84,7 +142,7 @@ export function AudioPlayer({ url }: AudioPlayerProps) {
         </div>
         <audio
           controls
-          src={resolvedUrl}
+          src={audioSrc}
           preload="metadata"
           className="w-full"
           data-testid="audio-fallback-player"

@@ -171,7 +171,7 @@ export async function registerRoutes(
       }
       if (meeting.audioUrl.startsWith("/objects/")) {
         const signedUrl = await objectStorageService.getSignedDownloadUrl(meeting.audioUrl, 3600);
-        return res.redirect(signedUrl);
+        return res.json({ url: signedUrl });
       } else {
         const filePath = path.resolve(meeting.audioUrl);
         if (!fs.existsSync(filePath)) {
