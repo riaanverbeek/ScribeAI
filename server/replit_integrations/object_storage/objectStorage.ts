@@ -100,7 +100,15 @@ export class ObjectStorageService {
       const [metadata] = await file.getMetadata();
       const aclPolicy = await getObjectAclPolicy(file);
       const isPublic = aclPolicy?.visibility === "public";
-      const contentType = metadata.contentType || "application/octet-stream";
+      let contentType = metadata.contentType || "application/octet-stream";
+      const fileName = file.name || "";
+      if (fileName.endsWith(".wav") && contentType === "application/octet-stream") {
+        contentType = "audio/wav";
+      } else if (fileName.endsWith(".mp3") && contentType === "application/octet-stream") {
+        contentType = "audio/mpeg";
+      } else if ((fileName.endsWith(".m4a") || fileName.endsWith(".mp4")) && contentType === "application/octet-stream") {
+        contentType = "audio/mp4";
+      }
       const fileSize = Number(metadata.size);
       const cacheControl = `${isPublic ? "public" : "private"}, max-age=${cacheTtlSec}`;
 
@@ -175,6 +183,26 @@ export class ObjectStorageService {
       method: "PUT",
       ttlSec: 900,
     });
+  }
+
+  async getSignedDownloadUrl(objectPath: string, ttlSec: number = 3600): Promise<string> {
+    if (!objectPath.startsWith("/objects/")) {
+      throw new ObjectNotFoundError();
+    }
+
+    const parts = objectPath.slice(1).split("/");
+    if (parts.length < 2) {
+      throw new ObjectNotFoundError();
+    }
+
+    const entityId = parts.slice(1).join("/");
+    let entityDir = this.getPrivateObjectDir();
+    if (!entityDir) {
+      throw new Error("PRIVATE_OBJECT_DIR not set.");
+    }
+
+    const { bucketName, objectName } = parseObjectPath(`${entityDir}/${entityId}`);
+    return signObjectURL({ bucketName, objectName, method: "GET", ttlSec });
   }
 
   // Gets the object entity file from the object path.

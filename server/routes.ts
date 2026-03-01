@@ -170,7 +170,8 @@ export async function registerRoutes(
         return res.status(404).json({ message: "No audio available" });
       }
       if (meeting.audioUrl.startsWith("/objects/")) {
-        await streamObjectToResponse(meeting.audioUrl, res, req);
+        const signedUrl = await objectStorageService.getSignedDownloadUrl(meeting.audioUrl, 3600);
+        return res.redirect(signedUrl);
       } else {
         const filePath = path.resolve(meeting.audioUrl);
         if (!fs.existsSync(filePath)) {
