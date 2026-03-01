@@ -917,7 +917,7 @@ export default function MeetingDetail() {
 
             {meeting.audioUrl && (
               <motion.section {...fadeIn} className="mb-8">
-                 <AudioPlayer url={meeting.audioUrl.startsWith("/objects/") ? meeting.audioUrl : `/api/audio/${meeting.id}`} />
+                 <AudioPlayer url={`/api/audio/${meeting.id}`} />
               </motion.section>
             )}
 

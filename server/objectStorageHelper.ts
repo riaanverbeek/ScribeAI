@@ -31,9 +31,9 @@ export async function downloadBufferFromObjectStorage(objectPath: string): Promi
   return contents;
 }
 
-export async function streamObjectToResponse(objectPath: string, res: any): Promise<void> {
+export async function streamObjectToResponse(objectPath: string, res: any, req?: any): Promise<void> {
   const file = await objectStorageService.getObjectEntityFile(objectPath);
-  await objectStorageService.downloadObject(file, res);
+  await objectStorageService.downloadObject(file, res, 3600, req);
 }
 
 export { objectStorageService };

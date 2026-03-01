@@ -163,20 +163,43 @@ export async function registerRoutes(
       const meetingId = Number(req.params.meetingId);
       const user = (req as any).user as User;
       const meeting = await storage.getMeeting(meetingId);
-      if (!meeting || meeting.userId !== user.id) {
+      if (!meeting || (meeting.userId !== user.id && !user.isSuperuser)) {
         return res.status(404).json({ message: "Session not found" });
       }
       if (!meeting.audioUrl) {
         return res.status(404).json({ message: "No audio available" });
       }
       if (meeting.audioUrl.startsWith("/objects/")) {
-        await streamObjectToResponse(meeting.audioUrl, res);
+        await streamObjectToResponse(meeting.audioUrl, res, req);
       } else {
         const filePath = path.resolve(meeting.audioUrl);
-        if (fs.existsSync(filePath)) {
-          res.sendFile(filePath);
-        } else {
+        if (!fs.existsSync(filePath)) {
           return res.status(404).json({ message: "Audio file not found on disk" });
+        }
+        const stat = fs.statSync(filePath);
+        const fileSize = stat.size;
+        const range = req.headers.range;
+        if (range) {
+          const parts = range.replace(/bytes=/, "").split("-");
+          const start = parseInt(parts[0], 10);
+          const end = parts[1] ? parseInt(parts[1], 10) : fileSize - 1;
+          const chunkSize = end - start + 1;
+          const fileStream = fs.createReadStream(filePath, { start, end });
+          res.status(206);
+          res.set({
+            "Content-Range": `bytes ${start}-${end}/${fileSize}`,
+            "Accept-Ranges": "bytes",
+            "Content-Length": String(chunkSize),
+            "Content-Type": "audio/wav",
+          });
+          fileStream.pipe(res);
+        } else {
+          res.set({
+            "Content-Length": String(fileSize),
+            "Accept-Ranges": "bytes",
+            "Content-Type": "audio/wav",
+          });
+          fs.createReadStream(filePath).pipe(res);
         }
       }
     } catch (error) {
