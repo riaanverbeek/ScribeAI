@@ -25,6 +25,16 @@ import { useState } from "react";
 import { useCreateClient } from "@/hooks/use-clients";
 import { useToast } from "@/hooks/use-toast";
 import { Loader2 } from "lucide-react";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 
 export default function Clients() {
   const { data: clients, isLoading, isError } = useClients();
@@ -34,6 +44,7 @@ export default function Clients() {
 
   const [dialogOpen, setDialogOpen] = useState(false);
   const [viewMode, setViewMode] = useViewMode("clients-view");
+  const [deleteClientId, setDeleteClientId] = useState<number | null>(null);
   const [newClientName, setNewClientName] = useState("");
   const [newClientEmail, setNewClientEmail] = useState("");
   const [newClientCompany, setNewClientCompany] = useState("");
@@ -195,7 +206,7 @@ export default function Clients() {
                     <DropdownMenuContent align="end" className="w-48 rounded-xl p-1">
                       <DropdownMenuItem 
                         className="text-red-600 focus:text-red-700 focus:bg-red-50 rounded-lg cursor-pointer"
-                        onClick={() => deleteMutation.mutate(client.id)}
+                        onClick={() => setDeleteClientId(client.id)}
                       >
                         <Trash2 className="mr-2 w-4 h-4" />
                         Delete
@@ -299,7 +310,7 @@ export default function Clients() {
                     <DropdownMenuContent align="end" className="w-48 rounded-xl p-1">
                       <DropdownMenuItem
                         className="text-red-600 focus:text-red-700 focus:bg-red-50 rounded-lg cursor-pointer"
-                        onClick={() => deleteMutation.mutate(client.id)}
+                        onClick={() => setDeleteClientId(client.id)}
                       >
                         <Trash2 className="mr-2 w-4 h-4" />
                         Delete
@@ -323,6 +334,31 @@ export default function Clients() {
           </Button>
         </div>
       )}
+
+      <AlertDialog open={deleteClientId !== null} onOpenChange={(open) => { if (!open) setDeleteClientId(null); }}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete Client</AlertDialogTitle>
+            <AlertDialogDescription>
+              Are you sure you want to delete this client? This cannot be undone.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel data-testid="button-cancel-delete-client">Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              data-testid="button-confirm-delete-client"
+              onClick={() => {
+                if (deleteClientId !== null) {
+                  deleteMutation.mutate(deleteClientId);
+                  setDeleteClientId(null);
+                }
+              }}
+            >
+              Delete
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }

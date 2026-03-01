@@ -27,6 +27,16 @@ import {
 } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
 import { useToast } from "@/hooks/use-toast";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 
 export default function Dashboard() {
   const [selectedClientId, setSelectedClientId] = useState<string>("");
@@ -39,6 +49,8 @@ export default function Dashboard() {
   const [syncingId, setSyncingId] = useState<string | null>(null);
   const [syncingAll, setSyncingAll] = useState(false);
   const [viewMode, setViewMode] = useViewMode("dashboard-view");
+  const [deleteMeetingId, setDeleteMeetingId] = useState<number | null>(null);
+  const [deleteOfflineId, setDeleteOfflineId] = useState<string | null>(null);
 
   const handleSyncAll = async () => {
     setSyncingAll(true);
@@ -265,7 +277,7 @@ export default function Dashboard() {
                       )}
                       <DropdownMenuItem
                         className="text-red-600 focus:text-red-700 focus:bg-red-50 rounded-lg cursor-pointer"
-                        onClick={() => handleDeleteOffline(rec.id)}
+                        onClick={() => setDeleteOfflineId(rec.id)}
                       >
                         <Trash2 className="mr-2 w-4 h-4" />
                         Delete
@@ -333,7 +345,7 @@ export default function Dashboard() {
                       <DropdownMenuContent align="end" className="w-48 rounded-xl p-1">
                         <DropdownMenuItem 
                           className="text-red-600 focus:text-red-700 focus:bg-red-50 rounded-lg cursor-pointer"
-                          onClick={() => deleteMutation.mutate(meeting.id)}
+                          onClick={() => setDeleteMeetingId(meeting.id)}
                         >
                           <Trash2 className="mr-2 w-4 h-4" />
                           Delete
@@ -423,7 +435,7 @@ export default function Dashboard() {
                       <DropdownMenuContent align="end" className="w-48 rounded-xl p-1">
                         <DropdownMenuItem
                           className="text-red-600 focus:text-red-700 focus:bg-red-50 rounded-lg cursor-pointer"
-                          onClick={() => deleteMutation.mutate(meeting.id)}
+                          onClick={() => setDeleteMeetingId(meeting.id)}
                         >
                           <Trash2 className="mr-2 w-4 h-4" />
                           Delete
@@ -452,6 +464,56 @@ export default function Dashboard() {
           </Link>
         </div>
       )}
+
+      <AlertDialog open={deleteMeetingId !== null} onOpenChange={(open) => { if (!open) setDeleteMeetingId(null); }}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete Session</AlertDialogTitle>
+            <AlertDialogDescription>
+              Are you sure you want to delete this session? This cannot be undone.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel data-testid="button-cancel-delete-meeting">Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              data-testid="button-confirm-delete-meeting"
+              onClick={() => {
+                if (deleteMeetingId !== null) {
+                  deleteMutation.mutate(deleteMeetingId);
+                  setDeleteMeetingId(null);
+                }
+              }}
+            >
+              Delete
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      <AlertDialog open={deleteOfflineId !== null} onOpenChange={(open) => { if (!open) setDeleteOfflineId(null); }}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete Offline Recording</AlertDialogTitle>
+            <AlertDialogDescription>
+              Are you sure you want to delete this session? This cannot be undone.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel data-testid="button-cancel-delete-offline">Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              data-testid="button-confirm-delete-offline"
+              onClick={() => {
+                if (deleteOfflineId !== null) {
+                  handleDeleteOffline(deleteOfflineId);
+                  setDeleteOfflineId(null);
+                }
+              }}
+            >
+              Delete
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }

@@ -1164,6 +1164,25 @@ export async function registerRoutes(
 
   // ========== MEETING CONTEXT ROUTES ==========
 
+  app.patch("/api/meetings/:id/title", requireAuth, requireVerified, async (req, res) => {
+    const id = Number(req.params.id);
+    const user = (req as any).user as User;
+    const meeting = await storage.getMeeting(id);
+    if (!meeting || meeting.userId !== user.id) {
+      return res.status(404).json({ message: "Session not found" });
+    }
+    try {
+      const { title } = z.object({ title: z.string().min(1).max(200) }).parse(req.body);
+      const updated = await storage.updateMeetingTitle(id, title);
+      res.json(updated);
+    } catch (err) {
+      if (err instanceof z.ZodError) {
+        return res.status(400).json({ message: err.errors[0].message });
+      }
+      throw err;
+    }
+  });
+
   app.patch("/api/meetings/:id/context", requireAuth, requireVerified, async (req, res) => {
     const id = Number(req.params.id);
     const user = (req as any).user as User;

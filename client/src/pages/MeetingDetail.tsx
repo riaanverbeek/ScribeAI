@@ -35,6 +35,16 @@ import {
 } from "@/components/ui/dialog";
 import { useToast } from "@/hooks/use-toast";
 import { motion } from "framer-motion";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 
 function formatSummaryContent(content: string): string {
   if (!content) return "";
@@ -125,6 +135,9 @@ export default function MeetingDetail() {
   const createClientMutation = useCreateClient();
   const { toast } = useToast();
   const { hasFullAccess } = useSubscriptionStatus();
+  const [isEditingTitle, setIsEditingTitle] = useState(false);
+  const [editTitleValue, setEditTitleValue] = useState("");
+  const [titleEditCancelled, setTitleEditCancelled] = useState(false);
   const [isExporting, setIsExporting] = useState(false);
   const [exportDialogOpen, setExportDialogOpen] = useState(false);
   const [exportSections, setExportSections] = useState({
@@ -164,6 +177,7 @@ export default function MeetingDetail() {
   const [showAddTask, setShowAddTask] = useState(false);
   const [newTaskContent, setNewTaskContent] = useState("");
   const [newTaskAssignee, setNewTaskAssignee] = useState("");
+  const [deleteTaskId, setDeleteTaskId] = useState<number | null>(null);
 
   const addTaskMutation = useMutation({
     mutationFn: async ({ meetingId, content, assignee }: { meetingId: number; content: string; assignee?: string }) => {
@@ -194,6 +208,49 @@ export default function MeetingDetail() {
       toast({ title: "Failed to remove task", variant: "destructive" });
     },
   });
+
+  const updateTitleMutation = useMutation({
+    mutationFn: async ({ meetingId, title }: { meetingId: number; title: string }) => {
+      const res = await apiRequest("PATCH", `/api/meetings/${meetingId}/title`, { title });
+      return res.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/meetings/:id", id] });
+      queryClient.invalidateQueries({ queryKey: ["/api/meetings"] });
+      toast({ title: "Title updated" });
+      setIsEditingTitle(false);
+    },
+    onError: () => {
+      toast({ title: "Failed to update title", variant: "destructive" });
+      setIsEditingTitle(false);
+    },
+  });
+
+  const handleSaveTitle = () => {
+    if (titleEditCancelled || updateTitleMutation.isPending) return;
+    if (!id || !editTitleValue.trim()) {
+      setIsEditingTitle(false);
+      setEditTitleValue(meeting?.title || "");
+      return;
+    }
+    if (editTitleValue.trim() === meeting?.title) {
+      setIsEditingTitle(false);
+      return;
+    }
+    updateTitleMutation.mutate({ meetingId: id, title: editTitleValue.trim() });
+  };
+
+  const handleCancelTitleEdit = () => {
+    setTitleEditCancelled(true);
+    setIsEditingTitle(false);
+    setEditTitleValue(meeting?.title || "");
+    setTimeout(() => setTitleEditCancelled(false), 0);
+  };
+
+  const startEditingTitle = () => {
+    setEditTitleValue(meeting?.title || "");
+    setIsEditingTitle(true);
+  };
 
   const getSummaryText = () => {
     if (!meeting?.summary?.content) return "";
@@ -402,8 +459,38 @@ export default function MeetingDetail() {
             <ChevronLeft className="w-5 h-5" />
           </Button>
         </Link>
-        <div className="min-w-0">
-          <h1 className="text-base sm:text-xl font-display font-bold truncate" data-testid="text-meeting-title">{meeting.title}</h1>
+        <div className="min-w-0 flex-1">
+          {isEditingTitle ? (
+            <div className="flex items-center gap-2">
+              <Input
+                autoFocus
+                value={editTitleValue}
+                onChange={(e) => setEditTitleValue(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter") handleSaveTitle();
+                  if (e.key === "Escape") handleCancelTitleEdit();
+                }}
+                onBlur={handleSaveTitle}
+                disabled={updateTitleMutation.isPending}
+                className="text-base sm:text-xl font-display font-bold"
+                data-testid="input-edit-title"
+              />
+              {updateTitleMutation.isPending && <Loader2 className="w-4 h-4 animate-spin shrink-0" />}
+            </div>
+          ) : (
+            <div className="flex items-center gap-2">
+              <h1 className="text-base sm:text-xl font-display font-bold truncate" data-testid="text-meeting-title">{meeting.title}</h1>
+              <Button
+                variant="ghost"
+                size="icon"
+                onClick={startEditingTitle}
+                className="shrink-0"
+                data-testid="button-edit-title"
+              >
+                <Pencil className="w-3.5 h-3.5" />
+              </Button>
+            </div>
+          )}
           <div className="flex items-center gap-2 sm:gap-3 text-xs sm:text-sm text-muted-foreground mt-0.5 flex-wrap">
             <span className="flex items-center gap-1.5">
               <Calendar className="w-3.5 h-3.5 shrink-0" />
@@ -1111,7 +1198,7 @@ export default function MeetingDetail() {
                                    variant="ghost"
                                    size="sm"
                                    className="text-muted-foreground shrink-0"
-                                   onClick={() => deleteTaskMutation.mutate(item.id)}
+                                   onClick={() => setDeleteTaskId(item.id)}
                                    data-testid={`button-delete-task-${item.id}`}
                                  >
                                    <X className="w-4 h-4" />
@@ -1168,6 +1255,31 @@ export default function MeetingDetail() {
             </Tabs>
           </div>
         </ScrollArea>
+
+      <AlertDialog open={deleteTaskId !== null} onOpenChange={(open) => { if (!open) setDeleteTaskId(null); }}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete Task</AlertDialogTitle>
+            <AlertDialogDescription>
+              Are you sure you want to delete this task?
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel data-testid="button-cancel-delete-task">Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              data-testid="button-confirm-delete-task"
+              onClick={() => {
+                if (deleteTaskId !== null) {
+                  deleteTaskMutation.mutate(deleteTaskId);
+                  setDeleteTaskId(null);
+                }
+              }}
+            >
+              Delete
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }

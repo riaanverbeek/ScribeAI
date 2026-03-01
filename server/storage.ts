@@ -65,6 +65,7 @@ export interface IStorage {
     getMeetingsByClient(clientId: number): Promise<Meeting[]>;
     getMeeting(id: number): Promise<Meeting | undefined>;
     createMeeting(meeting: InsertMeeting): Promise<Meeting>;
+    updateMeetingTitle(id: number, title: string): Promise<Meeting>;
     updateMeetingStatus(id: number, status: "uploading" | "processing" | "completed" | "failed"): Promise<Meeting>;
     updateMeetingAudioUrl(id: number, audioUrl: string): Promise<Meeting>;
     updateMeetingClient(id: number, clientId: number | null): Promise<Meeting>;
@@ -357,6 +358,14 @@ export class DatabaseStorage implements IStorage {
 
     async createMeeting(insertMeeting: InsertMeeting): Promise<Meeting> {
         const [meeting] = await db.insert(meetings).values(insertMeeting).returning();
+        return meeting;
+    }
+
+    async updateMeetingTitle(id: number, title: string): Promise<Meeting> {
+        const [meeting] = await db.update(meetings)
+            .set({ title })
+            .where(eq(meetings.id, id))
+            .returning();
         return meeting;
     }
 
