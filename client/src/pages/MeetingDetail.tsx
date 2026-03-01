@@ -918,6 +918,16 @@ export default function MeetingDetail() {
             {meeting.audioUrl && (
               <motion.section {...fadeIn} className="mb-8">
                  <AudioPlayer url={`/api/audio/${meeting.id}`} />
+                 <div className="flex justify-end mt-2">
+                   <a
+                     href={`/api/audio/${meeting.id}/download`}
+                     className="inline-flex items-center gap-2 text-sm text-muted-foreground hover:text-foreground transition-colors"
+                     data-testid="link-download-audio"
+                   >
+                     <Download className="w-4 h-4" />
+                     Download recording
+                   </a>
+                 </div>
               </motion.section>
             )}
 

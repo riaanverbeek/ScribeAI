@@ -209,6 +209,42 @@ export async function registerRoutes(
     }
   });
 
+  app.get("/api/audio/:meetingId/download", requireAuth, async (req, res) => {
+    try {
+      const meetingId = Number(req.params.meetingId);
+      const user = (req as any).user as User;
+      const meeting = await storage.getMeeting(meetingId);
+      if (!meeting || (meeting.userId !== user.id && !user.isSuperuser)) {
+        return res.status(404).json({ message: "Session not found" });
+      }
+      if (!meeting.audioUrl) {
+        return res.status(404).json({ message: "No audio available" });
+      }
+
+      const ext = path.extname(meeting.audioUrl) || ".wav";
+      const safeTitle = (meeting.title || "recording").replace(/[^a-zA-Z0-9_\- ]/g, "").trim() || "recording";
+      const filename = `${safeTitle}${ext}`;
+
+      if (meeting.audioUrl.startsWith("/objects/")) {
+        const signedUrl = await objectStorageService.getSignedDownloadUrl(meeting.audioUrl, 3600);
+        return res.redirect(signedUrl);
+      } else {
+        const filePath = path.resolve(meeting.audioUrl);
+        if (!fs.existsSync(filePath)) {
+          return res.status(404).json({ message: "Audio file not found on disk" });
+        }
+        res.set({
+          "Content-Disposition": `attachment; filename="${filename}"`,
+          "Content-Type": "application/octet-stream",
+        });
+        fs.createReadStream(filePath).pipe(res);
+      }
+    } catch (error) {
+      console.error("Error downloading audio:", error);
+      res.status(500).json({ message: "Failed to download audio" });
+    }
+  });
+
   // ========== AUTH ROUTES ==========
 
   app.post("/api/auth/register", async (req, res) => {
