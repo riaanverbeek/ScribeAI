@@ -1,6 +1,6 @@
 import { useClient } from "@/hooks/use-clients";
 import { useRoute, Link, useSearch } from "wouter";
-import { ChevronLeft, Calendar, Clock, ChevronRight, Users, Building2, Mail, CheckSquare, Circle, Filter, Loader2 } from "lucide-react";
+import { ChevronLeft, Calendar, Clock, ChevronRight, Users, Building2, Mail, CheckSquare, Circle, Filter, Loader2, ArrowUpDown } from "lucide-react";
 import { useViewMode } from "@/hooks/use-view-mode";
 import { ViewToggle } from "@/components/ViewToggle";
 import { Button } from "@/components/ui/button";
@@ -10,7 +10,7 @@ import { motion } from "framer-motion";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { queryClient, apiRequest } from "@/lib/queryClient";
 import type { ActionItem } from "@shared/schema";
-import { useState } from "react";
+import { useState, useMemo } from "react";
 import { Card } from "@/components/ui/card";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useToast } from "@/hooks/use-toast";
@@ -18,9 +18,20 @@ import { Badge } from "@/components/ui/badge";
 
 type ClientActionItem = ActionItem & { meetingTitle: string; meetingDate: string };
 
+type SessionSortMode = "date-newest" | "date-oldest" | "name-az" | "status";
+type TaskSortMode = "date-newest" | "date-oldest" | "status-pending" | "status-completed";
+
 function TasksSection({ clientId }: { clientId: number }) {
   const { toast } = useToast();
   const [statusFilter, setStatusFilter] = useState<"all" | "pending" | "completed">("all");
+  const [taskSort, setTaskSort] = useState<TaskSortMode>(() => {
+    return (localStorage.getItem("client-tasks-sort") as TaskSortMode) || "date-newest";
+  });
+
+  const handleTaskSortChange = (value: TaskSortMode) => {
+    setTaskSort(value);
+    localStorage.setItem("client-tasks-sort", value);
+  };
 
   const { data: tasks = [], isLoading } = useQuery<ClientActionItem[]>({
     queryKey: ["/api/clients", clientId, "action-items"],
@@ -39,6 +50,22 @@ function TasksSection({ clientId }: { clientId: number }) {
   });
 
   const filtered = statusFilter === "all" ? tasks : tasks.filter(t => t.status === statusFilter);
+
+  const sortedTasks = useMemo(() => {
+    const sorted = [...filtered];
+    switch (taskSort) {
+      case "date-newest":
+        return sorted.sort((a, b) => new Date(b.meetingDate).getTime() - new Date(a.meetingDate).getTime());
+      case "date-oldest":
+        return sorted.sort((a, b) => new Date(a.meetingDate).getTime() - new Date(b.meetingDate).getTime());
+      case "status-pending":
+        return sorted.sort((a, b) => (a.status === "pending" ? -1 : 1) - (b.status === "pending" ? -1 : 1));
+      case "status-completed":
+        return sorted.sort((a, b) => (a.status === "completed" ? -1 : 1) - (b.status === "completed" ? -1 : 1));
+      default:
+        return sorted;
+    }
+  }, [filtered, taskSort]);
   const pendingCount = tasks.filter(t => t.status === "pending").length;
   const completedCount = tasks.filter(t => t.status === "completed").length;
 
@@ -69,6 +96,18 @@ function TasksSection({ clientId }: { clientId: number }) {
               <SelectItem value="completed">Completed</SelectItem>
             </SelectContent>
           </Select>
+          <ArrowUpDown className="w-4 h-4 text-slate-400" />
+          <Select value={taskSort} onValueChange={(v) => handleTaskSortChange(v as TaskSortMode)}>
+            <SelectTrigger className="w-[160px] h-8 text-xs" data-testid="select-task-sort">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="date-newest">Date (newest)</SelectItem>
+              <SelectItem value="date-oldest">Date (oldest)</SelectItem>
+              <SelectItem value="status-pending">Pending first</SelectItem>
+              <SelectItem value="status-completed">Completed first</SelectItem>
+            </SelectContent>
+          </Select>
         </div>
       </div>
 
@@ -76,7 +115,7 @@ function TasksSection({ clientId }: { clientId: number }) {
         <div className="flex items-center justify-center py-10">
           <Loader2 className="w-5 h-5 animate-spin text-slate-400" />
         </div>
-      ) : filtered.length === 0 ? (
+      ) : sortedTasks.length === 0 ? (
         <div className="flex flex-col items-center justify-center py-10 bg-slate-50 dark:bg-muted/30 rounded-2xl border-2 border-dashed border-slate-200 dark:border-border">
           <CheckSquare className="w-10 h-10 text-slate-300 mb-3" />
           <p className="text-sm text-slate-500">
@@ -85,7 +124,7 @@ function TasksSection({ clientId }: { clientId: number }) {
         </div>
       ) : (
         <div className="space-y-2">
-          {filtered.map((task) => (
+          {sortedTasks.map((task) => (
             <Card
               key={task.id}
               className={`flex items-start gap-3 p-4 transition-all ${task.status === "completed" ? "opacity-60" : ""}`}
@@ -138,6 +177,33 @@ export default function ClientDetail() {
   const [activeTab, setActiveTab] = useState<"meetings" | "tasks">(initialTab);
 
   const [viewMode, setViewMode] = useViewMode("client-detail-view");
+  const [sessionSort, setSessionSort] = useState<SessionSortMode>(() => {
+    return (localStorage.getItem("client-sessions-sort") as SessionSortMode) || "date-newest";
+  });
+
+  const handleSessionSortChange = (value: SessionSortMode) => {
+    setSessionSort(value);
+    localStorage.setItem("client-sessions-sort", value);
+  };
+
+  const sortedMeetings = useMemo(() => {
+    if (!client?.meetings) return [];
+    const sorted = [...client.meetings];
+    switch (sessionSort) {
+      case "date-newest":
+        return sorted.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+      case "date-oldest":
+        return sorted.sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
+      case "name-az":
+        return sorted.sort((a, b) => (a.title || "").localeCompare(b.title || ""));
+      case "status": {
+        const order: Record<string, number> = { recording: 0, processing: 1, completed: 2 };
+        return sorted.sort((a, b) => (order[a.status] ?? 99) - (order[b.status] ?? 99));
+      }
+      default:
+        return sorted;
+    }
+  }, [client?.meetings, sessionSort]);
 
   if (isLoading) return <div className="p-10 text-center text-slate-500">Loading client...</div>;
   if (error || !client) return <div className="p-10 text-center text-red-500">Client not found</div>;
@@ -220,11 +286,23 @@ export default function ClientDetail() {
 
           {activeTab === "meetings" && (
           <>
-          <div className="flex items-center justify-end">
+          <div className="flex items-center justify-end gap-2">
+            <ArrowUpDown className="w-4 h-4 text-slate-400" />
+            <Select value={sessionSort} onValueChange={(v) => handleSessionSortChange(v as SessionSortMode)}>
+              <SelectTrigger className="w-[160px] h-8 text-xs" data-testid="select-session-sort">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="date-newest">Date (newest)</SelectItem>
+                <SelectItem value="date-oldest">Date (oldest)</SelectItem>
+                <SelectItem value="name-az">Name (A-Z)</SelectItem>
+                <SelectItem value="status">Status</SelectItem>
+              </SelectContent>
+            </Select>
             <ViewToggle mode={viewMode} onChange={setViewMode} />
           </div>
 
-          {client.meetings && client.meetings.length > 0 ? (
+          {sortedMeetings.length > 0 ? (
             viewMode === "tile" ? (
               <motion.div 
                 variants={container}
@@ -232,7 +310,7 @@ export default function ClientDetail() {
                 animate="show"
                 className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 sm:gap-6"
               >
-                {client.meetings.map((meeting) => (
+                {sortedMeetings.map((meeting) => (
                   <motion.div 
                     key={meeting.id} 
                     variants={item}
@@ -276,7 +354,7 @@ export default function ClientDetail() {
                 animate="show"
                 className="space-y-2"
               >
-                {client.meetings.map((meeting) => (
+                {sortedMeetings.map((meeting) => (
                   <motion.div
                     key={meeting.id}
                     variants={item}

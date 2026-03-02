@@ -1,7 +1,7 @@
 import { Link } from "wouter";
 import { useClients, useDeleteClient } from "@/hooks/use-clients";
 import { format } from "date-fns";
-import { Plus, ChevronRight, MoreVertical, Trash2, Users, Building2, Mail, CheckSquare } from "lucide-react";
+import { Plus, ChevronRight, MoreVertical, Trash2, Users, Building2, Mail, CheckSquare, ArrowUpDown } from "lucide-react";
 import { useViewMode } from "@/hooks/use-view-mode";
 import { ViewToggle } from "@/components/ViewToggle";
 import { motion } from "framer-motion";
@@ -21,10 +21,17 @@ import {
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { useState } from "react";
+import { useState, useMemo } from "react";
 import { useCreateClient } from "@/hooks/use-clients";
 import { useToast } from "@/hooks/use-toast";
 import { Loader2 } from "lucide-react";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -48,6 +55,47 @@ export default function Clients() {
   const [newClientName, setNewClientName] = useState("");
   const [newClientEmail, setNewClientEmail] = useState("");
   const [newClientCompany, setNewClientCompany] = useState("");
+  const [sortMode, setSortMode] = useState<string>(() => {
+    return localStorage.getItem("clients-sort") || "name-az";
+  });
+
+  const handleSortChange = (value: string) => {
+    setSortMode(value);
+    localStorage.setItem("clients-sort", value);
+  };
+
+  const sortedClients = useMemo(() => {
+    if (!clients) return [];
+    const sorted = [...clients];
+    switch (sortMode) {
+      case "name-az":
+        sorted.sort((a, b) => (a.name || "").localeCompare(b.name || ""));
+        break;
+      case "name-za":
+        sorted.sort((a, b) => (b.name || "").localeCompare(a.name || ""));
+        break;
+      case "company-az":
+        sorted.sort((a, b) => (a.company || "").localeCompare(b.company || ""));
+        break;
+      case "date-newest":
+        sorted.sort((a, b) => {
+          const dateA = a.createdAt ? new Date(a.createdAt).getTime() : 0;
+          const dateB = b.createdAt ? new Date(b.createdAt).getTime() : 0;
+          return dateB - dateA;
+        });
+        break;
+      case "date-oldest":
+        sorted.sort((a, b) => {
+          const dateA = a.createdAt ? new Date(a.createdAt).getTime() : 0;
+          const dateB = b.createdAt ? new Date(b.createdAt).getTime() : 0;
+          return dateA - dateB;
+        });
+        break;
+      default:
+        sorted.sort((a, b) => (a.name || "").localeCompare(b.name || ""));
+    }
+    return sorted;
+  }, [clients, sortMode]);
 
   const handleCreateClient = async () => {
     if (!newClientName.trim()) {
@@ -112,6 +160,19 @@ export default function Clients() {
           </div>
         </div>
         <div className="flex items-center gap-3 flex-wrap">
+          <Select value={sortMode} onValueChange={handleSortChange}>
+            <SelectTrigger className="w-auto min-w-[160px]" data-testid="select-clients-sort">
+              <ArrowUpDown className="w-4 h-4 mr-2 shrink-0" />
+              <SelectValue placeholder="Sort by" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="name-az">Name (A-Z)</SelectItem>
+              <SelectItem value="name-za">Name (Z-A)</SelectItem>
+              <SelectItem value="company-az">Company (A-Z)</SelectItem>
+              <SelectItem value="date-newest">Date added (newest)</SelectItem>
+              <SelectItem value="date-oldest">Date added (oldest)</SelectItem>
+            </SelectContent>
+          </Select>
           <ViewToggle mode={viewMode} onChange={setViewMode} />
           <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
           <DialogTrigger asChild>
@@ -178,7 +239,7 @@ export default function Clients() {
         </div>
       </div>
 
-      {clients && clients.length > 0 ? (
+      {sortedClients && sortedClients.length > 0 ? (
         viewMode === "tile" ? (
           <motion.div 
             variants={container}
@@ -186,7 +247,7 @@ export default function Clients() {
             animate="show"
             className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 sm:gap-6"
           >
-            {clients.map((client) => (
+            {sortedClients.map((client) => (
               <motion.div 
                 key={client.id} 
                 variants={item}
@@ -260,7 +321,7 @@ export default function Clients() {
             animate="show"
             className="space-y-2"
           >
-            {clients.map((client) => (
+            {sortedClients.map((client) => (
               <motion.div
                 key={client.id}
                 variants={item}

@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useMemo } from "react";
 import { Link } from "wouter";
 import { useMeetings, useDeleteMeeting } from "@/hooks/use-meetings";
 import { useClients } from "@/hooks/use-clients";
@@ -7,7 +7,7 @@ import { retrySingle, syncAllPending } from "@/lib/offlineSync";
 import { deleteOfflineRecording } from "@/lib/offlineDb";
 import { StatusBadge } from "@/components/StatusBadge";
 import { format } from "date-fns";
-import { Plus, ChevronRight, MoreVertical, Trash2, Calendar, Clock, Mic, Users, X, WifiOff, RefreshCw, Loader2, CloudUpload, Phone } from "lucide-react";
+import { Plus, ChevronRight, MoreVertical, Trash2, Calendar, Clock, Mic, Users, X, WifiOff, RefreshCw, Loader2, CloudUpload, Phone, ArrowUpDown } from "lucide-react";
 import { useViewMode } from "@/hooks/use-view-mode";
 import { ViewToggle } from "@/components/ViewToggle";
 import { motion } from "framer-motion";
@@ -51,6 +51,14 @@ export default function Dashboard() {
   const [viewMode, setViewMode] = useViewMode("dashboard-view");
   const [deleteMeetingId, setDeleteMeetingId] = useState<number | null>(null);
   const [deleteOfflineId, setDeleteOfflineId] = useState<string | null>(null);
+  const [sortMode, setSortMode] = useState<string>(() => {
+    return localStorage.getItem("dashboard-sort") || "date-newest";
+  });
+
+  const handleSortChange = (value: string) => {
+    setSortMode(value);
+    localStorage.setItem("dashboard-sort", value);
+  };
 
   const handleSyncAll = async () => {
     setSyncingAll(true);
@@ -91,9 +99,46 @@ export default function Dashboard() {
 
   const pendingRecordings = offlineRecordings;
 
+  const getClientName = (clientId: number | null) => {
+    if (!clientId || !clients) return null;
+    return clients.find(c => c.id === clientId)?.name;
+  };
+
   const filteredMeetings = selectedClientId
     ? meetings?.filter(m => m.clientId === Number(selectedClientId))
     : meetings;
+
+  const sortedMeetings = useMemo(() => {
+    if (!filteredMeetings) return filteredMeetings;
+    const sorted = [...filteredMeetings];
+    switch (sortMode) {
+      case "date-newest":
+        sorted.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+        break;
+      case "date-oldest":
+        sorted.sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
+        break;
+      case "name-az":
+        sorted.sort((a, b) => (a.title || "").localeCompare(b.title || ""));
+        break;
+      case "name-za":
+        sorted.sort((a, b) => (b.title || "").localeCompare(a.title || ""));
+        break;
+      case "client-az":
+        sorted.sort((a, b) => {
+          const nameA = getClientName(a.clientId) || "";
+          const nameB = getClientName(b.clientId) || "";
+          return nameA.localeCompare(nameB);
+        });
+        break;
+      case "status":
+        sorted.sort((a, b) => (a.status || "").localeCompare(b.status || ""));
+        break;
+      default:
+        break;
+    }
+    return sorted;
+  }, [filteredMeetings, sortMode, clients]);
 
   const selectedClient = clients?.find(c => c.id === Number(selectedClientId));
 
@@ -130,11 +175,6 @@ export default function Dashboard() {
       </div>
     );
   }
-
-  const getClientName = (clientId: number | null) => {
-    if (!clientId || !clients) return null;
-    return clients.find(c => c.id === clientId)?.name;
-  };
 
   return (
     <div className="p-4 sm:p-6 md:p-10 max-w-7xl mx-auto space-y-6 sm:space-y-8">
@@ -201,6 +241,22 @@ export default function Dashboard() {
             Showing sessions for: {selectedClient.name}
           </Badge>
         )}
+        <Select value={sortMode} onValueChange={handleSortChange}>
+          <SelectTrigger className="w-full sm:w-[200px] rounded-xl" data-testid="select-sort">
+            <div className="flex items-center gap-2">
+              <ArrowUpDown className="w-4 h-4 text-slate-400" />
+              <SelectValue placeholder="Sort by" />
+            </div>
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="date-newest">Date (newest first)</SelectItem>
+            <SelectItem value="date-oldest">Date (oldest first)</SelectItem>
+            <SelectItem value="name-az">Session name (A-Z)</SelectItem>
+            <SelectItem value="name-za">Session name (Z-A)</SelectItem>
+            <SelectItem value="client-az">Client (A-Z)</SelectItem>
+            <SelectItem value="status">Status</SelectItem>
+          </SelectContent>
+        </Select>
         <div className="ml-auto">
           <ViewToggle mode={viewMode} onChange={setViewMode} />
         </div>
@@ -310,7 +366,7 @@ export default function Dashboard() {
         </div>
       )}
 
-      {filteredMeetings && filteredMeetings.length > 0 ? (
+      {sortedMeetings && sortedMeetings.length > 0 ? (
         viewMode === "tile" ? (
           <motion.div 
             variants={container}
@@ -318,7 +374,7 @@ export default function Dashboard() {
             animate="show"
             className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 sm:gap-6"
           >
-            {filteredMeetings.map((meeting) => {
+            {sortedMeetings.map((meeting) => {
               const clientName = getClientName(meeting.clientId);
               return (
                 <motion.div 
@@ -388,7 +444,7 @@ export default function Dashboard() {
             animate="show"
             className="space-y-2"
           >
-            {filteredMeetings.map((meeting) => {
+            {sortedMeetings.map((meeting) => {
               const clientName = getClientName(meeting.clientId);
               return (
                 <motion.div
@@ -397,25 +453,23 @@ export default function Dashboard() {
                   className="group relative bg-white dark:bg-card rounded-xl border border-slate-200 dark:border-border hover-elevate transition-all duration-200"
                   data-testid={`row-meeting-${meeting.id}`}
                 >
-                  <div className="flex items-center gap-4 p-4">
+                  <div className="flex items-center gap-3 p-3">
                     <Link href={`/meeting/${meeting.id}`} className="flex-1 min-w-0" data-testid={`link-meeting-${meeting.id}`}>
-                      <div className="flex items-center gap-4 cursor-pointer">
+                      <div className="flex flex-col sm:flex-row sm:items-center gap-1 sm:gap-3 cursor-pointer">
                         <div className="min-w-0 flex-1">
-                          <h3 className="font-semibold text-slate-900 dark:text-foreground truncate group-hover:text-primary transition-colors" data-testid={`text-meeting-title-${meeting.id}`}>
+                          <h3 className="font-semibold text-slate-900 dark:text-foreground truncate group-hover:text-primary transition-colors text-sm sm:text-base" data-testid={`text-meeting-title-${meeting.id}`}>
                             {meeting.title}
                           </h3>
-                          <div className="flex items-center gap-3 mt-1 text-sm text-slate-500 flex-wrap">
-                            <span className="flex items-center gap-1.5">
-                              <Calendar className="w-3.5 h-3.5 text-slate-400 shrink-0" />
-                              {format(new Date(meeting.date), "MMM d, yyyy")}
-                            </span>
-                            <span className="flex items-center gap-1.5">
-                              <Clock className="w-3.5 h-3.5 text-slate-400 shrink-0" />
-                              {format(new Date(meeting.date), "h:mm a")}
-                            </span>
-                          </div>
                         </div>
-                        <div className="flex items-center gap-2 shrink-0 flex-wrap">
+                        <div className="flex items-center gap-2 text-xs sm:text-sm text-slate-500 shrink-0 flex-wrap">
+                          <span className="flex items-center gap-1">
+                            <Calendar className="w-3 h-3 sm:w-3.5 sm:h-3.5 text-slate-400 shrink-0" />
+                            {format(new Date(meeting.date), "MMM d")}
+                          </span>
+                          <span className="flex items-center gap-1">
+                            <Clock className="w-3 h-3 sm:w-3.5 sm:h-3.5 text-slate-400 shrink-0" />
+                            {format(new Date(meeting.date), "h:mm a")}
+                          </span>
                           <StatusBadge status={meeting.status as any} />
                           {clientName && (
                             <Badge variant="outline" className="rounded-lg text-xs">
@@ -423,9 +477,9 @@ export default function Dashboard() {
                             </Badge>
                           )}
                         </div>
-                        <ChevronRight className="w-4 h-4 text-slate-400 shrink-0 transition-transform group-hover:translate-x-1" />
                       </div>
                     </Link>
+                    <ChevronRight className="w-4 h-4 text-slate-400 shrink-0 transition-transform group-hover:translate-x-1 hidden sm:block" />
                     <DropdownMenu>
                       <DropdownMenuTrigger asChild>
                         <Button variant="ghost" size="icon" className="text-slate-400 shrink-0">

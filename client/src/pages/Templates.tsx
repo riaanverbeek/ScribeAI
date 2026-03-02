@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useMemo } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { apiRequest } from "@/lib/queryClient";
 import { Button } from "@/components/ui/button";
@@ -24,8 +24,15 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { useToast } from "@/hooks/use-toast";
-import { Plus, Pencil, Trash2, FileText, Loader2, Star, ChevronRight } from "lucide-react";
+import { Plus, Pencil, Trash2, FileText, Loader2, Star, ChevronRight, ArrowUpDown } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import type { Template } from "@shared/schema";
 import { Switch } from "@/components/ui/switch";
@@ -37,6 +44,7 @@ export default function Templates() {
   const [editingTemplate, setEditingTemplate] = useState<Template | null>(null);
   const [expandedId, setExpandedId] = useState<number | null>(null);
   const [deleteId, setDeleteId] = useState<number | null>(null);
+  const [sortMode, setSortMode] = useState<string>(() => localStorage.getItem("templates-sort") || "name-asc");
   const [name, setName] = useState("");
   const [description, setDescription] = useState("");
   const [formatPrompt, setFormatPrompt] = useState("");
@@ -129,6 +137,36 @@ export default function Templates() {
 
   const isPending = createMutation.isPending || updateMutation.isPending;
 
+  const handleSortChange = (value: string) => {
+    setSortMode(value);
+    localStorage.setItem("templates-sort", value);
+  };
+
+  const sortedTemplates = useMemo(() => {
+    if (!templatesList) return [];
+    const list = [...templatesList];
+    switch (sortMode) {
+      case "name-asc":
+        return list.sort((a, b) => a.name.localeCompare(b.name));
+      case "name-desc":
+        return list.sort((a, b) => b.name.localeCompare(a.name));
+      case "date-newest":
+        return list.sort((a, b) => {
+          const da = a.createdAt ? new Date(a.createdAt).getTime() : 0;
+          const db = b.createdAt ? new Date(b.createdAt).getTime() : 0;
+          return db - da;
+        });
+      case "date-oldest":
+        return list.sort((a, b) => {
+          const da = a.createdAt ? new Date(a.createdAt).getTime() : 0;
+          const db = b.createdAt ? new Date(b.createdAt).getTime() : 0;
+          return da - db;
+        });
+      default:
+        return list;
+    }
+  }, [templatesList, sortMode]);
+
   return (
     <div className="p-4 sm:p-6 md:p-10 max-w-4xl mx-auto">
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6 sm:mb-8">
@@ -137,13 +175,27 @@ export default function Templates() {
           <p className="text-muted-foreground mt-1 text-sm sm:text-base">Manage AI summary format templates.</p>
         </div>
 
-        <Dialog open={dialogOpen} onOpenChange={(open) => { if (!open) resetForm(); setDialogOpen(open); }}>
-          <DialogTrigger asChild>
-            <Button data-testid="button-create-template">
-              <Plus className="w-4 h-4 mr-1.5" />
-              New Template
-            </Button>
-          </DialogTrigger>
+        <div className="flex items-center gap-2 flex-wrap">
+          <Select value={sortMode} onValueChange={handleSortChange}>
+            <SelectTrigger className="w-[180px]" data-testid="select-templates-sort">
+              <ArrowUpDown className="w-4 h-4 mr-1.5 shrink-0" />
+              <SelectValue placeholder="Sort by" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="name-asc">Name (A-Z)</SelectItem>
+              <SelectItem value="name-desc">Name (Z-A)</SelectItem>
+              <SelectItem value="date-newest">Date created (newest)</SelectItem>
+              <SelectItem value="date-oldest">Date created (oldest)</SelectItem>
+            </SelectContent>
+          </Select>
+
+          <Dialog open={dialogOpen} onOpenChange={(open) => { if (!open) resetForm(); setDialogOpen(open); }}>
+            <DialogTrigger asChild>
+              <Button data-testid="button-create-template">
+                <Plus className="w-4 h-4 mr-1.5" />
+                New Template
+              </Button>
+            </DialogTrigger>
           <DialogContent className="max-w-lg">
             <DialogHeader>
               <DialogTitle>{editingTemplate ? "Edit Template" : "Create Template"}</DialogTitle>
@@ -203,14 +255,15 @@ export default function Templates() {
               </Button>
             </div>
           </DialogContent>
-        </Dialog>
+          </Dialog>
+        </div>
       </div>
 
       {isLoading ? (
         <div className="flex items-center justify-center py-20">
           <Loader2 className="w-6 h-6 animate-spin text-muted-foreground" />
         </div>
-      ) : !templatesList || templatesList.length === 0 ? (
+      ) : !sortedTemplates || sortedTemplates.length === 0 ? (
         <div className="flex flex-col items-center justify-center py-20 border-2 border-dashed rounded-2xl bg-muted/30">
           <FileText className="w-10 h-10 text-muted-foreground mb-3" />
           <p className="text-muted-foreground font-medium">No templates yet</p>
@@ -218,7 +271,7 @@ export default function Templates() {
         </div>
       ) : (
         <div className="rounded-xl border bg-card overflow-hidden divide-y">
-          {templatesList.map((tpl, idx) => {
+          {sortedTemplates.map((tpl, idx) => {
             const isExpanded = expandedId === tpl.id;
             return (
               <motion.div

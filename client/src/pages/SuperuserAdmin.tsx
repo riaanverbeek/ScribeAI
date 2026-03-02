@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useMemo } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { queryClient, apiRequest } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
@@ -13,7 +13,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 import { Switch } from "@/components/ui/switch";
-import { Pencil, Trash2, Plus, Users, Briefcase, Calendar, FileText, Shield, ShieldCheck, Tag, ArrowLeft, Eye, ChevronRight, Loader2, Building2, Globe, Palette } from "lucide-react";
+import { Pencil, Trash2, Plus, Users, Briefcase, Calendar, FileText, Shield, ShieldCheck, Tag, ArrowLeft, Eye, ChevronRight, Loader2, Building2, Globe, Palette, ArrowUpDown } from "lucide-react";
 import { format } from "date-fns";
 import type { SafeUser, Client, Meeting, Template, Role, Transcript, ActionItem, Topic, MeetingSummary, Tenant } from "@shared/schema";
 
@@ -241,6 +241,40 @@ function UsersTab() {
   const [deleteUser, setDeleteUser] = useState<SuperuserUser | null>(null);
   const [viewingUser, setViewingUser] = useState<SuperuserUser | null>(null);
   const [editForm, setEditForm] = useState({ firstName: "", lastName: "", email: "", isAdmin: false, isVerified: false, subscriptionStatus: "none" as string });
+  const [usersSortMode, setUsersSortMode] = useState(() => localStorage.getItem("superuser-users-sort") || "name-az");
+
+  const sortedUsers = useMemo(() => {
+    const sorted = [...users];
+    switch (usersSortMode) {
+      case "name-az":
+        sorted.sort((a, b) => `${a.firstName} ${a.lastName}`.localeCompare(`${b.firstName} ${b.lastName}`));
+        break;
+      case "name-za":
+        sorted.sort((a, b) => `${b.firstName} ${b.lastName}`.localeCompare(`${a.firstName} ${a.lastName}`));
+        break;
+      case "email-az":
+        sorted.sort((a, b) => a.email.localeCompare(b.email));
+        break;
+      case "date-newest":
+        sorted.sort((a, b) => new Date(b.createdAt || 0).getTime() - new Date(a.createdAt || 0).getTime());
+        break;
+      case "date-oldest":
+        sorted.sort((a, b) => new Date(a.createdAt || 0).getTime() - new Date(b.createdAt || 0).getTime());
+        break;
+      case "subscription":
+        sorted.sort((a, b) => a.subscriptionStatus.localeCompare(b.subscriptionStatus));
+        break;
+      case "verification":
+        sorted.sort((a, b) => (a.isVerified === b.isVerified ? 0 : a.isVerified ? 1 : -1));
+        break;
+    }
+    return sorted;
+  }, [users, usersSortMode]);
+
+  const handleUsersSortChange = (value: string) => {
+    setUsersSortMode(value);
+    localStorage.setItem("superuser-users-sort", value);
+  };
 
   const updateMutation = useMutation({
     mutationFn: async ({ id, data }: { id: number; data: Record<string, unknown> }) => {
@@ -280,7 +314,25 @@ function UsersTab() {
 
   return (
     <div className="space-y-3">
-      {users.map((u) => (
+      <div className="flex items-center gap-2">
+        <ArrowUpDown className="w-4 h-4 text-muted-foreground shrink-0" />
+        <Select value={usersSortMode} onValueChange={handleUsersSortChange}>
+          <SelectTrigger className="w-[200px]" data-testid="select-users-sort">
+            <SelectValue placeholder="Sort by" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="name-az">Name (A-Z)</SelectItem>
+            <SelectItem value="name-za">Name (Z-A)</SelectItem>
+            <SelectItem value="email-az">Email (A-Z)</SelectItem>
+            <SelectItem value="date-newest">Date joined (newest)</SelectItem>
+            <SelectItem value="date-oldest">Date joined (oldest)</SelectItem>
+            <SelectItem value="subscription">Subscription status</SelectItem>
+            <SelectItem value="verification">Verification status</SelectItem>
+          </SelectContent>
+        </Select>
+      </div>
+
+      {sortedUsers.map((u) => (
         <Card key={u.id}>
           <CardContent className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 p-4">
             <button
@@ -404,6 +456,12 @@ function ClientsTab() {
   const [editClient, setEditClient] = useState<Client | null>(null);
   const [deleteClient, setDeleteClient] = useState<Client | null>(null);
   const [editForm, setEditForm] = useState({ name: "", email: "", company: "" });
+  const [clientsSortMode, setClientsSortMode] = useState(() => localStorage.getItem("superuser-clients-sort") || "name-az");
+
+  const handleClientsSortChange = (value: string) => {
+    setClientsSortMode(value);
+    localStorage.setItem("superuser-clients-sort", value);
+  };
 
   const updateMutation = useMutation({
     mutationFn: async ({ id, data }: { id: number; data: Record<string, unknown> }) => {
@@ -441,12 +499,46 @@ function ClientsTab() {
     return u ? `${u.firstName} ${u.lastName}` : `User #${userId}`;
   };
 
+  const sortedClients = useMemo(() => {
+    const sorted = [...clients];
+    switch (clientsSortMode) {
+      case "name-az":
+        sorted.sort((a, b) => a.name.localeCompare(b.name));
+        break;
+      case "name-za":
+        sorted.sort((a, b) => b.name.localeCompare(a.name));
+        break;
+      case "company-az":
+        sorted.sort((a, b) => (a.company || "").localeCompare(b.company || ""));
+        break;
+      case "owner-az":
+        sorted.sort((a, b) => getUserName(a.userId).localeCompare(getUserName(b.userId)));
+        break;
+    }
+    return sorted;
+  }, [clients, clientsSortMode, users]);
+
   if (isLoading) return <div className="p-6 text-muted-foreground">Loading clients...</div>;
 
   return (
     <div className="space-y-3">
-      {clients.length === 0 && <p className="text-sm text-muted-foreground p-4">No clients found.</p>}
-      {clients.map((c) => (
+      <div className="flex items-center gap-2">
+        <ArrowUpDown className="w-4 h-4 text-muted-foreground shrink-0" />
+        <Select value={clientsSortMode} onValueChange={handleClientsSortChange}>
+          <SelectTrigger className="w-[200px]" data-testid="select-clients-sort">
+            <SelectValue placeholder="Sort by" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="name-az">Name (A-Z)</SelectItem>
+            <SelectItem value="name-za">Name (Z-A)</SelectItem>
+            <SelectItem value="company-az">Company (A-Z)</SelectItem>
+            <SelectItem value="owner-az">Owner (A-Z)</SelectItem>
+          </SelectContent>
+        </Select>
+      </div>
+
+      {sortedClients.length === 0 && <p className="text-sm text-muted-foreground p-4">No clients found.</p>}
+      {sortedClients.map((c) => (
         <Card key={c.id}>
           <CardContent className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 p-4">
             <div className="min-w-0 flex-1">
