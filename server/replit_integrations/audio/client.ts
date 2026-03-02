@@ -10,19 +10,8 @@ export const openai = new OpenAI({
   baseURL: process.env.AI_INTEGRATIONS_OPENAI_BASE_URL,
 });
 
-/**
- * Convert WebM audio buffer to WAV format using ffmpeg.
- * Browser MediaRecorder outputs WebM/opus which must be converted to WAV for audio APIs.
- * Note: Requires ffmpeg (available by default on Replit).
- *
- * @example
- * // In your route handler:
- * const webmBuffer = Buffer.from(req.body.audio, "base64");
- * const wavBuffer = await convertWebmToWav(webmBuffer);
- * const transcript = await speechToText(wavBuffer, "wav");
- */
-export function convertAudioToWav(inputBuffer: Buffer): Promise<Buffer> {
-  return convertWebmToWav(inputBuffer);
+export function convertAudioToWav(inputBuffer: Buffer, inputExt?: string): Promise<Buffer> {
+  return convertWebmToWav(inputBuffer, inputExt);
 }
 
 const MAX_OPENAI_FILE_SIZE = 24 * 1024 * 1024;
@@ -169,27 +158,51 @@ export async function transcribeLongAudio(audioBuffer: Buffer, format: "wav" | "
   }
 }
 
-export async function convertWebmToWav(webmBuffer: Buffer): Promise<Buffer> {
-  const inputPath = makeTempFile("webm");
+export async function convertWebmToWav(inputBuffer: Buffer, inputExt?: string): Promise<Buffer> {
+  const ext = inputExt ? inputExt.replace(/^\.?/, "") : "webm";
+  const inputPath = makeTempFile(ext);
   const outputPath = makeTempFile("wav");
-  try {
-    fs.writeFileSync(inputPath, webmBuffer);
-    return await new Promise((resolve, reject) => {
+
+  const tryConvert = (srcPath: string): Promise<Buffer> => {
+    return new Promise((resolve, reject) => {
+      const stderrChunks: string[] = [];
       const ffmpeg = spawn("ffmpeg", [
-        "-y", "-i", inputPath,
+        "-y", "-i", srcPath,
         "-f", "wav", "-ar", "16000", "-ac", "1", "-acodec", "pcm_s16le",
         outputPath,
       ]);
-      ffmpeg.stderr.on("data", () => {});
+      ffmpeg.stderr.on("data", (chunk: Buffer) => {
+        stderrChunks.push(chunk.toString());
+      });
       ffmpeg.on("close", (code) => {
         if (code === 0) {
           resolve(fs.readFileSync(outputPath));
         } else {
-          reject(new Error(`ffmpeg exited with code ${code}`));
+          const stderrOutput = stderrChunks.join("").slice(-500);
+          reject(new Error(`ffmpeg exited with code ${code} (ext=${ext}). stderr: ${stderrOutput}`));
         }
       });
       ffmpeg.on("error", reject);
     });
+  };
+
+  try {
+    fs.writeFileSync(inputPath, inputBuffer);
+    try {
+      return await tryConvert(inputPath);
+    } catch (firstErr) {
+      console.error("ffmpeg conversion failed with original extension, retrying with .bin:", firstErr);
+      const fallbackPath = makeTempFile("bin");
+      try {
+        fs.writeFileSync(fallbackPath, inputBuffer);
+        return await tryConvert(fallbackPath);
+      } catch (retryErr) {
+        console.error("ffmpeg retry also failed:", retryErr);
+        throw firstErr;
+      } finally {
+        try { fs.unlinkSync(fallbackPath); } catch {}
+      }
+    }
   } finally {
     try { fs.unlinkSync(inputPath); } catch {}
     try { fs.unlinkSync(outputPath); } catch {}

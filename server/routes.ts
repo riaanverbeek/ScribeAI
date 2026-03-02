@@ -1590,7 +1590,7 @@ export async function registerRoutes(
 
         if (needsConversion) {
           let audioBuffer = await downloadBufferFromObjectStorage(objectPath);
-          audioBuffer = await convertAudioToWav(audioBuffer);
+          audioBuffer = await convertAudioToWav(audioBuffer, ext);
           const wavPath = await uploadBufferToObjectStorage(audioBuffer, ".wav", "audio/wav");
           await storage.updateMeetingAudioUrl(id, wavPath);
         } else {
@@ -1630,7 +1630,7 @@ export async function registerRoutes(
             || mimetype.includes("aac") || ext === ".aac"
             || mimetype.includes("caf") || ext === ".caf";
         if (needsConversion) {
-            audioBuffer = await convertAudioToWav(audioBuffer);
+            audioBuffer = await convertAudioToWav(audioBuffer, ext || undefined);
             finalExt = ".wav";
             contentType = "audio/wav";
         }
