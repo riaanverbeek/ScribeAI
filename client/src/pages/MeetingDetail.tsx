@@ -5,7 +5,7 @@ import { useMeeting, useUpdateMeetingClient } from "@/hooks/use-meetings";
 import { useClients, useCreateClient } from "@/hooks/use-clients";
 import { useSubscriptionStatus } from "@/hooks/use-auth";
 import { useRoute, Link } from "wouter";
-import { ChevronLeft, Calendar, User, LayoutList, FileText, CheckSquare, Sparkles, Users, Plus, Loader2, X, Pencil, Lock, CreditCard, Paperclip, MessageSquareText, RefreshCw, Copy, Check, Download, Mail, Globe, SlidersHorizontal } from "lucide-react";
+import { ChevronLeft, Calendar, User, LayoutList, FileText, CheckSquare, Sparkles, Users, Plus, Loader2, X, Pencil, Lock, CreditCard, Paperclip, MessageSquareText, RefreshCw, Copy, Check, Download, Mail, Globe, SlidersHorizontal, UploadCloud, AlertTriangle } from "lucide-react";
 import type { Template } from "@shared/schema";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -178,6 +178,37 @@ export default function MeetingDetail() {
   const [newTaskContent, setNewTaskContent] = useState("");
   const [newTaskAssignee, setNewTaskAssignee] = useState("");
   const [deleteTaskId, setDeleteTaskId] = useState<number | null>(null);
+  const [reuploadFile, setReuploadFile] = useState<File | null>(null);
+
+  const isStuckUploading = meeting && meeting.status === "uploading" && !meeting.audioUrl;
+  const isFailedNoAudio = meeting && meeting.status === "failed" && !meeting.audioUrl;
+  const needsAudioUpload = isStuckUploading || isFailedNoAudio;
+
+  const reuploadMutation = useMutation({
+    mutationFn: async ({ meetingId, file }: { meetingId: number; file: File }) => {
+      const formData = new FormData();
+      formData.append("audio", file);
+      const res = await fetch(`/api/meetings/${meetingId}/audio`, {
+        method: "POST",
+        credentials: "include",
+        body: formData,
+      });
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({ message: "Upload failed" }));
+        throw new Error(err.message || "Upload failed");
+      }
+      await apiRequest("POST", `/api/meetings/${meetingId}/process`);
+      return { message: "Audio uploaded and processing started" };
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/meetings", id] });
+      setReuploadFile(null);
+      toast({ title: "Audio Uploaded", description: "Audio uploaded and processing started." });
+    },
+    onError: (error: any) => {
+      toast({ title: "Upload Failed", description: error.message, variant: "destructive" });
+    },
+  });
 
   const addTaskMutation = useMutation({
     mutationFn: async ({ meetingId, content, assignee }: { meetingId: number; content: string; assignee?: string }) => {
@@ -503,6 +534,71 @@ export default function MeetingDetail() {
 
       <ScrollArea className="flex-1">
         <div className="p-4 sm:p-6 md:p-8 max-w-5xl mx-auto space-y-6 sm:space-y-8">
+
+            {needsAudioUpload && (
+              <motion.section {...fadeIn}>
+                <Card className="border-amber-300 dark:border-amber-700 bg-amber-50/50 dark:bg-amber-950/30">
+                  <CardContent className="p-4 sm:p-5">
+                    <div className="flex items-start gap-3 mb-4">
+                      <div className="w-9 h-9 rounded-md bg-amber-100 dark:bg-amber-900 flex items-center justify-center shrink-0">
+                        <AlertTriangle className="w-4 h-4 text-amber-600 dark:text-amber-400" />
+                      </div>
+                      <div>
+                        <p className="text-sm font-semibold" data-testid="text-stuck-upload-title">
+                          {isStuckUploading ? "Upload Interrupted" : "Upload Failed"}
+                        </p>
+                        <p className="text-sm text-muted-foreground mt-0.5" data-testid="text-stuck-upload-description">
+                          {isStuckUploading
+                            ? "This session's audio upload was interrupted and didn't complete. You can re-upload the audio file to continue."
+                            : "This session has no audio attached. Upload an audio file to process it."}
+                        </p>
+                      </div>
+                    </div>
+                    <div className="space-y-3">
+                      <div className="flex items-center gap-3">
+                        <label
+                          htmlFor="reupload-audio"
+                          className="flex-1 flex items-center justify-center gap-2 border-2 border-dashed border-amber-300 dark:border-amber-700 rounded-lg p-4 cursor-pointer hover:bg-amber-100/50 dark:hover:bg-amber-900/30 transition-colors"
+                          data-testid="label-reupload-audio"
+                        >
+                          <UploadCloud className="w-5 h-5 text-amber-600 dark:text-amber-400" />
+                          <span className="text-sm font-medium">
+                            {reuploadFile ? reuploadFile.name : "Choose audio file"}
+                          </span>
+                          <input
+                            id="reupload-audio"
+                            type="file"
+                            accept="audio/*"
+                            className="hidden"
+                            onChange={(e) => setReuploadFile(e.target.files?.[0] || null)}
+                            data-testid="input-reupload-audio"
+                          />
+                        </label>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <Button
+                          onClick={() => {
+                            if (reuploadFile && meeting) {
+                              reuploadMutation.mutate({ meetingId: meeting.id, file: reuploadFile });
+                            }
+                          }}
+                          disabled={!reuploadFile || reuploadMutation.isPending}
+                          size="sm"
+                          data-testid="button-reupload-audio"
+                        >
+                          {reuploadMutation.isPending ? (
+                            <Loader2 className="w-4 h-4 mr-1.5 animate-spin" />
+                          ) : (
+                            <UploadCloud className="w-4 h-4 mr-1.5" />
+                          )}
+                          Upload & Process
+                        </Button>
+                      </div>
+                    </div>
+                  </CardContent>
+                </Card>
+              </motion.section>
+            )}
             
             <motion.section {...fadeIn}>
               <Card>

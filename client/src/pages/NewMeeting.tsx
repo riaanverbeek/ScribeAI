@@ -60,6 +60,7 @@ export default function NewMeeting() {
   const [activeInputTab, setActiveInputTab] = useState("record");
   const [consentStatus, setConsentStatus] = useState<"not_asked" | "yes" | "no">("not_asked");
   const [consentDialogOpen, setConsentDialogOpen] = useState(false);
+  const [failedMeetingId, setFailedMeetingId] = useState<number | null>(null);
   
   const createMutation = useCreateMeeting();
   const uploadMutation = useUploadAudio();
@@ -197,51 +198,59 @@ export default function NewMeeting() {
     }
 
     try {
-      const meetingData: any = { 
-        title,
-        date: new Date().toISOString(),
-        outputLanguage,
-        detailLevel,
-      };
-      if (selectedClientId) {
-        meetingData.clientId = Number(selectedClientId);
+      let meeting: any;
+
+      if (failedMeetingId) {
+        meeting = { id: failedMeetingId };
+      } else {
+        const meetingData: any = { 
+          title,
+          date: new Date().toISOString(),
+          outputLanguage,
+          detailLevel,
+        };
+        if (selectedClientId) {
+          meetingData.clientId = Number(selectedClientId);
+        }
+
+        meeting = await createMutation.mutateAsync(meetingData);
       }
 
-      const meeting = await createMutation.mutateAsync(meetingData);
+      if (!failedMeetingId) {
+        const contextPayload: any = {};
+        if (selectedTemplateId) {
+          contextPayload.templateId = Number(selectedTemplateId);
+        }
+        if (contextText.trim()) {
+          contextPayload.contextText = contextText.trim();
+        }
+        if (includePreviousContext) {
+          contextPayload.includePreviousContext = true;
+        }
+        if (isInternal) {
+          contextPayload.isInternal = true;
+        }
+        if (selectedClientId && consentStatus !== "not_asked") {
+          contextPayload.clientRecordingConsent = consentStatus;
+        }
+        if (Object.keys(contextPayload).length > 0) {
+          await fetch(`/api/meetings/${meeting.id}/context`, {
+            method: "PATCH",
+            headers: { "Content-Type": "application/json" },
+            credentials: "include",
+            body: JSON.stringify(contextPayload),
+          });
+        }
 
-      const contextPayload: any = {};
-      if (selectedTemplateId) {
-        contextPayload.templateId = Number(selectedTemplateId);
-      }
-      if (contextText.trim()) {
-        contextPayload.contextText = contextText.trim();
-      }
-      if (includePreviousContext) {
-        contextPayload.includePreviousContext = true;
-      }
-      if (isInternal) {
-        contextPayload.isInternal = true;
-      }
-      if (selectedClientId && consentStatus !== "not_asked") {
-        contextPayload.clientRecordingConsent = consentStatus;
-      }
-      if (Object.keys(contextPayload).length > 0) {
-        await fetch(`/api/meetings/${meeting.id}/context`, {
-          method: "PATCH",
-          headers: { "Content-Type": "application/json" },
-          credentials: "include",
-          body: JSON.stringify(contextPayload),
-        });
-      }
-
-      if (contextFile) {
-        const formData = new FormData();
-        formData.append("file", contextFile);
-        await fetch(`/api/meetings/${meeting.id}/context-file`, {
-          method: "POST",
-          credentials: "include",
-          body: formData,
-        });
+        if (contextFile) {
+          const formData = new FormData();
+          formData.append("file", contextFile);
+          await fetch(`/api/meetings/${meeting.id}/context-file`, {
+            method: "POST",
+            credentials: "include",
+            body: formData,
+          });
+        }
       }
 
       if (isTranscriptMode) {
@@ -279,12 +288,23 @@ export default function NewMeeting() {
         }
 
         if (audioFile) {
-          await uploadMutation.mutateAsync({ id: meeting.id, file: audioFile });
+          try {
+            await uploadMutation.mutateAsync({ id: meeting.id, file: audioFile });
+          } catch {
+            setFailedMeetingId(meeting.id);
+            toast({
+              title: "Upload Failed",
+              description: "The audio upload failed. Your recording is safe — tap \"Process Session\" to retry.",
+              variant: "destructive",
+            });
+            return;
+          }
         }
 
         await processMutation.mutateAsync(meeting.id);
       }
 
+      setFailedMeetingId(null);
       setLocation(`/meeting/${meeting.id}`);
 
     } catch (error: any) {

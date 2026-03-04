@@ -216,6 +216,8 @@ export default function QuickRecord() {
     toast({ title: "Recording discarded" });
   };
 
+  const [failedMeetingId, setFailedMeetingId] = useState<number | null>(null);
+
   const handleSave = async () => {
     if (!title.trim()) {
       toast({ title: "Title Required", description: "Give your recording a name.", variant: "destructive" });
@@ -254,19 +256,39 @@ export default function QuickRecord() {
         return;
       }
 
-      const meetingData: any = {
-        title: title.trim(),
-        date: new Date().toISOString(),
-      };
-      if (selectedClientId) {
-        meetingData.clientId = Number(selectedClientId);
-        if (consentStatus !== "not_asked") {
-          meetingData.clientRecordingConsent = consentStatus;
+      const meetingId = failedMeetingId;
+      let meeting: any;
+
+      if (meetingId) {
+        meeting = { id: meetingId };
+      } else {
+        const meetingData: any = {
+          title: title.trim(),
+          date: new Date().toISOString(),
+        };
+        if (selectedClientId) {
+          meetingData.clientId = Number(selectedClientId);
+          if (consentStatus !== "not_asked") {
+            meetingData.clientRecordingConsent = consentStatus;
+          }
         }
+        meeting = await createMutation.mutateAsync(meetingData);
       }
 
-      const meeting = await createMutation.mutateAsync(meetingData);
-      await uploadMutation.mutateAsync({ id: meeting.id, file: audioFile });
+      try {
+        await uploadMutation.mutateAsync({ id: meeting.id, file: audioFile });
+      } catch {
+        setFailedMeetingId(meeting.id);
+        toast({
+          title: "Upload Failed",
+          description: "The audio upload failed. Your recording is safe — tap \"Save & Process\" to retry.",
+          variant: "destructive",
+        });
+        setIsSaving(false);
+        return;
+      }
+
+      setFailedMeetingId(null);
       await processMutation.mutateAsync(meeting.id);
       setLocation(`/meeting/${meeting.id}`);
     } catch {

@@ -36,7 +36,7 @@ export async function backfillTenantIds() {
 
 export async function cleanupStaleUploads() {
   try {
-    const cutoff = new Date(Date.now() - 15 * 60 * 1000).toISOString();
+    const cutoff = new Date(Date.now() - 30 * 60 * 1000).toISOString();
     const result = await db.execute(
       sql.raw(`UPDATE meetings SET status = 'failed' WHERE status = 'uploading' AND created_at < '${cutoff}'`)
     );

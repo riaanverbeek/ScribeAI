@@ -94,17 +94,31 @@ export function useUploadAudio() {
         headers: { "Content-Type": "application/json" },
         credentials: "include",
       });
-      if (!urlRes.ok) throw new Error("Failed to get upload URL");
+      if (!urlRes.ok) {
+        const errText = await urlRes.text().catch(() => "");
+        console.error(`[upload] request-url failed: ${urlRes.status} ${errText}`);
+        throw new Error("Failed to get upload URL");
+      }
       const { uploadURL, objectPath } = await urlRes.json();
 
-      const putRes = await fetch(uploadURL, {
-        method: "PUT",
-        body: file,
-        headers: {
-          "Content-Type": (file as File).type || "application/octet-stream",
-        },
-      });
-      if (!putRes.ok) throw new Error("Failed to upload audio to storage");
+      try {
+        const putRes = await fetch(uploadURL, {
+          method: "PUT",
+          body: file,
+          headers: {
+            "Content-Type": (file as File).type || "application/octet-stream",
+          },
+        });
+        if (!putRes.ok) {
+          const errText = await putRes.text().catch(() => "");
+          console.error(`[upload] GCS PUT failed: ${putRes.status} ${errText}`);
+          throw new Error(`Failed to upload audio to storage (${putRes.status})`);
+        }
+      } catch (err: any) {
+        if (err?.message?.includes("Failed to upload audio")) throw err;
+        console.error("[upload] GCS PUT network error:", err);
+        throw new Error("Network error during audio upload. Please check your connection and try again.");
+      }
 
       const confirmRes = await fetch(`/api/meetings/${id}/audio/confirm`, {
         method: "POST",
@@ -112,7 +126,11 @@ export function useUploadAudio() {
         credentials: "include",
         body: JSON.stringify({ objectPath, fileName }),
       });
-      if (!confirmRes.ok) throw new Error("Failed to confirm audio upload");
+      if (!confirmRes.ok) {
+        const errText = await confirmRes.text().catch(() => "");
+        console.error(`[upload] confirm failed: ${confirmRes.status} ${errText}`);
+        throw new Error("Failed to confirm audio upload");
+      }
       return confirmRes.json();
     },
     onSuccess: (_, { id }) => {
