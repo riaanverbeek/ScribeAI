@@ -691,6 +691,24 @@ export default function NewMeeting() {
 
                   {(recorder.state === "idle" || recorder.state === "stopped") && (
                     <>
+                      {recorder.error && (
+                        <div className="w-full max-w-sm rounded-lg border border-red-200 bg-red-50 dark:bg-red-950/20 dark:border-red-800 p-3 mb-4" data-testid="banner-recording-error-newmeeting">
+                          <div className="flex items-start gap-2">
+                            <AlertTriangle className="w-4 h-4 text-red-600 dark:text-red-400 shrink-0 mt-0.5" />
+                            <div className="flex-1">
+                              <p className="text-xs font-medium text-red-900 dark:text-red-200">
+                                {recorder.errorType === "unsupported" || recorder.errorType === "no_mediadevices"
+                                  ? "Recording Not Available"
+                                  : "Recording Failed"}
+                              </p>
+                              <p className="text-xs text-red-700 dark:text-red-400 mt-1">{recorder.error}</p>
+                              <p className="text-xs text-red-600 dark:text-red-300 mt-1 font-medium">
+                                Switch to the "Upload Audio" tab above to upload a file instead.
+                              </p>
+                            </div>
+                          </div>
+                        </div>
+                      )}
                       <div className="relative mb-6">
                         <button
                           onClick={async () => {
@@ -699,12 +717,25 @@ export default function NewMeeting() {
                               if (selectedClientId) {
                                 setTimeout(() => setConsentDialogOpen(true), 150);
                               }
-                            } catch {
-                              toast({
-                                title: "Recording Not Supported",
-                                description: "Your browser doesn't support audio recording. Please upload an audio file instead.",
-                                variant: "destructive",
-                              });
+                            } catch (err: any) {
+                              const errType = recorder.errorType;
+                              let title = "Recording Failed";
+                              let description = err?.message || "An unexpected error occurred.";
+
+                              if (errType === "unsupported" || errType === "no_mediadevices") {
+                                title = "Recording Not Available";
+                                description += ' Switch to the "Upload Audio" tab to upload a file instead.';
+                              } else if (errType === "permission_denied") {
+                                title = "Microphone Access Denied";
+                              } else if (errType === "not_found") {
+                                title = "No Microphone Found";
+                              } else if (errType === "not_readable") {
+                                title = "Microphone Unavailable";
+                              } else if (errType === "aborted") {
+                                title = "Recording Interrupted";
+                              }
+
+                              toast({ title, description, variant: "destructive" });
                             }
                           }}
                           className="relative z-10 w-20 h-20 rounded-full flex items-center justify-center transition-all duration-300 bg-primary text-white hover:bg-slate-800 shadow-xl shadow-slate-900/20"

@@ -133,14 +133,24 @@ export default function QuickRecord() {
 
       drawWaveform();
     } catch (err: any) {
-      const isUnsupported = err?.message?.includes("does not support audio recording");
-      toast({
-        title: isUnsupported ? "Recording Not Supported" : "Microphone Access Denied",
-        description: isUnsupported
-          ? "Your browser doesn't support audio recording. Please upload an audio file instead."
-          : "Please allow microphone access to record.",
-        variant: "destructive",
-      });
+      const errType = recorder.errorType;
+      let title = "Recording Failed";
+      let description = err?.message || "An unexpected error occurred.";
+
+      if (errType === "unsupported" || errType === "no_mediadevices") {
+        title = "Recording Not Supported";
+        description = err?.message + " You can create a new session and upload an audio file instead.";
+      } else if (errType === "permission_denied") {
+        title = "Microphone Access Denied";
+      } else if (errType === "not_found") {
+        title = "No Microphone Found";
+      } else if (errType === "not_readable") {
+        title = "Microphone Unavailable";
+      } else if (errType === "aborted") {
+        title = "Recording Interrupted";
+      }
+
+      toast({ title, description, variant: "destructive" });
     }
   };
 
@@ -397,6 +407,32 @@ export default function QuickRecord() {
 
               {phase === "ready" && (
                 <>
+                  {recorder.error && (
+                    <div className="w-full max-w-xs rounded-lg border border-red-200 bg-red-50 dark:bg-red-950/20 dark:border-red-800 p-4 mb-2" data-testid="banner-recording-error">
+                      <div className="flex items-start gap-3">
+                        <AlertTriangle className="w-5 h-5 text-red-600 dark:text-red-400 shrink-0 mt-0.5" />
+                        <div className="flex-1">
+                          <p className="text-sm font-medium text-red-900 dark:text-red-200">
+                            {recorder.errorType === "unsupported" || recorder.errorType === "no_mediadevices"
+                              ? "Recording Not Available"
+                              : "Recording Failed"}
+                          </p>
+                          <p className="text-xs text-red-700 dark:text-red-400 mt-1">{recorder.error}</p>
+                          {(recorder.errorType === "unsupported" || recorder.errorType === "no_mediadevices") && (
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              className="mt-3"
+                              onClick={() => setLocation("/meeting/new")}
+                              data-testid="button-go-upload"
+                            >
+                              Upload Audio Instead
+                            </Button>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+                  )}
                   <div className="relative">
                     <Button
                       onClick={startRecording}

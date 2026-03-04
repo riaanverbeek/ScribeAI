@@ -5,8 +5,18 @@ import {
   deleteInProgressRecording,
   type InProgressRecording,
 } from "@/lib/offlineDb";
+import { reportError } from "@/lib/logError";
 
 export type RecordingState = "idle" | "recording" | "paused" | "stopped";
+
+export type RecordingErrorType =
+  | "unsupported"
+  | "no_mediadevices"
+  | "permission_denied"
+  | "not_found"
+  | "not_readable"
+  | "aborted"
+  | "unknown";
 
 const MIME_PREFERENCES = [
   "audio/webm;codecs=opus",
@@ -33,9 +43,56 @@ function getFileExtension(mimeType: string): string {
   return ".webm";
 }
 
+function classifyMediaError(err: unknown): { type: RecordingErrorType; message: string } {
+  if (err instanceof DOMException) {
+    switch (err.name) {
+      case "NotAllowedError":
+        return {
+          type: "permission_denied",
+          message: "Microphone access was denied. Please allow microphone permission in your browser settings and try again.",
+        };
+      case "NotFoundError":
+        return {
+          type: "not_found",
+          message: "No microphone was found on this device. Please connect a microphone and try again.",
+        };
+      case "NotReadableError":
+        return {
+          type: "not_readable",
+          message: "Your microphone is being used by another app. Please close the other app and try again.",
+        };
+      case "AbortError":
+        return {
+          type: "aborted",
+          message: "Microphone access was interrupted. This can happen on iPhones when using the home screen app. Please try again, or upload an audio file instead.",
+        };
+      case "OverconstrainedError":
+        return {
+          type: "not_found",
+          message: "No suitable microphone was found. Please try again or upload an audio file instead.",
+        };
+      default:
+        return {
+          type: "unknown",
+          message: `Microphone error: ${err.message || err.name}. Please try again or upload an audio file instead.`,
+        };
+    }
+  }
+
+  if (err instanceof Error && err.message) {
+    return { type: "unknown", message: err.message };
+  }
+
+  return {
+    type: "unknown",
+    message: "An unexpected error occurred while accessing the microphone. Please try again or upload an audio file instead.",
+  };
+}
+
 export function useVoiceRecorder() {
   const [state, setState] = useState<RecordingState>("idle");
   const [error, setError] = useState<string | null>(null);
+  const [errorType, setErrorType] = useState<RecordingErrorType | null>(null);
   const [audioLevel, setAudioLevel] = useState<number>(0);
   const [hasRecoverableRecording, setHasRecoverableRecording] = useState(false);
   const [recoverableElapsed, setRecoverableElapsed] = useState(0);
@@ -156,17 +213,41 @@ export function useVoiceRecorder() {
 
   const startRecording = useCallback(async (): Promise<MediaStream> => {
     setError(null);
+    setErrorType(null);
+
+    if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+      const msg = "Your browser does not support microphone access. This can happen when using the home screen app on older iPhones. Please open the app in Safari or Chrome instead, or upload an audio file.";
+      setError(msg);
+      setErrorType("no_mediadevices");
+      reportError(msg, "startRecording:no_mediadevices");
+      throw new Error(msg);
+    }
 
     const supportedMime = getSupportedMimeType();
     if (!supportedMime) {
       const msg = "Your browser does not support audio recording. Please use the file upload option instead, or try a different browser.";
       setError(msg);
+      setErrorType("unsupported");
+      reportError(msg, "startRecording:unsupported_mime");
       throw new Error(msg);
     }
 
     mimeTypeRef.current = supportedMime;
 
-    const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+    let stream: MediaStream;
+    try {
+      stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+    } catch (mediaErr) {
+      const classified = classifyMediaError(mediaErr);
+      setError(classified.message);
+      setErrorType(classified.type);
+      const errDetail = mediaErr instanceof DOMException
+        ? `${mediaErr.name}: ${mediaErr.message}`
+        : String(mediaErr);
+      reportError(`getUserMedia failed: ${errDetail}`, `startRecording:${classified.type}`);
+      throw new Error(classified.message);
+    }
+
     streamRef.current = stream;
 
     const recorder = new MediaRecorder(stream, {
@@ -186,6 +267,7 @@ export function useVoiceRecorder() {
 
     recorder.onerror = () => {
       console.error("MediaRecorder error — saving chunks to IndexedDB");
+      reportError("MediaRecorder onerror fired during recording", "MediaRecorder:onerror");
       flushToIndexedDB();
       stopAutoSave();
       cleanupAudioContext();
@@ -287,6 +369,7 @@ export function useVoiceRecorder() {
   return {
     state,
     error,
+    errorType,
     audioLevel,
     hasRecoverableRecording,
     recoverableElapsed,

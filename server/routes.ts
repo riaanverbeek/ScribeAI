@@ -158,6 +158,14 @@ export async function registerRoutes(
 
   registerObjectStorageRoutes(app);
 
+  app.post("/api/client-errors", (req, res) => {
+    const user = (req as any).user;
+    const userId = user?.id || "anonymous";
+    const { message, context, userAgent, url } = req.body || {};
+    console.error(`[CLIENT ERROR] userId=${userId} context=${context || "unknown"} ua=${userAgent || "unknown"} url=${url || "unknown"} message=${message || "no message"}`);
+    res.status(204).end();
+  });
+
   app.get("/api/audio/:meetingId", requireAuth, async (req, res) => {
     try {
       const meetingId = Number(req.params.meetingId);
