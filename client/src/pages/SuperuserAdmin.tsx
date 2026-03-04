@@ -13,9 +13,9 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 import { Switch } from "@/components/ui/switch";
-import { Pencil, Trash2, Plus, Users, Briefcase, Calendar, FileText, Shield, ShieldCheck, Tag, ArrowLeft, Eye, ChevronRight, Loader2, Building2, Globe, Palette, ArrowUpDown } from "lucide-react";
+import { Pencil, Trash2, Plus, Users, Briefcase, Calendar, Shield, ShieldCheck, Tag, ArrowLeft, Eye, ChevronRight, Loader2, Building2, Globe, Palette, ArrowUpDown } from "lucide-react";
 import { format } from "date-fns";
-import type { SafeUser, Client, Meeting, Template, Role, Transcript, ActionItem, Topic, MeetingSummary, Tenant } from "@shared/schema";
+import type { SafeUser, Client, Meeting, Role, Transcript, ActionItem, Topic, MeetingSummary, Tenant } from "@shared/schema";
 
 type SuperuserUser = SafeUser & { isSuperuser: boolean };
 
@@ -779,157 +779,6 @@ function MeetingsTab() {
   );
 }
 
-function TemplatesTab() {
-  const { toast } = useToast();
-  const { data: templates = [], isLoading } = useQuery<Template[]>({ queryKey: ["/api/superuser/templates"] });
-  const [editTemplate, setEditTemplate] = useState<Template | null>(null);
-  const [deleteTemplate, setDeleteTemplate] = useState<Template | null>(null);
-  const [showCreate, setShowCreate] = useState(false);
-  const [editForm, setEditForm] = useState({ name: "", description: "", formatPrompt: "", isDefault: false });
-
-  const createMutation = useMutation({
-    mutationFn: async (data: Record<string, unknown>) => {
-      const res = await apiRequest("POST", "/api/superuser/templates", data);
-      return res.json();
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["/api/superuser/templates"] });
-      setShowCreate(false);
-      setEditForm({ name: "", description: "", formatPrompt: "", isDefault: false });
-      toast({ title: "Template created" });
-    },
-    onError: (err: Error) => toast({ title: "Error", description: err.message, variant: "destructive" }),
-  });
-
-  const updateMutation = useMutation({
-    mutationFn: async ({ id, data }: { id: number; data: Record<string, unknown> }) => {
-      const res = await apiRequest("PATCH", `/api/superuser/templates/${id}`, data);
-      return res.json();
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["/api/superuser/templates"] });
-      setEditTemplate(null);
-      toast({ title: "Template updated" });
-    },
-    onError: (err: Error) => toast({ title: "Error", description: err.message, variant: "destructive" }),
-  });
-
-  const deleteMutation = useMutation({
-    mutationFn: async (id: number) => {
-      await apiRequest("DELETE", `/api/superuser/templates/${id}`);
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["/api/superuser/templates"] });
-      setDeleteTemplate(null);
-      toast({ title: "Template deleted" });
-    },
-    onError: (err: Error) => toast({ title: "Error", description: err.message, variant: "destructive" }),
-  });
-
-  const openEdit = (t: Template) => {
-    setEditForm({ name: t.name, description: t.description || "", formatPrompt: t.formatPrompt, isDefault: t.isDefault });
-    setEditTemplate(t);
-  };
-
-  if (isLoading) return <div className="p-6 text-muted-foreground">Loading templates...</div>;
-
-  return (
-    <div className="space-y-3">
-      <div className="flex justify-end">
-        <Button size="sm" onClick={() => { setEditForm({ name: "", description: "", formatPrompt: "", isDefault: false }); setShowCreate(true); }} data-testid="button-create-template">
-          <Plus className="w-4 h-4 mr-1" /> New Template
-        </Button>
-      </div>
-      {templates.length === 0 && <p className="text-sm text-muted-foreground p-4">No templates found.</p>}
-      {templates.map((t) => (
-        <Card key={t.id}>
-          <CardContent className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 p-4">
-            <div className="min-w-0 flex-1">
-              <div className="flex items-center gap-2 flex-wrap">
-                <span className="font-medium text-sm" data-testid={`text-template-name-${t.id}`}>{t.name}</span>
-                {t.isDefault && <Badge variant="secondary" className="text-[10px]">Default</Badge>}
-              </div>
-              {t.description && <p className="text-xs text-muted-foreground mt-1">{t.description}</p>}
-            </div>
-            <div className="flex items-center gap-1">
-              <Button size="icon" variant="ghost" onClick={() => openEdit(t)} data-testid={`button-edit-template-${t.id}`}>
-                <Pencil className="w-4 h-4" />
-              </Button>
-              <Button size="icon" variant="ghost" onClick={() => setDeleteTemplate(t)} data-testid={`button-delete-template-${t.id}`}>
-                <Trash2 className="w-4 h-4" />
-              </Button>
-            </div>
-          </CardContent>
-        </Card>
-      ))}
-
-      <Dialog open={showCreate || !!editTemplate} onOpenChange={(open) => { if (!open) { setShowCreate(false); setEditTemplate(null); } }}>
-        <DialogContent>
-          <DialogHeader><DialogTitle>{editTemplate ? "Edit Template" : "New Template"}</DialogTitle></DialogHeader>
-          <div className="space-y-3">
-            <div>
-              <Label>Name</Label>
-              <Input value={editForm.name} onChange={(e) => setEditForm(f => ({ ...f, name: e.target.value }))} data-testid="input-template-name" />
-            </div>
-            <div>
-              <Label>Description</Label>
-              <Input value={editForm.description} onChange={(e) => setEditForm(f => ({ ...f, description: e.target.value }))} data-testid="input-template-description" />
-            </div>
-            <div>
-              <Label>Format Prompt</Label>
-              <Textarea value={editForm.formatPrompt} onChange={(e) => setEditForm(f => ({ ...f, formatPrompt: e.target.value }))} rows={4} data-testid="input-template-formatprompt" />
-            </div>
-            <div className="flex items-center gap-3">
-              <Label>Default Template</Label>
-              <Select value={editForm.isDefault ? "yes" : "no"} onValueChange={(v) => setEditForm(f => ({ ...f, isDefault: v === "yes" }))}>
-                <SelectTrigger className="w-24" data-testid="select-template-default"><SelectValue /></SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="yes">Yes</SelectItem>
-                  <SelectItem value="no">No</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-          </div>
-          <DialogFooter>
-            <Button variant="outline" onClick={() => { setShowCreate(false); setEditTemplate(null); }}>Cancel</Button>
-            <Button
-              onClick={() => {
-                const payload = { name: editForm.name, description: editForm.description || null, formatPrompt: editForm.formatPrompt, isDefault: editForm.isDefault };
-                if (editTemplate) {
-                  updateMutation.mutate({ id: editTemplate.id, data: payload });
-                } else {
-                  createMutation.mutate(payload);
-                }
-              }}
-              disabled={createMutation.isPending || updateMutation.isPending}
-              data-testid="button-save-template"
-            >
-              {(createMutation.isPending || updateMutation.isPending) ? "Saving..." : "Save"}
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
-
-      <AlertDialog open={!!deleteTemplate} onOpenChange={(open) => !open && setDeleteTemplate(null)}>
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>Delete Template</AlertDialogTitle>
-            <AlertDialogDescription>
-              This will permanently delete "{deleteTemplate?.name}". This cannot be undone.
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel>Cancel</AlertDialogCancel>
-            <AlertDialogAction onClick={() => deleteTemplate && deleteMutation.mutate(deleteTemplate.id)} data-testid="button-confirm-delete-template">
-              Delete
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
-    </div>
-  );
-}
-
 function RolesTab() {
   const { toast } = useToast();
   const { data: rolesList = [], isLoading } = useQuery<Role[]>({ queryKey: ["/api/superuser/roles"] });
@@ -1301,11 +1150,11 @@ export default function SuperuserAdmin() {
           <ShieldCheck className="w-6 h-6 text-primary" />
           <h1 className="text-2xl font-bold" data-testid="text-superuser-heading">Superuser Panel</h1>
         </div>
-        <p className="text-sm text-muted-foreground">Manage all users, clients, sessions, templates, roles, and tenants across the platform.</p>
+        <p className="text-sm text-muted-foreground">Manage all users, clients, sessions, roles, and tenants across the platform.</p>
       </div>
 
       <Tabs defaultValue="users">
-        <TabsList className="w-full grid grid-cols-6 mb-4" data-testid="tabs-superuser">
+        <TabsList className="w-full grid grid-cols-5 mb-4" data-testid="tabs-superuser">
           <TabsTrigger value="users" className="gap-1" data-testid="tab-users">
             <Users className="w-4 h-4 hidden sm:block" /> Users
           </TabsTrigger>
@@ -1314,9 +1163,6 @@ export default function SuperuserAdmin() {
           </TabsTrigger>
           <TabsTrigger value="meetings" className="gap-1" data-testid="tab-meetings">
             <Calendar className="w-4 h-4 hidden sm:block" /> Sessions
-          </TabsTrigger>
-          <TabsTrigger value="templates" className="gap-1" data-testid="tab-templates">
-            <FileText className="w-4 h-4 hidden sm:block" /> Templates
           </TabsTrigger>
           <TabsTrigger value="roles" className="gap-1" data-testid="tab-roles">
             <Tag className="w-4 h-4 hidden sm:block" /> Roles
@@ -1329,7 +1175,6 @@ export default function SuperuserAdmin() {
         <TabsContent value="users"><UsersTab /></TabsContent>
         <TabsContent value="clients"><ClientsTab /></TabsContent>
         <TabsContent value="meetings"><MeetingsTab /></TabsContent>
-        <TabsContent value="templates"><TemplatesTab /></TabsContent>
         <TabsContent value="roles"><RolesTab /></TabsContent>
         <TabsContent value="tenants"><TenantsTab /></TabsContent>
       </Tabs>

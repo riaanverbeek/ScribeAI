@@ -1025,23 +1025,28 @@ export async function registerRoutes(
   });
 
   app.get("/api/superuser/templates", requireAuth, requireVerified, requireSuperuser, async (req, res) => {
-    const templateList = await storage.getTemplates();
+    const templateList = await storage.getTemplatesWithTenants();
     res.json(templateList);
   });
 
   app.post("/api/superuser/templates", requireAuth, requireVerified, requireSuperuser, async (req, res) => {
     try {
-      const { name, description, formatPrompt, isDefault } = z.object({
+      const { name, description, formatPrompt, isDefault, tenantIds } = z.object({
         name: z.string().min(1),
         description: z.string().optional(),
         formatPrompt: z.string().min(1),
         isDefault: z.boolean().optional(),
+        tenantIds: z.array(z.number()).optional(),
       }).parse(req.body);
       const user = (req as any).user as User;
       const template = await storage.createTemplate({
-        name, description: description || null, formatPrompt, isDefault: isDefault || false, createdBy: user.id, tenantId: req.tenant?.id ?? null,
+        name, description: description || null, formatPrompt, isDefault: isDefault || false, createdBy: user.id, tenantId: null,
       });
-      res.status(201).json(template);
+      if (tenantIds && tenantIds.length > 0) {
+        await storage.setTemplateTenants(template.id, tenantIds);
+      }
+      const tIds = await storage.getTemplateTenantIds(template.id);
+      res.status(201).json({ ...template, tenantIds: tIds });
     } catch (err) {
       if (err instanceof z.ZodError) return res.status(400).json({ message: err.errors[0].message });
       throw err;
@@ -1053,14 +1058,19 @@ export async function registerRoutes(
     const existing = await storage.getTemplate(id);
     if (!existing) return res.status(404).json({ message: "Template not found" });
     try {
-      const data = z.object({
+      const { tenantIds, ...data } = z.object({
         name: z.string().min(1).optional(),
         description: z.string().nullable().optional(),
         formatPrompt: z.string().min(1).optional(),
         isDefault: z.boolean().optional(),
+        tenantIds: z.array(z.number()).optional(),
       }).parse(req.body);
       const updated = await storage.updateTemplate(id, data);
-      res.json(updated);
+      if (tenantIds !== undefined) {
+        await storage.setTemplateTenants(id, tenantIds);
+      }
+      const tIds = await storage.getTemplateTenantIds(id);
+      res.json({ ...updated, tenantIds: tIds });
     } catch (err) {
       if (err instanceof z.ZodError) return res.status(400).json({ message: err.errors[0].message });
       throw err;
@@ -1161,13 +1171,14 @@ export async function registerRoutes(
     res.json(template);
   });
 
-  app.post("/api/templates", requireAuth, requireVerified, requireAdmin, async (req, res) => {
+  app.post("/api/templates", requireAuth, requireVerified, requireSuperuser, async (req, res) => {
     try {
-      const { name, description, formatPrompt, isDefault } = z.object({
+      const { name, description, formatPrompt, isDefault, tenantIds } = z.object({
         name: z.string().min(1, "Name is required"),
         description: z.string().optional(),
         formatPrompt: z.string().min(1, "Format prompt is required"),
         isDefault: z.boolean().optional(),
+        tenantIds: z.array(z.number()).optional(),
       }).parse(req.body);
 
       const user = (req as any).user as User;
@@ -1177,9 +1188,13 @@ export async function registerRoutes(
         formatPrompt,
         isDefault: isDefault || false,
         createdBy: user.id,
-        tenantId: req.tenant?.id ?? null,
+        tenantId: null,
       });
-      res.status(201).json(template);
+      if (tenantIds && tenantIds.length > 0) {
+        await storage.setTemplateTenants(template.id, tenantIds);
+      }
+      const tIds = await storage.getTemplateTenantIds(template.id);
+      res.status(201).json({ ...template, tenantIds: tIds });
     } catch (err) {
       if (err instanceof z.ZodError) {
         return res.status(400).json({ message: err.errors[0].message });
@@ -1188,22 +1203,27 @@ export async function registerRoutes(
     }
   });
 
-  app.patch("/api/templates/:id", requireAuth, requireVerified, requireAdmin, async (req, res) => {
+  app.patch("/api/templates/:id", requireAuth, requireVerified, requireSuperuser, async (req, res) => {
     const id = Number(req.params.id);
     const existing = await storage.getTemplate(id);
     if (!existing) {
       return res.status(404).json({ message: "Template not found" });
     }
     try {
-      const data = z.object({
+      const { tenantIds, ...data } = z.object({
         name: z.string().min(1).optional(),
         description: z.string().nullable().optional(),
         formatPrompt: z.string().min(1).optional(),
         isDefault: z.boolean().optional(),
+        tenantIds: z.array(z.number()).optional(),
       }).parse(req.body);
 
       const updated = await storage.updateTemplate(id, data);
-      res.json(updated);
+      if (tenantIds !== undefined) {
+        await storage.setTemplateTenants(id, tenantIds);
+      }
+      const tIds = await storage.getTemplateTenantIds(id);
+      res.json({ ...updated, tenantIds: tIds });
     } catch (err) {
       if (err instanceof z.ZodError) {
         return res.status(400).json({ message: err.errors[0].message });
@@ -1212,7 +1232,7 @@ export async function registerRoutes(
     }
   });
 
-  app.delete("/api/templates/:id", requireAuth, requireVerified, requireAdmin, async (req, res) => {
+  app.delete("/api/templates/:id", requireAuth, requireVerified, requireSuperuser, async (req, res) => {
     const id = Number(req.params.id);
     const existing = await storage.getTemplate(id);
     if (!existing) {

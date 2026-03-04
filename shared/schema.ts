@@ -65,6 +65,12 @@ export const templates = pgTable("templates", {
   createdAt: timestamp("created_at").defaultNow(),
 });
 
+export const templateTenants = pgTable("template_tenants", {
+  id: serial("id").primaryKey(),
+  templateId: integer("template_id").notNull().references(() => templates.id, { onDelete: "cascade" }),
+  tenantId: integer("tenant_id").notNull().references(() => tenants.id, { onDelete: "cascade" }),
+});
+
 export const clients = pgTable("clients", {
   id: serial("id").primaryKey(),
   name: text("name").notNull(),
@@ -182,9 +188,15 @@ export const tenantsRelations = relations(tenants, ({ many }) => ({
   roles: many(roles),
 }));
 
-export const templatesRelations = relations(templates, ({ one }) => ({
+export const templatesRelations = relations(templates, ({ one, many }) => ({
   creator: one(users, { fields: [templates.createdBy], references: [users.id] }),
   tenant: one(tenants, { fields: [templates.tenantId], references: [tenants.id] }),
+  templateTenants: many(templateTenants),
+}));
+
+export const templateTenantsRelations = relations(templateTenants, ({ one }) => ({
+  template: one(templates, { fields: [templateTenants.templateId], references: [templates.id] }),
+  tenant: one(tenants, { fields: [templateTenants.tenantId], references: [tenants.id] }),
 }));
 
 export const usersRelations = relations(users, ({ one, many }) => ({
@@ -281,6 +293,7 @@ export const insertUserSchema = createInsertSchema(users).omit({
 export const insertRoleSchema = createInsertSchema(roles).omit({ id: true, createdAt: true });
 
 export const insertTemplateSchema = createInsertSchema(templates).omit({ id: true, createdAt: true });
+export const insertTemplateTenantSchema = createInsertSchema(templateTenants).omit({ id: true });
 
 export const insertClientSchema = createInsertSchema(clients).omit({ id: true, createdAt: true });
 
@@ -318,6 +331,9 @@ export type InsertRole = z.infer<typeof insertRoleSchema>;
 
 export type Template = typeof templates.$inferSelect;
 export type InsertTemplate = z.infer<typeof insertTemplateSchema>;
+export type TemplateTenant = typeof templateTenants.$inferSelect;
+export type InsertTemplateTenant = z.infer<typeof insertTemplateTenantSchema>;
+export type TemplateWithTenants = Template & { tenantIds: number[] };
 
 export type Client = typeof clients.$inferSelect;
 export type InsertClient = z.infer<typeof insertClientSchema>;

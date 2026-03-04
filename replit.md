@@ -36,7 +36,7 @@ Preferred communication style: Simple, everyday language.
 - **Email**: Resend integration for transactional emails.
 - **Subscription Management**: PayFast integration for recurring payments and webhook processing.
 - **User Roles**: System for defining and assigning roles, including custom roles, with role information captured during meeting creation for AI context.
-- **Templates & Context**: System for defining AI summary templates and allowing users to provide additional context (text or file) for AI processing.
+- **Templates & Context**: System for defining AI summary templates (superuser-only CRUD) with many-to-many tenant assignment via `template_tenants` junction table. Templates page (`/templates`) is superuser-only with sorting, filtering by tenant/name, and tenant assignment checkboxes. Users can provide additional context (text or file) for AI processing.
 - **Internal Meeting Flag**: Meetings can be marked as "Internal Meeting" (internal discussion/dictation without the client present). When checked, the AI is instructed not to look for client responses and frames the summary as internal notes.
 - **Transcript Upload**: Users can paste transcript text directly or upload a text file (.txt, .md, .csv, .json) instead of audio. The transcript is saved via `POST /api/meetings/:id/transcript` and the process route skips audio transcription when a transcript already exists.
 
@@ -53,7 +53,7 @@ Preferred communication style: Simple, everyday language.
 
 ### Data Layer
 - **Database**: PostgreSQL with Drizzle ORM
-- **Core Tables**: `tenants`, `users`, `clients`, `meetings`, `templates`, `transcripts`, `action_items`, `topics`, `meeting_summaries`.
+- **Core Tables**: `tenants`, `users`, `clients`, `meetings`, `templates`, `template_tenants`, `transcripts`, `action_items`, `topics`, `meeting_summaries`.
 - **Schema**: Defined in `shared/schema.ts`.
 - **Migrations**: Drizzle Kit.
 

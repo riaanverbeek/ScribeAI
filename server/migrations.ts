@@ -1,5 +1,6 @@
 import { db } from "./db";
 import { sql } from "drizzle-orm";
+import { storage } from "./storage";
 
 export async function backfillTenantIds() {
   try {
@@ -45,5 +46,14 @@ export async function cleanupStaleUploads() {
     }
   } catch (err) {
     console.error("[migrations] Error cleaning up stale uploads:", err);
+  }
+}
+
+export async function migrateTemplateTenants() {
+  try {
+    await storage.migrateTemplateTenants();
+    console.log("[migrations] Template-tenant junction migration complete");
+  } catch (err) {
+    console.error("[migrations] Error migrating template tenants:", err);
   }
 }

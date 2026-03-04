@@ -1,10 +1,10 @@
 import { db } from "./db";
 import { 
-    users, clients, meetings, transcripts, actionItems, topics, meetingSummaries, templates, roles, policies, meetingPolicies, tenants,
+    users, clients, meetings, transcripts, actionItems, topics, meetingSummaries, templates, templateTenants, roles, policies, meetingPolicies, tenants,
     type InsertUser, type InsertClient, type InsertMeeting, type InsertTranscript, type InsertActionItem, type InsertTopic, type InsertMeetingSummary, type InsertTemplate, type InsertRole, type InsertPolicy, type InsertMeetingPolicy, type InsertTenant,
-    type User, type Client, type Meeting, type Transcript, type ActionItem, type Topic, type MeetingSummary, type Template, type Role, type Policy, type MeetingPolicy, type Tenant
+    type User, type Client, type Meeting, type Transcript, type ActionItem, type Topic, type MeetingSummary, type Template, type TemplateWithTenants, type Role, type Policy, type MeetingPolicy, type Tenant
 } from "@shared/schema";
-import { eq, and, desc, lt, ne, or, isNull, sql } from "drizzle-orm";
+import { eq, and, desc, lt, ne, or, isNull, sql, inArray } from "drizzle-orm";
 
 export interface IStorage {
     // Tenants
@@ -49,6 +49,10 @@ export interface IStorage {
     createTemplate(template: InsertTemplate): Promise<Template>;
     updateTemplate(id: number, data: Partial<Pick<Template, "name" | "description" | "formatPrompt" | "isDefault">>): Promise<Template>;
     deleteTemplate(id: number): Promise<void>;
+    getTemplateTenantIds(templateId: number): Promise<number[]>;
+    setTemplateTenants(templateId: number, tenantIds: number[]): Promise<void>;
+    getTemplatesWithTenants(): Promise<TemplateWithTenants[]>;
+    migrateTemplateTenants(): Promise<void>;
 
     // Meetings - context
     updateMeetingContext(id: number, data: { contextText?: string | null; templateId?: number | null; includePreviousContext?: boolean; outputLanguage?: string; isInternal?: boolean; clientRecordingConsent?: string; detailLevel?: string }): Promise<Meeting>;
@@ -282,7 +286,15 @@ export class DatabaseStorage implements IStorage {
     // Templates
     async getTemplates(tenantId?: number): Promise<Template[]> {
         if (tenantId) {
-            return await db.select().from(templates).where(or(eq(templates.tenantId, tenantId), isNull(templates.tenantId))).orderBy(desc(templates.createdAt));
+            const allJunctions = await db.select().from(templateTenants);
+            const templateIdsWithAnyAssignment = new Set(allJunctions.map(r => r.templateId));
+            const assignedToThisTenant = new Set(allJunctions.filter(r => r.tenantId === tenantId).map(r => r.templateId));
+            const allTemplates = await db.select().from(templates).orderBy(desc(templates.createdAt));
+            return allTemplates.filter(t => {
+                if (assignedToThisTenant.has(t.id)) return true;
+                if (!templateIdsWithAnyAssignment.has(t.id)) return true;
+                return false;
+            });
         }
         return await db.select().from(templates).orderBy(desc(templates.createdAt));
     }
@@ -304,6 +316,46 @@ export class DatabaseStorage implements IStorage {
 
     async deleteTemplate(id: number): Promise<void> {
         await db.delete(templates).where(eq(templates.id, id));
+    }
+
+    async getTemplateTenantIds(templateId: number): Promise<number[]> {
+        const rows = await db.select({ tenantId: templateTenants.tenantId }).from(templateTenants).where(eq(templateTenants.templateId, templateId));
+        return rows.map(r => r.tenantId);
+    }
+
+    async setTemplateTenants(templateId: number, tenantIds: number[]): Promise<void> {
+        await db.delete(templateTenants).where(eq(templateTenants.templateId, templateId));
+        if (tenantIds.length > 0) {
+            await db.insert(templateTenants).values(tenantIds.map(tenantId => ({ templateId, tenantId })));
+        }
+    }
+
+    async getTemplatesWithTenants(): Promise<TemplateWithTenants[]> {
+        const allTemplates = await db.select().from(templates).orderBy(desc(templates.createdAt));
+        const allJunctions = await db.select().from(templateTenants);
+        const tenantMap = new Map<number, number[]>();
+        for (const j of allJunctions) {
+            const arr = tenantMap.get(j.templateId) || [];
+            arr.push(j.tenantId);
+            tenantMap.set(j.templateId, arr);
+        }
+        return allTemplates.map(t => ({ ...t, tenantIds: tenantMap.get(t.id) || [] }));
+    }
+
+    async migrateTemplateTenants(): Promise<void> {
+        const allTemplates = await db.select().from(templates);
+        const existingJunctions = await db.select().from(templateTenants);
+        const existingPairs = new Set(existingJunctions.map(j => `${j.templateId}-${j.tenantId}`));
+        const toInsert: { templateId: number; tenantId: number }[] = [];
+        for (const t of allTemplates) {
+            if (t.tenantId && !existingPairs.has(`${t.id}-${t.tenantId}`)) {
+                toInsert.push({ templateId: t.id, tenantId: t.tenantId });
+            }
+        }
+        if (toInsert.length > 0) {
+            await db.insert(templateTenants).values(toInsert);
+            console.log(`Migrated ${toInsert.length} template-tenant associations to junction table`);
+        }
     }
 
     // Meetings - context

@@ -14,7 +14,7 @@ const navItems = [
   { label: "Clients", icon: Users, href: "/clients", requiresSubscription: true },
   { label: "Subscription", icon: CreditCard, href: "/subscription" },
   { label: "Settings", icon: Settings, href: "/settings" },
-  { label: "Templates", icon: FileText, href: "/templates", adminOnly: true },
+  { label: "Templates", icon: FileText, href: "/templates", superuserOnly: true },
   { label: "Superuser", icon: ShieldCheck, href: "/superuser", superuserOnly: true },
 ];
 
