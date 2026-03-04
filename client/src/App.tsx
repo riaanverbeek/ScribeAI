@@ -8,6 +8,7 @@ import { useAuth } from "@/hooks/use-auth";
 import { Loader2 } from "lucide-react";
 import { TenantProvider } from "@/contexts/TenantContext";
 import NotFound from "@/pages/not-found";
+import LandingPage from "@/pages/LandingPage";
 import Dashboard from "@/pages/Dashboard";
 import NewMeeting from "@/pages/NewMeeting";
 import MeetingDetail from "@/pages/MeetingDetail";
@@ -26,6 +27,10 @@ import Settings from "@/pages/Settings";
 import QuickRecord from "@/pages/QuickRecord";
 import VerifyEmail from "@/pages/VerifyEmail";
 import VerifyEmailPending from "@/pages/VerifyEmailPending";
+import PrivacyPolicy from "@/pages/legal/PrivacyPolicy";
+import TermsOfUse from "@/pages/legal/TermsOfUse";
+import PaiaManual from "@/pages/legal/PaiaManual";
+import TermsAndConditions from "@/pages/legal/TermsAndConditions";
 
 function ProtectedRoute({ children }: { children: React.ReactNode }) {
   const { user, isAuthenticated, isLoading } = useAuth();
@@ -83,10 +88,31 @@ function PublicOnlyRoute({ children }: { children: React.ReactNode }) {
   }
 
   if (isAuthenticated) {
-    return <Redirect to="/" />;
+    return <Redirect to="/dashboard" />;
   }
 
   return <>{children}</>;
+}
+
+function HomeRoute() {
+  const { user, isAuthenticated, isLoading } = useAuth();
+
+  if (isLoading) {
+    return (
+      <div className="flex items-center justify-center min-h-screen bg-background">
+        <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+      </div>
+    );
+  }
+
+  if (isAuthenticated) {
+    if (user && !user.isVerified) {
+      return <VerifyEmailPending />;
+    }
+    return <Layout><Dashboard /></Layout>;
+  }
+
+  return <LandingPage />;
 }
 
 function Router() {
@@ -112,10 +138,18 @@ function Router() {
         <ProtectedRoute><SubscriptionCancel /></ProtectedRoute>
       </Route>
 
-      <Route path="/">
+      <Route path="/privacy-policy" component={PrivacyPolicy} />
+      <Route path="/terms-of-use" component={TermsOfUse} />
+      <Route path="/paia-manual" component={PaiaManual} />
+      <Route path="/terms-and-conditions" component={TermsAndConditions} />
+
+      <Route path="/dashboard">
         <ProtectedRoute>
           <Layout><Dashboard /></Layout>
         </ProtectedRoute>
+      </Route>
+      <Route path="/">
+        <HomeRoute />
       </Route>
       <Route path="/new">
         <ProtectedRoute>
