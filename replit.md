@@ -26,7 +26,7 @@ Preferred communication style: Simple, everyday language.
 - **Audio Visualization**: WaveSurfer.js for waveform display and playback
 - **Offline Support**: IndexedDB for offline audio recording storage and a Service Worker for PWA capabilities and offline access.
 - **UI/UX**: Support for tile and list views on key pages, with preference persistence.
-- **Landing Page**: Public marketing homepage at `/` for unauthenticated users (Stitch Express-inspired design). Includes hero, features, pricing (R199/month with 1-month free trial), FAQ accordion, security section, and footer with legal page links. Authenticated users at `/` see the Dashboard. Legal pages: `/privacy-policy`, `/terms-of-use`, `/paia-manual`, `/terms-and-conditions` (all public). Uses amber/warm color palette. Key files: `client/src/pages/LandingPage.tsx`, `client/src/pages/legal/`.
+- **Landing Page**: Public marketing homepage at `/` for unauthenticated users (Stitch Express-inspired design). Includes hero, features, pricing (R199/month with 1-month free trial), FAQ accordion, security section, and footer with legal page links. Authenticated users at `/` see the Dashboard. Legal pages: `/privacy-policy`, `/terms-of-use`, `/paia-manual`, `/terms-and-conditions` (all public). **Tenant-aware**: All brand names, taglines, logos, and accent colors are dynamically sourced from `TenantContext` via the `useBrandColors()` hook — defaults to "ScribeAI" with amber palette when no tenant branding is set. Custom tenant domains get their own branded landing page with the same layout. Key files: `client/src/pages/LandingPage.tsx`, `client/src/pages/legal/`.
 
 ### Backend Architecture
 - **Framework**: Express 5 on Node.js with TypeScript

@@ -1,9 +1,10 @@
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, useMemo } from "react";
 import { Link } from "wouter";
 import { motion, useInView, AnimatePresence } from "framer-motion";
 import { Mic, FileText, Brain, ListChecks, BarChart3, Users, Shield, Clock, ChevronDown, ChevronRight, Menu, X, Globe, Zap, Headphones, Upload, MonitorSmartphone, Wifi, WifiOff, Check } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import { useTenant } from "@/contexts/TenantContext";
 
 function FadeInSection({ children, className = "", delay = 0 }: { children: React.ReactNode; className?: string; delay?: number }) {
   const ref = useRef(null);
@@ -129,45 +130,120 @@ const analysisFeatures = [
   },
 ];
 
-const faqs = [
-  {
-    question: "How does the free trial work?",
-    answer: "You get a full month of free access to all features when you sign up — no credit card required. After the trial, you can subscribe for R199/month to continue using AI-powered features, or stay on the free tier which includes recording and uploading.",
-  },
-  {
-    question: "What audio formats are supported?",
-    answer: "ScribeAI supports all common audio formats including WAV, MP3, M4A, WebM, OGG, AAC, and CAF. We automatically convert uploaded files to the optimal format for transcription.",
-  },
-  {
-    question: "Which languages are supported for transcription?",
-    answer: "Currently, ScribeAI supports English and Afrikaans for AI transcription. We're working on expanding language support.",
-  },
-  {
-    question: "Can I use ScribeAI on my phone?",
-    answer: "Yes! ScribeAI is fully responsive and works on all mobile browsers. It includes special optimizations for iOS Safari, including call interruption recovery so you never lose a recording.",
-  },
-  {
-    question: "Does recording work offline?",
-    answer: "Yes. ScribeAI uses IndexedDB to store recordings locally when you're offline. When you regain connection, your recordings are automatically synced and ready for processing.",
-  },
-  {
-    question: "How secure is my data?",
-    answer: "Your session data is encrypted at rest and in transit. We use secure cloud storage, and all data is isolated per organization in our multi-tenant architecture. You own your data.",
-  },
-  {
-    question: "Can I share ScribeAI with my team?",
-    answer: "Yes! ScribeAI supports multi-tenant organizations. Each organization gets their own branded workspace with isolated data, users, and settings.",
-  },
-  {
-    question: "What happens when I cancel my subscription?",
-    answer: "You keep access to all your existing sessions, transcripts, and summaries. You can still record and upload new sessions, but AI processing features will require an active subscription.",
-  },
-];
+function buildFaqs(name: string) {
+  return [
+    {
+      question: "How does the free trial work?",
+      answer: "You get a full month of free access to all features when you sign up — no credit card required. After the trial, you can subscribe for R199/month to continue using AI-powered features, or stay on the free tier which includes recording and uploading.",
+    },
+    {
+      question: "What audio formats are supported?",
+      answer: `${name} supports all common audio formats including WAV, MP3, M4A, WebM, OGG, AAC, and CAF. We automatically convert uploaded files to the optimal format for transcription.`,
+    },
+    {
+      question: "Which languages are supported for transcription?",
+      answer: `Currently, ${name} supports English and Afrikaans for AI transcription. We're working on expanding language support.`,
+    },
+    {
+      question: `Can I use ${name} on my phone?`,
+      answer: `Yes! ${name} is fully responsive and works on all mobile browsers. It includes special optimizations for iOS Safari, including call interruption recovery so you never lose a recording.`,
+    },
+    {
+      question: "Does recording work offline?",
+      answer: `Yes. ${name} uses IndexedDB to store recordings locally when you're offline. When you regain connection, your recordings are automatically synced and ready for processing.`,
+    },
+    {
+      question: "How secure is my data?",
+      answer: "Your session data is encrypted at rest and in transit. We use secure cloud storage, and all data is isolated per organization in our multi-tenant architecture. You own your data.",
+    },
+    {
+      question: `Can I share ${name} with my team?`,
+      answer: `Yes! ${name} supports multi-tenant organizations. Each organization gets their own branded workspace with isolated data, users, and settings.`,
+    },
+    {
+      question: "What happens when I cancel my subscription?",
+      answer: "You keep access to all your existing sessions, transcripts, and summaries. You can still record and upload new sessions, but AI processing features will require an active subscription.",
+    },
+  ];
+}
+
+function hexToHSL(hex: string): { h: number; s: number; l: number } | null {
+  const match = hex.match(/^#([0-9a-f]{6})$/i);
+  if (!match) return null;
+  const r = parseInt(match[1].substring(0, 2), 16) / 255;
+  const g = parseInt(match[1].substring(2, 4), 16) / 255;
+  const b = parseInt(match[1].substring(4, 6), 16) / 255;
+  const max = Math.max(r, g, b), min = Math.min(r, g, b);
+  const l = (max + min) / 2;
+  let h = 0, s = 0;
+  if (max !== min) {
+    const d = max - min;
+    s = l > 0.5 ? d / (2 - max - min) : d / (max + min);
+    if (max === r) h = ((g - b) / d + (g < b ? 6 : 0)) * 60;
+    else if (max === g) h = ((b - r) / d + 2) * 60;
+    else h = ((r - g) / d + 4) * 60;
+  }
+  return { h: Math.round(h), s: Math.round(s * 100), l: Math.round(l * 100) };
+}
+
+function parseColorToHSL(color: string | null): { h: number; s: number; l: number } | null {
+  if (!color) return null;
+  const hexResult = hexToHSL(color);
+  if (hexResult) return hexResult;
+  const hslMatch = color.match(/hsl\(\s*(\d+)\s*,?\s*(\d+)%?\s*,?\s*(\d+)%?\s*\)/i);
+  if (hslMatch) return { h: parseInt(hslMatch[1]), s: parseInt(hslMatch[2]), l: parseInt(hslMatch[3]) };
+  const plainMatch = color.match(/^(\d+)\s+(\d+)%?\s+(\d+)%?$/);
+  if (plainMatch) return { h: parseInt(plainMatch[1]), s: parseInt(plainMatch[2]), l: parseInt(plainMatch[3]) };
+  return null;
+}
+
+function useBrandColors(primaryColor: string | null) {
+  return useMemo(() => {
+    const hsl = parseColorToHSL(primaryColor);
+    if (!hsl) {
+      return {
+        solid: "rgb(245, 158, 11)",
+        solidHover: "rgb(217, 119, 6)",
+        light: "rgba(245, 158, 11, 0.1)",
+        lightBg: "rgb(254, 243, 199)",
+        lightBgHover: "rgb(253, 230, 138)",
+        text: "rgb(180, 83, 9)",
+        textLight: "rgb(245, 158, 11)",
+        border: "rgba(245, 158, 11, 0.2)",
+        borderLight: "rgb(253, 230, 138)",
+        shadow: "rgba(245, 158, 11, 0.25)",
+        shadowDark: "rgba(245, 158, 11, 0.2)",
+        isCustom: false,
+      };
+    }
+    const { h, s, l } = hsl;
+    return {
+      solid: `hsl(${h}, ${s}%, ${l}%)`,
+      solidHover: `hsl(${h}, ${s}%, ${Math.max(l - 8, 10)}%)`,
+      light: `hsla(${h}, ${s}%, ${l}%, 0.1)`,
+      lightBg: `hsl(${h}, ${Math.min(s, 80)}%, 90%)`,
+      lightBgHover: `hsl(${h}, ${Math.min(s, 80)}%, 82%)`,
+      text: `hsl(${h}, ${s}%, ${Math.max(l - 20, 15)}%)`,
+      textLight: `hsl(${h}, ${s}%, ${l}%)`,
+      border: `hsla(${h}, ${s}%, ${l}%, 0.2)`,
+      borderLight: `hsl(${h}, ${Math.min(s, 80)}%, 80%)`,
+      shadow: `hsla(${h}, ${s}%, ${l}%, 0.25)`,
+      shadowDark: `hsla(${h}, ${s}%, ${l}%, 0.2)`,
+      isCustom: true,
+    };
+  }, [primaryColor]);
+}
 
 export default function LandingPage() {
   const [scrolled, setScrolled] = useState(false);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [activeFeature, setActiveFeature] = useState(0);
+  const { branding } = useTenant();
+  const brandName = branding.name || "ScribeAI";
+  const brandTagline = branding.tagline || "Session transcription & analysis";
+  const brandLogo = branding.logoUrl;
+  const c = useBrandColors(branding.primaryColor);
+  const faqs = useMemo(() => buildFaqs(brandName), [brandName]);
 
   useEffect(() => {
     const handleScroll = () => setScrolled(window.scrollY > 40);
@@ -195,11 +271,15 @@ export default function LandingPage() {
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex items-center justify-between h-16 lg:h-20">
             <div className="flex items-center gap-2">
-              <div className="w-9 h-9 rounded-xl bg-gradient-to-br from-amber-500 to-amber-600 flex items-center justify-center shadow-lg shadow-amber-500/20">
-                <Mic className="text-white w-5 h-5" />
-              </div>
+              {brandLogo ? (
+                <img src={brandLogo} alt={brandName} className="h-9 w-auto object-contain" />
+              ) : (
+                <div className="w-9 h-9 rounded-xl flex items-center justify-center" style={{ background: `linear-gradient(to bottom right, ${c.solid}, ${c.solidHover})`, boxShadow: `0 4px 14px ${c.shadowDark}` }}>
+                  <Mic className="text-white w-5 h-5" />
+                </div>
+              )}
               <span className={`font-bold text-xl tracking-tight transition-colors ${scrolled ? "text-gray-900" : "text-white"}`} data-testid="landing-logo">
-                ScribeAI
+                {brandName}
               </span>
             </div>
 
@@ -213,7 +293,9 @@ export default function LandingPage() {
                 <button
                   key={item.id}
                   onClick={() => scrollToSection(item.id)}
-                  className={`text-sm font-medium transition-colors hover:text-amber-500 ${scrolled ? "text-gray-600" : "text-white/80"}`}
+                  className={`text-sm font-medium transition-colors ${scrolled ? "text-gray-600" : "text-white/80"}`}
+                  onMouseEnter={(e) => (e.currentTarget.style.color = c.solid)}
+                  onMouseLeave={(e) => (e.currentTarget.style.color = "")}
                   data-testid={`nav-link-${item.id}`}
                 >
                   {item.label}
@@ -228,7 +310,7 @@ export default function LandingPage() {
                 </Button>
               </Link>
               <Link href="/register">
-                <Button className="bg-amber-500 hover:bg-amber-600 text-white shadow-lg shadow-amber-500/25" data-testid="nav-get-started">
+                <Button className="text-white" style={{ backgroundColor: c.solid, boxShadow: `0 4px 14px ${c.shadow}` }} onMouseEnter={(e) => (e.currentTarget.style.backgroundColor = c.solidHover)} onMouseLeave={(e) => (e.currentTarget.style.backgroundColor = c.solid)} data-testid="nav-get-started">
                   Start Free Trial
                 </Button>
               </Link>
@@ -259,7 +341,9 @@ export default function LandingPage() {
                   <button
                     key={id}
                     onClick={() => scrollToSection(id)}
-                    className="block w-full text-left px-3 py-2 text-gray-700 hover:text-amber-500 font-medium capitalize"
+                    className="block w-full text-left px-3 py-2 text-gray-700 font-medium capitalize"
+                    onMouseEnter={(e) => (e.currentTarget.style.color = c.solid)}
+                    onMouseLeave={(e) => (e.currentTarget.style.color = "")}
                     data-testid={`mobile-nav-${id}`}
                   >
                     {id.replace(/-/g, " ")}
@@ -268,7 +352,7 @@ export default function LandingPage() {
                 <hr className="my-2" />
                 <Link href="/login" className="block px-3 py-2 text-gray-700 font-medium" data-testid="mobile-nav-sign-in">Sign In</Link>
                 <Link href="/register">
-                  <Button className="w-full bg-amber-500 hover:bg-amber-600 text-white mt-1" data-testid="mobile-nav-get-started">Start Free Trial</Button>
+                  <Button className="w-full text-white mt-1" style={{ backgroundColor: c.solid }} onMouseEnter={(e) => (e.currentTarget.style.backgroundColor = c.solidHover)} onMouseLeave={(e) => (e.currentTarget.style.backgroundColor = c.solid)} data-testid="mobile-nav-get-started">Start Free Trial</Button>
                 </Link>
               </div>
             </motion.div>
@@ -294,19 +378,19 @@ export default function LandingPage() {
               animate={{ opacity: 1, y: 0 }}
               transition={{ duration: 0.7 }}
             >
-              <Badge className="bg-amber-500/10 text-amber-400 border-amber-500/20 mb-6" data-testid="hero-badge">
+              <Badge className="mb-6" style={{ backgroundColor: c.light, color: c.textLight, borderColor: c.border }} data-testid="hero-badge">
                 1 Month Free Trial — No credit card required
               </Badge>
               <h1 className="text-4xl sm:text-5xl lg:text-6xl font-bold text-white leading-tight tracking-tight" data-testid="hero-heading">
                 AI-powered session
-                <span className="text-amber-400"> transcription</span> &amp; analysis
+                <span style={{ color: c.textLight }}> transcription</span> &amp; analysis
               </h1>
               <p className="mt-6 text-lg text-gray-300 leading-relaxed max-w-xl" data-testid="hero-subheading">
                 Record or upload your sessions and let AI handle the rest — accurate transcripts, smart summaries, action items, and topic analysis. All in one platform.
               </p>
               <div className="mt-8 flex flex-col sm:flex-row gap-3">
                 <Link href="/register">
-                  <Button size="lg" className="bg-amber-500 hover:bg-amber-600 text-white shadow-xl shadow-amber-500/25 px-8 h-12 text-base" data-testid="hero-cta-primary">
+                  <Button size="lg" className="text-white px-8 h-12 text-base" style={{ backgroundColor: c.solid, boxShadow: `0 10px 25px ${c.shadow}` }} onMouseEnter={(e) => (e.currentTarget.style.backgroundColor = c.solidHover)} onMouseLeave={(e) => (e.currentTarget.style.backgroundColor = c.solid)} data-testid="hero-cta-primary">
                     Start Free Trial
                     <ChevronRight className="w-5 h-5 ml-1" />
                   </Button>
@@ -328,7 +412,7 @@ export default function LandingPage() {
               <div className="relative rounded-2xl overflow-hidden shadow-2xl shadow-black/40 border border-white/10">
                 <img
                   src="https://cdn.prod.website-files.com/670a67727905d0e6bd612d79/684837080b4af31dff6e8a2a_express-shopify-setup.avif"
-                  alt="ScribeAI Dashboard"
+                  alt={`${brandName} Dashboard`}
                   className="w-full h-auto"
                   data-testid="hero-image"
                 />
@@ -347,7 +431,7 @@ export default function LandingPage() {
                 Everything you need to capture and analyze sessions
               </h2>
               <p className="mt-4 text-lg text-gray-500">
-                From recording to insights, ScribeAI handles every step of your session workflow.
+                From recording to insights, {brandName} handles every step of your session workflow.
               </p>
             </div>
           </FadeInSection>
@@ -356,8 +440,8 @@ export default function LandingPage() {
             {features.map((feat, idx) => (
               <FadeInSection key={feat.title} delay={idx * 0.1}>
                 <div className="group relative bg-gray-50 rounded-2xl p-6 hover:bg-gray-100 transition-colors cursor-default border border-gray-100 hover:border-gray-200" data-testid={`feature-card-${idx}`}>
-                  <div className="w-12 h-12 rounded-xl bg-amber-100 flex items-center justify-center mb-4">
-                    <feat.icon className="w-6 h-6 text-amber-600" />
+                  <div className="w-12 h-12 rounded-xl flex items-center justify-center mb-4" style={{ backgroundColor: c.lightBg }}>
+                    <feat.icon className="w-6 h-6" style={{ color: c.text }} />
                   </div>
                   <h3 className="text-lg font-semibold text-gray-900 mb-2">{feat.title}</h3>
                   <p className="text-sm text-gray-500 leading-relaxed">{feat.description}</p>
@@ -407,14 +491,15 @@ export default function LandingPage() {
                     <button
                       key={af.title}
                       onClick={() => setActiveFeature(idx)}
-                      className={`w-full text-left p-4 rounded-xl transition-all ${
+                      className={`w-full text-left p-4 rounded-xl transition-all border-2 ${
                         activeFeature === idx
-                          ? "bg-amber-50 border-2 border-amber-200"
-                          : "bg-gray-50 border-2 border-transparent hover:bg-gray-100"
+                          ? ""
+                          : "bg-gray-50 border-transparent hover:bg-gray-100"
                       }`}
+                      style={activeFeature === idx ? { backgroundColor: c.light, borderColor: c.borderLight } : {}}
                       data-testid={`showcase-tab-${idx}`}
                     >
-                      <h4 className={`font-semibold ${activeFeature === idx ? "text-amber-700" : "text-gray-900"}`}>
+                      <h4 className="font-semibold" style={activeFeature === idx ? { color: c.text } : { color: "rgb(17, 24, 39)" }}>
                         {af.title}
                       </h4>
                       {activeFeature === idx && (
@@ -461,7 +546,7 @@ export default function LandingPage() {
             <div className="grid lg:grid-cols-[1fr_2fr] gap-12">
               <div>
                 <h2 className="text-3xl sm:text-4xl font-bold text-white">
-                  Why ScribeAI?
+                  Why {brandName}?
                 </h2>
                 <p className="mt-4 text-gray-400 text-lg">
                   Built for professionals who value their time.
@@ -472,7 +557,7 @@ export default function LandingPage() {
                 {whyCards.map((card, idx) => (
                   <FadeInSection key={card.number} delay={idx * 0.08}>
                     <div className="bg-white/5 border border-white/10 rounded-2xl p-6 hover:bg-white/[0.08] transition-colors" data-testid={`why-card-${idx}`}>
-                      <span className="text-amber-400 font-bold text-sm">{card.number}</span>
+                      <span className="font-bold text-sm" style={{ color: c.textLight }}>{card.number}</span>
                       <h3 className="text-white font-semibold mt-2 mb-2">{card.title}</h3>
                       <p className="text-gray-400 text-sm leading-relaxed">{card.description}</p>
                     </div>
@@ -522,12 +607,12 @@ export default function LandingPage() {
                 <div className="text-center" data-testid={`step-card-${idx}`}>
                   <div className="relative rounded-2xl overflow-hidden shadow-lg border border-gray-200 mb-6">
                     <img src={item.image} alt={item.title} className="w-full h-48 object-cover" />
-                    <div className="absolute top-3 left-3 w-8 h-8 rounded-full bg-amber-500 text-white flex items-center justify-center text-sm font-bold shadow-lg">
+                    <div className="absolute top-3 left-3 w-8 h-8 rounded-full text-white flex items-center justify-center text-sm font-bold shadow-lg" style={{ backgroundColor: c.solid }}>
                       {item.step}
                     </div>
                   </div>
                   <div className="flex items-center justify-center gap-2 mb-2">
-                    <item.icon className="w-5 h-5 text-amber-500" />
+                    <item.icon className="w-5 h-5" style={{ color: c.solid }} />
                     <h3 className="text-lg font-semibold text-gray-900">{item.title}</h3>
                   </div>
                   <p className="text-gray-500 text-sm leading-relaxed">{item.description}</p>
@@ -558,7 +643,7 @@ export default function LandingPage() {
                   Built for mobile. Works offline.
                 </h2>
                 <p className="mt-4 text-lg text-gray-500">
-                  ScribeAI is designed to work anywhere, even without an internet connection.
+                  {brandName} is designed to work anywhere, even without an internet connection.
                 </p>
 
                 <div className="mt-8 space-y-4">
@@ -570,8 +655,8 @@ export default function LandingPage() {
                     { icon: Globe, text: "English and Afrikaans transcription support" },
                   ].map((item, idx) => (
                     <div key={idx} className="flex items-start gap-3">
-                      <div className="w-8 h-8 rounded-lg bg-amber-100 flex items-center justify-center shrink-0 mt-0.5">
-                        <item.icon className="w-4 h-4 text-amber-600" />
+                      <div className="w-8 h-8 rounded-lg flex items-center justify-center shrink-0 mt-0.5" style={{ backgroundColor: c.lightBg }}>
+                        <item.icon className="w-4 h-4" style={{ color: c.text }} />
                       </div>
                       <span className="text-gray-700 font-medium">{item.text}</span>
                     </div>
@@ -580,7 +665,7 @@ export default function LandingPage() {
 
                 <div className="mt-8">
                   <Link href="/register">
-                    <Button className="bg-amber-500 hover:bg-amber-600 text-white shadow-lg shadow-amber-500/25" data-testid="mobile-cta">
+                    <Button className="text-white" style={{ backgroundColor: c.solid, boxShadow: `0 4px 14px ${c.shadow}` }} onMouseEnter={(e) => (e.currentTarget.style.backgroundColor = c.solidHover)} onMouseLeave={(e) => (e.currentTarget.style.backgroundColor = c.solid)} data-testid="mobile-cta">
                       Try it free
                       <ChevronRight className="w-4 h-4 ml-1" />
                     </Button>
@@ -602,7 +687,7 @@ export default function LandingPage() {
                   Security &amp; privacy, built in
                 </h2>
                 <p className="mt-4 text-lg text-gray-500 leading-relaxed">
-                  Your session data is sensitive. ScribeAI is built with security-first principles to keep your information safe.
+                  Your session data is sensitive. {brandName} is built with security-first principles to keep your information safe.
                 </p>
                 <div className="mt-6 space-y-3">
                   {[
@@ -613,7 +698,7 @@ export default function LandingPage() {
                     "You own your data — export or delete anytime",
                   ].map((item, idx) => (
                     <div key={idx} className="flex items-center gap-2">
-                      <Shield className="w-4 h-4 text-amber-500 shrink-0" />
+                      <Shield className="w-4 h-4 shrink-0" style={{ color: c.solid }} />
                       <span className="text-gray-600">{item}</span>
                     </div>
                   ))}
@@ -670,9 +755,9 @@ export default function LandingPage() {
             </FadeInSection>
 
             <FadeInSection delay={0.1}>
-              <div className="bg-[#0f1724] rounded-2xl border-2 border-amber-500/30 p-8 shadow-xl relative" data-testid="pricing-pro">
+              <div className="bg-[#0f1724] rounded-2xl border-2 p-8 shadow-xl relative" style={{ borderColor: `${c.solid}4d` }} data-testid="pricing-pro">
                 <div className="absolute -top-3 right-6">
-                  <Badge className="bg-amber-500 text-white border-0 shadow-lg">1 Month Free Trial</Badge>
+                  <Badge className="text-white border-0 shadow-lg" style={{ backgroundColor: c.solid }}>1 Month Free Trial</Badge>
                 </div>
                 <h3 className="text-lg font-semibold text-white">Pro</h3>
                 <p className="text-sm text-gray-400 mt-1">Full AI-powered analysis suite</p>
@@ -693,13 +778,13 @@ export default function LandingPage() {
                     "Priority support",
                   ].map((item, idx) => (
                     <li key={idx} className="flex items-center gap-2 text-sm text-gray-300">
-                      <Check className="w-4 h-4 text-amber-400 shrink-0" />
+                      <Check className="w-4 h-4 shrink-0" style={{ color: c.textLight }} />
                       {item}
                     </li>
                   ))}
                 </ul>
                 <Link href="/register">
-                  <Button className="w-full bg-amber-500 hover:bg-amber-600 text-white shadow-lg shadow-amber-500/25" data-testid="pricing-pro-cta">
+                  <Button className="w-full text-white" style={{ backgroundColor: c.solid, boxShadow: `0 4px 14px ${c.shadow}` }} onMouseEnter={(e) => (e.currentTarget.style.backgroundColor = c.solidHover)} onMouseLeave={(e) => (e.currentTarget.style.backgroundColor = c.solid)} data-testid="pricing-pro-cta">
                     Start Free Trial
                   </Button>
                 </Link>
@@ -721,7 +806,7 @@ export default function LandingPage() {
                 </h2>
                 <p className="mt-4 text-gray-500">
                   Can't find what you're looking for?{" "}
-                  <a href="mailto:support@fant-app.com" className="text-amber-500 hover:text-amber-600 font-medium">
+                  <a href="mailto:support@fant-app.com" className="font-medium" style={{ color: c.solid }}>
                     Get in touch
                   </a>
                 </p>
@@ -751,7 +836,7 @@ export default function LandingPage() {
             </p>
             <div className="mt-8 flex flex-col sm:flex-row gap-3 justify-center">
               <Link href="/register">
-                <Button size="lg" className="bg-amber-500 hover:bg-amber-600 text-white shadow-xl shadow-amber-500/25 px-8 h-12 text-base" data-testid="cta-primary">
+                <Button size="lg" className="text-white px-8 h-12 text-base" style={{ backgroundColor: c.solid, boxShadow: `0 10px 25px ${c.shadow}` }} onMouseEnter={(e) => (e.currentTarget.style.backgroundColor = c.solidHover)} onMouseLeave={(e) => (e.currentTarget.style.backgroundColor = c.solid)} data-testid="cta-primary">
                   Start Free Trial
                   <ChevronRight className="w-5 h-5 ml-1" />
                 </Button>
@@ -772,45 +857,49 @@ export default function LandingPage() {
           <div className="grid md:grid-cols-4 gap-8 mb-12">
             <div className="md:col-span-2">
               <div className="flex items-center gap-2 mb-4">
-                <div className="w-9 h-9 rounded-xl bg-gradient-to-br from-amber-500 to-amber-600 flex items-center justify-center">
-                  <Mic className="text-white w-5 h-5" />
-                </div>
-                <span className="text-white font-bold text-xl">ScribeAI</span>
+                {brandLogo ? (
+                  <img src={brandLogo} alt={brandName} className="h-9 w-auto object-contain" />
+                ) : (
+                  <div className="w-9 h-9 rounded-xl flex items-center justify-center" style={{ background: `linear-gradient(to bottom right, ${c.solid}, ${c.solidHover})` }}>
+                    <Mic className="text-white w-5 h-5" />
+                  </div>
+                )}
+                <span className="text-white font-bold text-xl">{brandName}</span>
               </div>
               <p className="text-sm leading-relaxed max-w-sm">
-                AI-powered session transcription and analysis platform. Record, transcribe, summarize, and extract insights from every session.
+                {brandTagline}. Record, transcribe, summarize, and extract insights from every session.
               </p>
             </div>
 
             <div>
               <h4 className="text-white font-semibold text-sm uppercase tracking-wider mb-4">Product</h4>
               <ul className="space-y-2 text-sm">
-                <li><button onClick={() => scrollToSection("features")} className="hover:text-amber-400 transition-colors" data-testid="footer-features">Features</button></li>
-                <li><button onClick={() => scrollToSection("pricing")} className="hover:text-amber-400 transition-colors" data-testid="footer-pricing">Pricing</button></li>
-                <li><button onClick={() => scrollToSection("faq")} className="hover:text-amber-400 transition-colors" data-testid="footer-faq">FAQ</button></li>
-                <li><Link href="/login" className="hover:text-amber-400 transition-colors" data-testid="footer-sign-in">Sign In</Link></li>
-                <li><Link href="/register" className="hover:text-amber-400 transition-colors" data-testid="footer-get-started">Get Started</Link></li>
+                <li><button onClick={() => scrollToSection("features")} className="transition-colors" onMouseEnter={(e) => (e.currentTarget.style.color = c.textLight)} onMouseLeave={(e) => (e.currentTarget.style.color = "")} data-testid="footer-features">Features</button></li>
+                <li><button onClick={() => scrollToSection("pricing")} className="transition-colors" onMouseEnter={(e) => (e.currentTarget.style.color = c.textLight)} onMouseLeave={(e) => (e.currentTarget.style.color = "")} data-testid="footer-pricing">Pricing</button></li>
+                <li><button onClick={() => scrollToSection("faq")} className="transition-colors" onMouseEnter={(e) => (e.currentTarget.style.color = c.textLight)} onMouseLeave={(e) => (e.currentTarget.style.color = "")} data-testid="footer-faq">FAQ</button></li>
+                <li><Link href="/login" className="transition-colors" onMouseEnter={(e: any) => (e.currentTarget.style.color = c.textLight)} onMouseLeave={(e: any) => (e.currentTarget.style.color = "")} data-testid="footer-sign-in">Sign In</Link></li>
+                <li><Link href="/register" className="transition-colors" onMouseEnter={(e: any) => (e.currentTarget.style.color = c.textLight)} onMouseLeave={(e: any) => (e.currentTarget.style.color = "")} data-testid="footer-get-started">Get Started</Link></li>
               </ul>
             </div>
 
             <div>
               <h4 className="text-white font-semibold text-sm uppercase tracking-wider mb-4">Legal</h4>
               <ul className="space-y-2 text-sm">
-                <li><Link href="/privacy-policy" className="hover:text-amber-400 transition-colors" data-testid="footer-privacy">Privacy Policy</Link></li>
-                <li><Link href="/terms-of-use" className="hover:text-amber-400 transition-colors" data-testid="footer-terms-of-use">Website Terms of Use</Link></li>
-                <li><Link href="/terms-and-conditions" className="hover:text-amber-400 transition-colors" data-testid="footer-tcs">Ts&amp;Cs</Link></li>
-                <li><Link href="/paia-manual" className="hover:text-amber-400 transition-colors" data-testid="footer-paia">PAIA Manual</Link></li>
+                <li><Link href="/privacy-policy" className="transition-colors" onMouseEnter={(e: any) => (e.currentTarget.style.color = c.textLight)} onMouseLeave={(e: any) => (e.currentTarget.style.color = "")} data-testid="footer-privacy">Privacy Policy</Link></li>
+                <li><Link href="/terms-of-use" className="transition-colors" onMouseEnter={(e: any) => (e.currentTarget.style.color = c.textLight)} onMouseLeave={(e: any) => (e.currentTarget.style.color = "")} data-testid="footer-terms-of-use">Website Terms of Use</Link></li>
+                <li><Link href="/terms-and-conditions" className="transition-colors" onMouseEnter={(e: any) => (e.currentTarget.style.color = c.textLight)} onMouseLeave={(e: any) => (e.currentTarget.style.color = "")} data-testid="footer-tcs">Ts&amp;Cs</Link></li>
+                <li><Link href="/paia-manual" className="transition-colors" onMouseEnter={(e: any) => (e.currentTarget.style.color = c.textLight)} onMouseLeave={(e: any) => (e.currentTarget.style.color = "")} data-testid="footer-paia">PAIA Manual</Link></li>
               </ul>
             </div>
           </div>
 
           <div className="border-t border-white/10 pt-8 flex flex-col sm:flex-row items-center justify-between gap-4">
-            <p className="text-sm">&copy; {new Date().getFullYear()} ScribeAI. All rights reserved.</p>
+            <p className="text-sm">&copy; {new Date().getFullYear()} {brandName}. All rights reserved.</p>
             <div className="flex items-center gap-6 text-sm">
-              <Link href="/privacy-policy" className="hover:text-amber-400 transition-colors">Privacy Policy</Link>
-              <Link href="/terms-of-use" className="hover:text-amber-400 transition-colors">Website Terms of Use</Link>
-              <Link href="/terms-and-conditions" className="hover:text-amber-400 transition-colors">Ts&amp;Cs</Link>
-              <Link href="/paia-manual" className="hover:text-amber-400 transition-colors">PAIA Manual</Link>
+              <Link href="/privacy-policy" className="transition-colors" onMouseEnter={(e: any) => (e.currentTarget.style.color = c.textLight)} onMouseLeave={(e: any) => (e.currentTarget.style.color = "")}>Privacy Policy</Link>
+              <Link href="/terms-of-use" className="transition-colors" onMouseEnter={(e: any) => (e.currentTarget.style.color = c.textLight)} onMouseLeave={(e: any) => (e.currentTarget.style.color = "")}>Website Terms of Use</Link>
+              <Link href="/terms-and-conditions" className="transition-colors" onMouseEnter={(e: any) => (e.currentTarget.style.color = c.textLight)} onMouseLeave={(e: any) => (e.currentTarget.style.color = "")}>Ts&amp;Cs</Link>
+              <Link href="/paia-manual" className="transition-colors" onMouseEnter={(e: any) => (e.currentTarget.style.color = c.textLight)} onMouseLeave={(e: any) => (e.currentTarget.style.color = "")}>PAIA Manual</Link>
             </div>
           </div>
         </div>
