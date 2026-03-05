@@ -320,13 +320,18 @@ export function useVoiceRecorder() {
         recorder.stream.getTracks().forEach((t) => t.stop());
         streamRef.current = null;
         setState("stopped");
-        await deleteInProgressRecording().catch(() => {});
+        await flushToIndexedDB().catch(() => {});
         resolve(blob);
       };
 
       recorder.stop();
     });
-  }, [stopAutoSave, cleanupAudioContext]);
+  }, [stopAutoSave, cleanupAudioContext, flushToIndexedDB]);
+
+  const clearRecoveryData = useCallback(async () => {
+    await deleteInProgressRecording().catch(() => {});
+    setHasRecoverableRecording(false);
+  }, []);
 
   const recoverRecording = useCallback(async (): Promise<{ blob: Blob; mimeType: string; elapsed: number } | null> => {
     try {
@@ -379,6 +384,7 @@ export function useVoiceRecorder() {
     stopRecording,
     recoverRecording,
     discardRecovery,
+    clearRecoveryData,
     setElapsedRef,
     recordingMimeType,
     recordingExtension,

@@ -258,6 +258,7 @@ export default function QuickRecord() {
           isInternal: false,
           policyIds: [],
         });
+        await recorder.clearRecoveryData();
         toast({
           title: "Saved Offline",
           description: "Your recording will upload when you're back online.",
@@ -299,6 +300,7 @@ export default function QuickRecord() {
       }
 
       setFailedMeetingId(null);
+      await recorder.clearRecoveryData();
       await processMutation.mutateAsync(meeting.id);
       setLocation(`/meeting/${meeting.id}`);
     } catch {

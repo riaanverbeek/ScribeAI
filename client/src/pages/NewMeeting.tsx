@@ -142,6 +142,7 @@ export default function NewMeeting() {
         createdAt: new Date().toISOString(),
         status: "pending",
       });
+      await recorder.clearRecoveryData();
 
       toast({
         title: "Saved Offline",
@@ -290,6 +291,7 @@ export default function NewMeeting() {
         if (audioFile) {
           try {
             await uploadMutation.mutateAsync({ id: meeting.id, file: audioFile });
+            await recorder.clearRecoveryData();
           } catch {
             setFailedMeetingId(meeting.id);
             toast({
