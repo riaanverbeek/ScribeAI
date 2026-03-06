@@ -25,7 +25,7 @@ export interface OfflineRecording {
 
 export interface InProgressRecording {
   id: string;
-  chunks: Blob[];
+  chunks: ArrayBuffer[];
   mimeType: string;
   elapsed: number;
   updatedAt: string;
@@ -123,12 +123,13 @@ export async function saveInProgressChunks(
   mimeType: string,
   elapsed: number
 ): Promise<void> {
+  const buffers = await Promise.all(chunks.map(c => c.arrayBuffer()));
   const db = await openDb();
   return new Promise((resolve, reject) => {
     const tx = db.transaction(IN_PROGRESS_STORE, "readwrite");
     tx.objectStore(IN_PROGRESS_STORE).put({
       id: IN_PROGRESS_KEY,
-      chunks,
+      chunks: buffers,
       mimeType,
       elapsed,
       updatedAt: new Date().toISOString(),

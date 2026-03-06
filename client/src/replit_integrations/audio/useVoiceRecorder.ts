@@ -341,7 +341,10 @@ export function useVoiceRecorder() {
         return null;
       }
 
-      const blob = new Blob(rec.chunks, { type: rec.mimeType });
+      const blobs = rec.chunks.map(
+        (buf: ArrayBuffer) => new Blob([buf], { type: rec.mimeType })
+      );
+      const blob = new Blob(blobs, { type: rec.mimeType });
       const result = { blob, mimeType: rec.mimeType, elapsed: rec.elapsed };
       await deleteInProgressRecording();
       setHasRecoverableRecording(false);

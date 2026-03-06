@@ -1,6 +1,7 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { api, buildUrl, type CreateMeetingRequest } from "@shared/routes";
 import { useToast } from "@/hooks/use-toast";
+import { reportError } from "@/lib/logError";
 import { z } from "zod";
 
 // ============================================
@@ -96,10 +97,20 @@ export function useUploadAudio() {
       });
       if (!urlRes.ok) {
         const errText = await urlRes.text().catch(() => "");
-        console.error(`[upload] request-url failed: ${urlRes.status} ${errText}`);
+        const msg = `request-url failed: ${urlRes.status} ${errText}`;
+        console.error(`[upload] ${msg}`);
+        reportError(msg, "useUploadAudio");
         throw new Error("Failed to get upload URL");
       }
       const { uploadURL, objectPath } = await urlRes.json();
+
+      const fileSize = file.size || 0;
+      if (fileSize < 100) {
+        const msg = `Audio blob is empty or too small (${fileSize} bytes) for meeting ${id}`;
+        console.error(`[upload] ${msg}`);
+        reportError(msg, "useUploadAudio");
+        throw new Error("The recording appears to be empty or corrupted. Please try recording again.");
+      }
 
       try {
         const putRes = await fetch(uploadURL, {
@@ -111,12 +122,17 @@ export function useUploadAudio() {
         });
         if (!putRes.ok) {
           const errText = await putRes.text().catch(() => "");
-          console.error(`[upload] GCS PUT failed: ${putRes.status} ${errText}`);
+          const msg = `GCS PUT failed: ${putRes.status} ${errText}`;
+          console.error(`[upload] ${msg}`);
+          reportError(msg, "useUploadAudio");
           throw new Error(`Failed to upload audio to storage (${putRes.status})`);
         }
       } catch (err: any) {
         if (err?.message?.includes("Failed to upload audio")) throw err;
-        console.error("[upload] GCS PUT network error:", err);
+        if (err?.message?.includes("empty or corrupted")) throw err;
+        const msg = `GCS PUT network error: ${err?.message || err}`;
+        console.error(`[upload] ${msg}`);
+        reportError(msg, "useUploadAudio");
         throw new Error("Network error during audio upload. Please check your connection and try again.");
       }
 
@@ -128,7 +144,9 @@ export function useUploadAudio() {
       });
       if (!confirmRes.ok) {
         const errText = await confirmRes.text().catch(() => "");
-        console.error(`[upload] confirm failed: ${confirmRes.status} ${errText}`);
+        const msg = `Confirm failed: ${confirmRes.status} ${errText}`;
+        console.error(`[upload] ${msg}`);
+        reportError(msg, "useUploadAudio");
         throw new Error("Failed to confirm audio upload");
       }
       return confirmRes.json();
