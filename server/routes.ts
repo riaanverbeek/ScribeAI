@@ -1900,10 +1900,29 @@ export async function registerRoutes(
             ${templateFormatInstructions}
 
             Structure the summary using the template instructions above. Use clear Markdown formatting with headings (##), sub-headings (###), bullet points (-), and bold text (**). The summary MUST be a string value in the JSON, not a nested object.
+            ${outputLangName !== "English" ? `IMPORTANT: Translate ALL section headings, labels, and content from the template into ${outputLangName}. Do NOT keep any English headings or labels.` : ""}
             ` : `
-            Structure it as a professional report with the following format:
+            Structure it as a professional report with the following format${outputLangName !== "English" ? ` (ALL headings and content MUST be in ${outputLangName})` : ""}:
 
-            ## Executive Summary
+            ${outputLangName === "Afrikaans" ? `## Uitvoerende Opsomming
+            'n Kort 2-3 sin oorsig van die vergadering.
+
+            ## Sleutel Besprekingspunte
+            - **Punttitel**: Beskrywing van wat bespreek is
+            - **Punttitel**: Beskrywing van wat bespreek is
+
+            ## Besluite Geneem
+            - Besluit 1
+            - Besluit 2
+
+            ## Aanbevelings
+            - Aanbeveling met verduideliking
+
+            ## Aksie-items & Volgende Stappe
+            - **Taak**: Beskrywing | **Toegewys aan**: Persoon | **Prioriteit**: Hoog/Medium/Laag
+
+            ## Beperkings & Oorwegings
+            - Enige beperkings of belangrike notas` : `## Executive Summary
             A brief 2-3 sentence overview of the meeting.
 
             ## Key Discussion Points
@@ -1921,11 +1940,11 @@ export async function registerRoutes(
             - **Task**: Description | **Assigned to**: Person | **Priority**: High/Medium/Low
 
             ## Constraints & Considerations
-            - Any limitations or important notes
+            - Any limitations or important notes`}
 
             Use clear headings (##), sub-headings (###), bullet points (-), and bold text (**) throughout. The summary MUST be a string value in the JSON, not a nested object.
             `}
-            Remember: ALL text content must be in ${outputLangName}. Do NOT generate random or nonsensical text. Every word must be meaningful and relevant.
+            Remember: ALL text content (including ALL section headings, labels, and body text) must be in ${outputLangName}. Do NOT use English for any headings or labels when the output language is ${outputLangName}. Do NOT generate random or nonsensical text. Every word must be meaningful and relevant.
           `;
 
           const response = await openai.chat.completions.create({
@@ -2352,10 +2371,29 @@ export async function registerRoutes(
             ${templateFormatInstructions}
 
             Structure the summary using the template instructions above. Use clear Markdown formatting with headings (##), sub-headings (###), bullet points (-), and bold text (**). The summary MUST be a string value in the JSON, not a nested object.
+            ${outputLangName !== "English" ? `IMPORTANT: Translate ALL section headings, labels, and content from the template into ${outputLangName}. Do NOT keep any English headings or labels.` : ""}
             ` : `
-            Structure it as a professional report with the following format:
+            Structure it as a professional report with the following format${outputLangName !== "English" ? ` (ALL headings and content MUST be in ${outputLangName})` : ""}:
 
-            ## Executive Summary
+            ${outputLangName === "Afrikaans" ? `## Uitvoerende Opsomming
+            'n Kort 2-3 sin oorsig van die vergadering.
+
+            ## Sleutel Besprekingspunte
+            - **Punttitel**: Beskrywing van wat bespreek is
+            - **Punttitel**: Beskrywing van wat bespreek is
+
+            ## Besluite Geneem
+            - Besluit 1
+            - Besluit 2
+
+            ## Aanbevelings
+            - Aanbeveling met verduideliking
+
+            ## Aksie-items & Volgende Stappe
+            - **Taak**: Beskrywing | **Toegewys aan**: Persoon | **Prioriteit**: Hoog/Medium/Laag
+
+            ## Beperkings & Oorwegings
+            - Enige beperkings of belangrike notas` : `## Executive Summary
             A brief 2-3 sentence overview of the meeting.
 
             ## Key Discussion Points
@@ -2373,11 +2411,11 @@ export async function registerRoutes(
             - **Task**: Description | **Assigned to**: Person | **Priority**: High/Medium/Low
 
             ## Constraints & Considerations
-            - Any limitations or important notes
+            - Any limitations or important notes`}
 
             Use clear headings (##), sub-headings (###), bullet points (-), and bold text (**) throughout. The summary MUST be a string value in the JSON, not a nested object.
             `}
-            Remember: ALL text content must be in ${outputLangName}. Do NOT generate random or nonsensical text. Every word must be meaningful and relevant.
+            Remember: ALL text content (including ALL section headings, labels, and body text) must be in ${outputLangName}. Do NOT use English for any headings or labels when the output language is ${outputLangName}. Do NOT generate random or nonsensical text. Every word must be meaningful and relevant.
           `;
 
           const response = await openai.chat.completions.create({
