@@ -1,4 +1,4 @@
-const CACHE_NAME = "scribeai-v1";
+const CACHE_NAME = "scribeai-v2";
 const OFFLINE_URL = "/offline.html";
 
 const PRECACHE_URLS = [
