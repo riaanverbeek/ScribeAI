@@ -53,7 +53,7 @@ export default function Register() {
   return (
     <div className="min-h-screen bg-background flex items-center justify-center p-4">
       <div className="w-full max-w-md">
-        <div className="text-center mb-8">
+        <Link href="/" className="block text-center mb-8 no-underline" data-testid="link-register-home">
           {branding.logoUrl && (
             <img src={branding.logoUrl} alt={branding.name} className="h-12 mx-auto mb-2" data-testid="img-tenant-logo" />
           )}
@@ -61,7 +61,7 @@ export default function Register() {
             {branding.name}
           </h1>
           <p className="text-muted-foreground mt-2" data-testid="text-register-tagline">Create your account</p>
-        </div>
+        </Link>
 
         <Card>
           <CardHeader>
