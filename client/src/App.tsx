@@ -44,7 +44,7 @@ function ProtectedRoute({ children }: { children: React.ReactNode }) {
   }
 
   if (!isAuthenticated) {
-    return <Redirect to="/login" />;
+    return <Redirect to="/" />;
   }
 
   if (user && !user.isVerified) {
@@ -66,7 +66,7 @@ function SuperuserRoute({ children }: { children: React.ReactNode }) {
   }
 
   if (!isAuthenticated) {
-    return <Redirect to="/login" />;
+    return <Redirect to="/" />;
   }
 
   if (!user?.isSuperuser) {
