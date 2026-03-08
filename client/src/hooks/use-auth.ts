@@ -51,7 +51,7 @@ export function useLogout() {
     onSuccess: () => {
       queryClient.setQueryData(["/api/auth/me"], null);
       queryClient.clear();
-      setLocation("/login");
+      setLocation("/");
     },
   });
 }
