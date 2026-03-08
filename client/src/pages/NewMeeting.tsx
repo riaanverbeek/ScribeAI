@@ -759,15 +759,21 @@ export default function NewMeeting() {
                         {recorder.state === "recording" && (
                           <>
                             <motion.div
+                              className="absolute rounded-full bg-red-500/5"
+                              style={{ width: 130, height: 130 }}
+                              animate={{ scale: 1 + recorder.audioLevel * 1.5, opacity: 0.15 + recorder.audioLevel * 0.3 }}
+                              transition={{ duration: 0.15, ease: "easeOut" }}
+                            />
+                            <motion.div
                               className="absolute rounded-full bg-red-500/10"
-                              style={{ width: 100, height: 100 }}
-                              animate={{ scale: 1 + recorder.audioLevel * 0.8, opacity: 0.3 + recorder.audioLevel * 0.4 }}
+                              style={{ width: 110, height: 110 }}
+                              animate={{ scale: 1 + recorder.audioLevel * 1.2, opacity: 0.25 + recorder.audioLevel * 0.4 }}
                               transition={{ duration: 0.1 }}
                             />
                             <motion.div
                               className="absolute rounded-full bg-red-500/20"
-                              style={{ width: 88, height: 88 }}
-                              animate={{ scale: 1 + recorder.audioLevel * 0.5, opacity: 0.4 + recorder.audioLevel * 0.3 }}
+                              style={{ width: 92, height: 92 }}
+                              animate={{ scale: 1 + recorder.audioLevel * 0.9, opacity: 0.35 + recorder.audioLevel * 0.35 }}
                               transition={{ duration: 0.1 }}
                             />
                           </>
@@ -775,10 +781,14 @@ export default function NewMeeting() {
                         <div
                           className={`relative z-10 w-20 h-20 rounded-full flex items-center justify-center ${
                             recorder.state === "recording"
-                              ? "bg-red-500 shadow-lg shadow-red-500/30"
-                              : "bg-amber-500 shadow-lg shadow-amber-500/30"
-                          } text-white transition-colors duration-300`}
-                          style={recorder.state === "recording" ? { transform: `scale(${1 + recorder.audioLevel * 0.1})`, transition: "transform 0.1s ease-out" } : undefined}
+                              ? "bg-red-500 text-white"
+                              : "bg-amber-500 shadow-lg shadow-amber-500/30 text-white"
+                          } transition-colors duration-300`}
+                          style={recorder.state === "recording" ? {
+                            transform: `scale(${1 + recorder.audioLevel * 0.15})`,
+                            transition: "transform 0.1s ease-out",
+                            boxShadow: `0 0 ${16 + recorder.audioLevel * 30}px ${6 + recorder.audioLevel * 15}px rgba(239, 68, 68, ${0.3 + recorder.audioLevel * 0.4})`
+                          } : undefined}
                         >
                           <Mic className="w-8 h-8" />
                         </div>

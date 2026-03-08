@@ -323,7 +323,7 @@ export default function QuickRecord() {
 
   const isPending = isSaving || createMutation.isPending || uploadMutation.isPending;
 
-  const pulseScale = 1 + recorder.audioLevel * 0.6;
+  const pulseScale = 1 + recorder.audioLevel * 1.2;
 
   return (
     <div className="flex flex-col items-center justify-center min-h-[calc(100vh-4rem)] p-4 sm:p-6">
@@ -457,15 +457,21 @@ export default function QuickRecord() {
                     {phase === "recording" && (
                       <>
                         <motion.div
+                          className="absolute rounded-full bg-red-500/5"
+                          style={{ width: 200, height: 200 }}
+                          animate={{ scale: pulseScale * 1.5, opacity: 0.15 + recorder.audioLevel * 0.3 }}
+                          transition={{ duration: 0.15, ease: "easeOut" }}
+                        />
+                        <motion.div
                           className="absolute rounded-full bg-red-500/10"
-                          style={{ width: 160, height: 160 }}
-                          animate={{ scale: pulseScale * 1.2, opacity: 0.3 + recorder.audioLevel * 0.4 }}
+                          style={{ width: 170, height: 170 }}
+                          animate={{ scale: pulseScale * 1.25, opacity: 0.25 + recorder.audioLevel * 0.4 }}
                           transition={{ duration: 0.1 }}
                         />
                         <motion.div
                           className="absolute rounded-full bg-red-500/20"
-                          style={{ width: 140, height: 140 }}
-                          animate={{ scale: pulseScale, opacity: 0.4 + recorder.audioLevel * 0.3 }}
+                          style={{ width: 145, height: 145 }}
+                          animate={{ scale: pulseScale, opacity: 0.35 + recorder.audioLevel * 0.35 }}
                           transition={{ duration: 0.1 }}
                         />
                       </>
@@ -473,10 +479,14 @@ export default function QuickRecord() {
                     <div
                       className={`relative z-10 w-28 h-28 sm:w-32 sm:h-32 rounded-full flex items-center justify-center ${
                         phase === "recording"
-                          ? "bg-red-500 shadow-lg shadow-red-500/30"
-                          : "bg-amber-500 shadow-lg shadow-amber-500/30"
-                      } text-white transition-colors duration-300`}
-                      style={phase === "recording" ? { transform: `scale(${1 + recorder.audioLevel * 0.08})`, transition: "transform 0.1s ease-out" } : undefined}
+                          ? "bg-red-500 text-white"
+                          : "bg-amber-500 shadow-lg shadow-amber-500/30 text-white"
+                      } transition-colors duration-300`}
+                      style={phase === "recording" ? {
+                        transform: `scale(${1 + recorder.audioLevel * 0.15})`,
+                        transition: "transform 0.1s ease-out",
+                        boxShadow: `0 0 ${20 + recorder.audioLevel * 40}px ${8 + recorder.audioLevel * 20}px rgba(239, 68, 68, ${0.3 + recorder.audioLevel * 0.4})`
+                      } : undefined}
                     >
                       <Mic className="w-10 h-10 sm:w-12 sm:h-12" />
                     </div>
