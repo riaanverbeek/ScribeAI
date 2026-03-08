@@ -5,9 +5,10 @@ import { useClients } from "@/hooks/use-clients";
 import { useOfflineRecordings, useOnlineStatus } from "@/hooks/use-offline";
 import { retrySingle, syncAllPending } from "@/lib/offlineSync";
 import { deleteOfflineRecording } from "@/lib/offlineDb";
+import { useHasRecoverableRecording } from "@/hooks/use-recovery";
 import { StatusBadge } from "@/components/StatusBadge";
 import { format } from "date-fns";
-import { Plus, ChevronRight, MoreVertical, Trash2, Calendar, Clock, Mic, Users, X, WifiOff, RefreshCw, Loader2, CloudUpload, Phone, ArrowUpDown } from "lucide-react";
+import { Plus, ChevronRight, MoreVertical, Trash2, Calendar, Clock, Mic, Users, X, WifiOff, RefreshCw, Loader2, CloudUpload, Phone, ArrowUpDown, RotateCcw } from "lucide-react";
 import { useViewMode } from "@/hooks/use-view-mode";
 import { ViewToggle } from "@/components/ViewToggle";
 import { motion } from "framer-motion";
@@ -54,6 +55,7 @@ export default function Dashboard() {
   const [sortMode, setSortMode] = useState<string>(() => {
     return localStorage.getItem("dashboard-sort") || "date-newest";
   });
+  const { hasRecoverable, discard: discardRecovery } = useHasRecoverableRecording();
 
   const handleSortChange = (value: string) => {
     setSortMode(value);
@@ -207,6 +209,51 @@ export default function Dashboard() {
           </Link>
         </div>
       </div>
+
+      {hasRecoverable && (
+        <div className="rounded-xl border border-blue-200 bg-blue-50 dark:bg-blue-950/20 dark:border-blue-800 p-4" data-testid="banner-dashboard-recovery">
+          <div className="flex items-start gap-3">
+            <div className="w-10 h-10 rounded-full bg-blue-100 dark:bg-blue-900/40 flex items-center justify-center shrink-0">
+              <RotateCcw className="w-5 h-5 text-blue-600 dark:text-blue-400" />
+            </div>
+            <div className="flex-1 min-w-0">
+              <p className="font-semibold text-blue-900 dark:text-blue-200 text-sm">
+                Interrupted recording found
+              </p>
+              <p className="text-xs text-blue-700 dark:text-blue-400 mt-0.5">
+                A previous recording was interrupted and can be recovered. Choose where to continue:
+              </p>
+              <div className="flex flex-wrap gap-2 mt-3">
+                <Link href="/quick-record">
+                  <Button size="sm" data-testid="button-recover-quickrecord">
+                    <Phone className="w-3.5 h-3.5 mr-1.5" />
+                    Quick Record
+                  </Button>
+                </Link>
+                <Link href="/new">
+                  <Button size="sm" variant="outline" data-testid="button-recover-newsession">
+                    <Plus className="w-3.5 h-3.5 mr-1.5" />
+                    New Session
+                  </Button>
+                </Link>
+                <Button
+                  size="sm"
+                  variant="ghost"
+                  className="text-blue-600 dark:text-blue-400"
+                  onClick={async () => {
+                    await discardRecovery();
+                    toast({ title: "Discarded", description: "The interrupted recording has been removed." });
+                  }}
+                  data-testid="button-discard-dashboard-recovery"
+                >
+                  <Trash2 className="w-3.5 h-3.5 mr-1.5" />
+                  Discard
+                </Button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
 
       <div className="flex items-center gap-3 flex-wrap">
         <Select value={selectedClientId} onValueChange={setSelectedClientId}>

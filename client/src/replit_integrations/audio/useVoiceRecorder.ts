@@ -6,6 +6,7 @@ import {
   type InProgressRecording,
 } from "@/lib/offlineDb";
 import { reportError } from "@/lib/logError";
+import { invalidateRecoveryState } from "@/hooks/use-recovery";
 
 export type RecordingState = "idle" | "recording" | "paused" | "stopped";
 
@@ -331,6 +332,7 @@ export function useVoiceRecorder() {
   const clearRecoveryData = useCallback(async () => {
     await deleteInProgressRecording().catch(() => {});
     setHasRecoverableRecording(false);
+    invalidateRecoveryState();
   }, []);
 
   const recoverRecording = useCallback(async (): Promise<{ blob: Blob; mimeType: string; elapsed: number } | null> => {
@@ -338,6 +340,7 @@ export function useVoiceRecorder() {
       const rec = await getInProgressRecording();
       if (!rec || !rec.chunks || rec.chunks.length === 0) {
         setHasRecoverableRecording(false);
+        invalidateRecoveryState();
         return null;
       }
 
@@ -348,9 +351,11 @@ export function useVoiceRecorder() {
       const result = { blob, mimeType: rec.mimeType, elapsed: rec.elapsed };
       await deleteInProgressRecording();
       setHasRecoverableRecording(false);
+      invalidateRecoveryState();
       return result;
     } catch {
       setHasRecoverableRecording(false);
+      invalidateRecoveryState();
       return null;
     }
   }, []);
@@ -358,6 +363,7 @@ export function useVoiceRecorder() {
   const discardRecovery = useCallback(async () => {
     await deleteInProgressRecording().catch(() => {});
     setHasRecoverableRecording(false);
+    invalidateRecoveryState();
   }, []);
 
   const setElapsedRef = useCallback((elapsed: number) => {

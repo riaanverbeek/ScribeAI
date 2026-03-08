@@ -6,6 +6,7 @@ import { useAuth, useLogout, useSubscriptionStatus } from "@/hooks/use-auth";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { useTenant } from "@/contexts/TenantContext";
+import { useHasRecoverableRecording } from "@/hooks/use-recovery";
 
 const navItems = [
   { label: "Sessions", icon: LayoutDashboard, href: "/" },
@@ -25,6 +26,8 @@ export function Navigation() {
   const { hasFullAccess, status } = useSubscriptionStatus();
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const { branding } = useTenant();
+
+  const { hasRecoverable } = useHasRecoverableRecording();
 
   const filteredItems = navItems.filter(item => {
     if (item.superuserOnly && !user?.isSuperuser) return false;
@@ -85,7 +88,12 @@ export function Navigation() {
                 )}
                 data-testid={`nav-mobile-${item.label.toLowerCase().replace(' ', '-')}`}
               >
-                <item.icon className={cn("w-5 h-5", isActive ? "text-accent" : "text-slate-400")} />
+                <div className="relative">
+                  <item.icon className={cn("w-5 h-5", isActive ? "text-accent" : "text-slate-400")} />
+                  {hasRecoverable && item.href === "/quick-record" && (
+                    <span className="absolute -top-1 -right-1 w-2.5 h-2.5 bg-blue-500 rounded-full border-2 border-white dark:border-background animate-pulse" />
+                  )}
+                </div>
                 <span className="font-medium">{item.label}</span>
               </Link>
             );
@@ -158,12 +166,17 @@ export function Navigation() {
                   )}
                   data-testid={`nav-${item.label.toLowerCase().replace(' ', '-')}`}
                 >
-                  <item.icon
-                    className={cn(
-                      "w-6 h-6 md:w-5 md:h-5 transition-colors",
-                      isActive ? "text-accent" : "text-slate-400 group-hover:text-primary"
+                  <div className="relative">
+                    <item.icon
+                      className={cn(
+                        "w-6 h-6 md:w-5 md:h-5 transition-colors",
+                        isActive ? "text-accent" : "text-slate-400 group-hover:text-primary"
+                      )}
+                    />
+                    {hasRecoverable && item.href === "/quick-record" && (
+                      <span className="absolute -top-1 -right-1 w-2.5 h-2.5 bg-blue-500 rounded-full border-2 border-white dark:border-background animate-pulse" data-testid="indicator-recovery-dot" />
                     )}
-                  />
+                  </div>
                   <span className={cn(
                     "text-[10px] md:text-base font-medium md:block",
                     isActive ? "text-primary md:text-slate-900 md:dark:text-foreground" : "text-slate-500 md:text-slate-600"

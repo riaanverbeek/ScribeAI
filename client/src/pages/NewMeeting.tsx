@@ -27,7 +27,7 @@ import {
 } from "@/components/ui/dialog";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from "@/components/ui/command";
-import { Mic, UploadCloud, ChevronLeft, Loader2, Plus, Users, FileText, Paperclip, WifiOff, Wifi, Pause, Play, Square, Globe, ClipboardPaste, FileUp, AlertTriangle, ShieldCheck, Check, ChevronsUpDown, RotateCcw, Trash2 } from "lucide-react";
+import { Mic, UploadCloud, CloudUpload, ChevronLeft, Loader2, Plus, Users, FileText, Paperclip, WifiOff, Wifi, Pause, Play, Square, Globe, ClipboardPaste, FileUp, AlertTriangle, ShieldCheck, Check, ChevronsUpDown, RotateCcw, Trash2 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useToast } from "@/hooks/use-toast";
 import { useVoiceRecorder } from "@/replit_integrations/audio";
@@ -646,6 +646,22 @@ export default function NewMeeting() {
             <TabsContent value="record">
               <Card className="border-2 border-dashed border-slate-200 bg-slate-50/50 shadow-none rounded-xl">
                 <CardContent className="flex flex-col items-center justify-center py-12">
+                  {failedMeetingId && file && recorder.state !== "recording" && recorder.state !== "paused" && (
+                    <div className="mb-6 w-full max-w-sm rounded-lg border border-red-200 bg-red-50 dark:bg-red-950/20 dark:border-red-800 p-4" data-testid="banner-upload-failed">
+                      <div className="flex items-start gap-3">
+                        <CloudUpload className="w-5 h-5 text-red-600 dark:text-red-400 shrink-0 mt-0.5" />
+                        <div className="flex-1">
+                          <p className="text-sm font-medium text-red-900 dark:text-red-200">
+                            Upload failed
+                          </p>
+                          <p className="text-xs text-red-700 dark:text-red-400 mt-1">
+                            Your recording is safe. Tap "Process Session" below to retry the upload.
+                          </p>
+                        </div>
+                      </div>
+                    </div>
+                  )}
+
                   {recorder.hasRecoverableRecording && (recorder.state === "idle" || recorder.state === "stopped") && !file && (
                     <div className="mb-6 w-full max-w-sm rounded-lg border border-blue-200 bg-blue-50 dark:bg-blue-950/20 dark:border-blue-800 p-4" data-testid="banner-recovery-newmeeting">
                       <div className="flex items-start gap-3">
