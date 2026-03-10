@@ -35,7 +35,8 @@ Preferred communication style: Simple, everyday language.
 - **Authentication**: Session-based authentication with bcrypt hashing, email verification, and password reset flow.
 - **Authorization**: Role-based access control (Superuser, Admin, standard users) and subscription-based feature gating.
 - **File Uploads**: Multer for audio file handling.
-- **AI Processing**: Integration with OpenAI API for speech-to-text, summarization, action item extraction, and topic analysis.
+- **AI Processing**: Integration with OpenAI API for speech-to-text, summarization, action item extraction, and topic analysis. Core processing logic extracted into `server/processMeeting.ts` (`processMeetingCore()`) — shared by the process route, reprocess route, and auto-retry system. Supports Afrikaans output with translated section headers in default template.
+- **Processing Resilience**: `retryStaleProcessing()` in `server/migrations.ts` auto-detects meetings stuck in "processing" status for >5 minutes (e.g., interrupted by server restart during deployment) and retries them automatically. Runs on server startup and every 5 minutes. Meetings with no audio or transcript are marked as "failed".
 - **Email**: Resend integration for transactional emails.
 - **Subscription Management**: PayFast integration for recurring payments and webhook processing.
 - **User Roles**: System for defining and assigning roles, including custom roles, with role information captured during meeting creation for AI context.

@@ -2,7 +2,7 @@ import express, { type Request, Response, NextFunction } from "express";
 import { registerRoutes } from "./routes";
 import { serveStatic } from "./static";
 import { createServer } from "http";
-import { backfillTenantIds, cleanupStaleUploads, migrateTemplateTenants } from "./migrations";
+import { backfillTenantIds, cleanupStaleUploads, migrateTemplateTenants, retryStaleProcessing } from "./migrations";
 
 const app = express();
 const httpServer = createServer(app);
@@ -65,6 +65,7 @@ app.use((req, res, next) => {
   await backfillTenantIds();
   await migrateTemplateTenants();
   await cleanupStaleUploads();
+  await retryStaleProcessing();
   await registerRoutes(httpServer, app);
 
   app.use((err: any, _req: Request, res: Response, next: NextFunction) => {
@@ -105,6 +106,7 @@ app.use((req, res, next) => {
       log(`serving on port ${port}`);
       setInterval(() => {
         cleanupStaleUploads().catch(err => console.error("[cleanup] Error:", err));
+        retryStaleProcessing().catch(err => console.error("[retry] Error:", err));
       }, 5 * 60 * 1000);
     },
   );

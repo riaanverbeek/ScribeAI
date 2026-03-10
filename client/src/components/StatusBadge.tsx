@@ -1,9 +1,10 @@
 import { cn } from "@/lib/utils";
 import { Loader2, CheckCircle, AlertCircle, UploadCloud } from "lucide-react";
 
-type Status = "uploading" | "processing" | "completed" | "failed";
+type Status = "uploading" | "processing" | "completed" | "failed" | "retry_pending";
 
-export function StatusBadge({ status }: { status: Status }) {
+export function StatusBadge({ status: rawStatus }: { status: Status }) {
+  const status = rawStatus === "retry_pending" ? "processing" : rawStatus;
   const styles = {
     uploading: "bg-blue-50 text-blue-700 border-blue-200",
     processing: "bg-amber-50 text-amber-700 border-amber-200",

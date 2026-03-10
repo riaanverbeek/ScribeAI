@@ -1,6 +1,7 @@
 import { db } from "./db";
 import { sql } from "drizzle-orm";
 import { storage } from "./storage";
+import { processMeetingCore } from "./processMeeting";
 
 export async function backfillTenantIds() {
   try {
@@ -46,6 +47,46 @@ export async function cleanupStaleUploads() {
     }
   } catch (err) {
     console.error("[migrations] Error cleaning up stale uploads:", err);
+  }
+}
+
+export async function retryStaleProcessing() {
+  try {
+    const cutoff = new Date(Date.now() - 5 * 60 * 1000).toISOString();
+    const claimResult = await db.execute(
+      sql.raw(`UPDATE meetings SET status = 'retry_pending' WHERE status = 'processing' AND created_at < '${cutoff}' RETURNING id, title, audio_url`)
+    );
+    const rows = (claimResult as any).rows ?? claimResult;
+    if (!rows || rows.length === 0) return;
+
+    console.log(`[retry] Claimed ${rows.length} meeting(s) stuck in processing for retry...`);
+
+    for (const row of rows) {
+      const meetingId = row.id;
+      const title = row.title || `Meeting ${meetingId}`;
+      const hasAudio = !!row.audio_url;
+      const transcript = await storage.getTranscript(meetingId);
+
+      if (!hasAudio && !transcript) {
+        await db.execute(sql.raw(`UPDATE meetings SET status = 'failed' WHERE id = ${meetingId}`));
+        console.log(`[retry] Meeting "${title}" (${meetingId}) has no audio or transcript — marked as failed`);
+        continue;
+      }
+
+      console.log(`[retry] Retrying meeting "${title}" (${meetingId})...`);
+      processMeetingCore(meetingId)
+        .then(() => console.log(`[retry] Meeting "${title}" (${meetingId}) completed successfully`))
+        .catch(async (err) => {
+          console.error(`[retry] Meeting "${title}" (${meetingId}) retry failed:`, err);
+          try {
+            await db.execute(sql.raw(`UPDATE meetings SET status = 'failed' WHERE id = ${meetingId}`));
+          } catch (updateErr) {
+            console.error(`[retry] Failed to mark meeting ${meetingId} as failed:`, updateErr);
+          }
+        });
+    }
+  } catch (err) {
+    console.error("[retry] Error retrying stale processing:", err);
   }
 }
 
