@@ -2027,6 +2027,98 @@ export async function registerRoutes(
     }
   });
 
+  app.post("/api/meetings/:id/merge", requireAuth, requireVerified, requireSubscription, async (req, res) => {
+    const targetId = Number(req.params.id);
+    const user = (req as any).user as User;
+    const tenant = (req as any).tenant as Tenant;
+
+    const parsed = z.object({
+      sourceIds: z.array(z.number()).min(1, "At least one source session is required"),
+    }).parse(req.body);
+    const sourceIds = [...new Set(parsed.sourceIds)].filter(id => id !== targetId);
+
+    const targetMeeting = await storage.getMeeting(targetId);
+    if (!targetMeeting || targetMeeting.userId !== user.id) {
+      return res.status(404).json({ message: "Target session not found" });
+    }
+    if (targetMeeting.tenantId !== tenant.id && !user.isSuperuser) {
+      return res.status(403).json({ message: "Forbidden" });
+    }
+
+    const sourceMeetings = [];
+    for (const srcId of sourceIds) {
+      const srcMeeting = await storage.getMeeting(srcId);
+      if (!srcMeeting || srcMeeting.userId !== user.id) {
+        return res.status(404).json({ message: `Source session ${srcId} not found` });
+      }
+      if (srcMeeting.tenantId !== tenant.id && !user.isSuperuser) {
+        return res.status(403).json({ message: `Source session ${srcId} belongs to a different tenant` });
+      }
+      sourceMeetings.push(srcMeeting);
+    }
+
+    if (sourceMeetings.length === 0) {
+      return res.status(400).json({ message: "No valid source sessions to merge" });
+    }
+
+    try {
+      const targetTranscript = await storage.getTranscript(targetId);
+      let combinedTranscriptContent = targetTranscript?.content || "";
+
+      for (const src of sourceMeetings) {
+        const srcTranscript = await storage.getTranscript(src.id);
+        if (srcTranscript?.content) {
+          combinedTranscriptContent += `\n\n--- Merged from: ${src.title} (${new Date(src.date).toLocaleDateString()}) ---\n\n${srcTranscript.content}`;
+        }
+
+        const srcActionItems = await storage.getActionItems(src.id);
+        for (const item of srcActionItems) {
+          await storage.createActionItem({
+            meetingId: targetId,
+            content: item.content,
+            assignee: item.assignee,
+            status: item.status,
+          });
+        }
+
+        const srcTopics = await storage.getTopics(src.id);
+        for (const topic of srcTopics) {
+          await storage.createTopic({
+            meetingId: targetId,
+            name: topic.name,
+            relevance: topic.relevance,
+          });
+        }
+      }
+
+      if (combinedTranscriptContent.trim()) {
+        await storage.clearTranscript(targetId);
+        await storage.createTranscript({
+          meetingId: targetId,
+          content: combinedTranscriptContent,
+          language: targetTranscript?.language || "en",
+        });
+      }
+
+      for (const src of sourceMeetings) {
+        await storage.deleteMeeting(src.id);
+      }
+
+      await storage.updateMeetingStatus(targetId, "processing");
+      res.json({ message: "Sessions merged. Reprocessing started.", meetingId: targetId });
+
+      processMeetingCore(targetId)
+        .then(() => console.log(`[merge] Meeting ${targetId} reprocessed after merge`))
+        .catch(async (error) => {
+          console.error("[merge] Reprocessing error after merge:", error);
+          await storage.updateMeetingStatus(targetId, "failed");
+        });
+    } catch (err) {
+      console.error("[merge] Error merging sessions:", err);
+      res.status(500).json({ message: "Failed to merge sessions" });
+    }
+  });
+
   app.delete(api.meetings.delete.path, requireAuth, requireVerified, async (req, res) => {
     const id = Number(req.params.id);
     const user = (req as any).user as User;

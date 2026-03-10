@@ -1,5 +1,5 @@
 import { useState, useMemo } from "react";
-import { Link } from "wouter";
+import { Link, useLocation } from "wouter";
 import { useMeetings, useDeleteMeeting } from "@/hooks/use-meetings";
 import { useClients } from "@/hooks/use-clients";
 import { useOfflineRecordings, useOnlineStatus } from "@/hooks/use-offline";
@@ -7,8 +7,9 @@ import { retrySingle, syncAllPending } from "@/lib/offlineSync";
 import { deleteOfflineRecording } from "@/lib/offlineDb";
 import { useHasRecoverableRecording } from "@/hooks/use-recovery";
 import { StatusBadge } from "@/components/StatusBadge";
+import { MergeDialog } from "@/components/MergeDialog";
 import { format } from "date-fns";
-import { Plus, ChevronRight, MoreVertical, Trash2, Calendar, Clock, Mic, Users, X, WifiOff, RefreshCw, Loader2, CloudUpload, Phone, ArrowUpDown, RotateCcw } from "lucide-react";
+import { Plus, ChevronRight, MoreVertical, Trash2, Calendar, Clock, Mic, Users, X, WifiOff, RefreshCw, Loader2, CloudUpload, Phone, ArrowUpDown, RotateCcw, Merge, CheckSquare } from "lucide-react";
 import { useViewMode } from "@/hooks/use-view-mode";
 import { ViewToggle } from "@/components/ViewToggle";
 import { motion } from "framer-motion";
@@ -27,6 +28,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
+import { Checkbox } from "@/components/ui/checkbox";
 import { useToast } from "@/hooks/use-toast";
 import {
   AlertDialog,
@@ -40,6 +42,7 @@ import {
 } from "@/components/ui/alert-dialog";
 
 export default function Dashboard() {
+  const [, setLocation] = useLocation();
   const [selectedClientId, setSelectedClientId] = useState<string>("");
   const { data: meetings, isLoading, isError } = useMeetings();
   const { data: clients } = useClients();
@@ -56,6 +59,28 @@ export default function Dashboard() {
     return localStorage.getItem("dashboard-sort") || "date-newest";
   });
   const { hasRecoverable, discard: discardRecovery } = useHasRecoverableRecording();
+  const [mergeMode, setMergeMode] = useState(false);
+  const [selectedForMerge, setSelectedForMerge] = useState<Set<number>>(new Set());
+  const [mergeDialogOpen, setMergeDialogOpen] = useState(false);
+
+  const toggleMergeSelection = (id: number) => {
+    setSelectedForMerge(prev => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  };
+
+  const exitMergeMode = () => {
+    setMergeMode(false);
+    setSelectedForMerge(new Set());
+  };
+
+  const selectedMeetingsForMerge = useMemo(() => {
+    if (!meetings) return [];
+    return meetings.filter(m => selectedForMerge.has(m.id));
+  }, [meetings, selectedForMerge]);
 
   const handleSortChange = (value: string) => {
     setSortMode(value);
@@ -304,7 +329,42 @@ export default function Dashboard() {
             <SelectItem value="status">Status</SelectItem>
           </SelectContent>
         </Select>
-        <div className="ml-auto">
+        <div className="flex items-center gap-2 ml-auto">
+          {!mergeMode ? (
+            <Button
+              variant="outline"
+              size="sm"
+              className="rounded-xl"
+              onClick={() => setMergeMode(true)}
+              disabled={!sortedMeetings || sortedMeetings.length < 2}
+              data-testid="button-enter-merge-mode"
+            >
+              <Merge className="w-4 h-4 mr-1.5" />
+              Merge
+            </Button>
+          ) : (
+            <div className="flex items-center gap-2">
+              <Button
+                size="sm"
+                className="rounded-xl"
+                disabled={selectedForMerge.size < 2}
+                onClick={() => setMergeDialogOpen(true)}
+                data-testid="button-open-merge-dialog"
+              >
+                <Merge className="w-4 h-4 mr-1.5" />
+                Merge ({selectedForMerge.size})
+              </Button>
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={exitMergeMode}
+                data-testid="button-exit-merge-mode"
+              >
+                <X className="w-4 h-4 mr-1" />
+                Cancel
+              </Button>
+            </div>
+          )}
           <ViewToggle mode={viewMode} onChange={setViewMode} />
         </div>
       </div>
@@ -423,15 +483,28 @@ export default function Dashboard() {
           >
             {sortedMeetings.map((meeting) => {
               const clientName = getClientName(meeting.clientId);
+              const isSelected = selectedForMerge.has(meeting.id);
               return (
                 <motion.div 
                   key={meeting.id} 
                   variants={item}
-                  className="group relative bg-white dark:bg-card rounded-2xl border border-slate-200 dark:border-border p-5 sm:p-6 hover-elevate transition-all duration-300"
+                  className={`group relative bg-white dark:bg-card rounded-2xl border p-5 sm:p-6 hover-elevate transition-all duration-300 ${
+                    mergeMode && isSelected ? "border-primary ring-2 ring-primary/20" : "border-slate-200 dark:border-border"
+                  }`}
                   data-testid={`card-meeting-${meeting.id}`}
+                  onClick={mergeMode ? () => toggleMergeSelection(meeting.id) : undefined}
                 >
                   <div className="flex justify-between items-start mb-4 gap-2">
                     <div className="flex items-center gap-2 flex-wrap">
+                      {mergeMode && (
+                        <div onClick={(e) => e.stopPropagation()}>
+                          <Checkbox
+                            checked={isSelected}
+                            onCheckedChange={() => toggleMergeSelection(meeting.id)}
+                            data-testid={`checkbox-merge-${meeting.id}`}
+                          />
+                        </div>
+                      )}
                       <StatusBadge status={meeting.status as any} />
                       {clientName && (
                         <Badge variant="outline" className="rounded-lg text-xs">
@@ -439,30 +512,65 @@ export default function Dashboard() {
                         </Badge>
                       )}
                     </div>
-                    <DropdownMenu>
-                      <DropdownMenuTrigger asChild>
-                        <Button variant="ghost" size="icon" className="-mr-2 -mt-2 text-slate-400">
-                          <MoreVertical className="w-4 h-4" />
-                        </Button>
-                      </DropdownMenuTrigger>
-                      <DropdownMenuContent align="end" className="w-48 rounded-xl p-1">
-                        <DropdownMenuItem 
-                          className="text-red-600 focus:text-red-700 focus:bg-red-50 rounded-lg cursor-pointer"
-                          onClick={() => setDeleteMeetingId(meeting.id)}
-                        >
-                          <Trash2 className="mr-2 w-4 h-4" />
-                          Delete
-                        </DropdownMenuItem>
-                      </DropdownMenuContent>
-                    </DropdownMenu>
+                    {!mergeMode && (
+                      <DropdownMenu>
+                        <DropdownMenuTrigger asChild>
+                          <Button variant="ghost" size="icon" className="-mr-2 -mt-2 text-slate-400">
+                            <MoreVertical className="w-4 h-4" />
+                          </Button>
+                        </DropdownMenuTrigger>
+                        <DropdownMenuContent align="end" className="w-48 rounded-xl p-1">
+                          <DropdownMenuItem
+                            className="rounded-lg cursor-pointer"
+                            onClick={() => {
+                              setMergeMode(true);
+                              setSelectedForMerge(new Set([meeting.id]));
+                            }}
+                          >
+                            <Merge className="mr-2 w-4 h-4" />
+                            Merge with...
+                          </DropdownMenuItem>
+                          <DropdownMenuItem 
+                            className="text-red-600 focus:text-red-700 focus:bg-red-50 rounded-lg cursor-pointer"
+                            onClick={() => setDeleteMeetingId(meeting.id)}
+                          >
+                            <Trash2 className="mr-2 w-4 h-4" />
+                            Delete
+                          </DropdownMenuItem>
+                        </DropdownMenuContent>
+                      </DropdownMenu>
+                    )}
                   </div>
 
-                  <Link href={`/meeting/${meeting.id}`}>
-                    <div className="block cursor-pointer">
-                      <h3 className="text-xl font-bold text-slate-900 mb-2 group-hover:text-primary transition-colors">
+                  {!mergeMode ? (
+                    <Link href={`/meeting/${meeting.id}`}>
+                      <div className="block cursor-pointer">
+                        <h3 className="text-xl font-bold text-slate-900 mb-2 group-hover:text-primary transition-colors">
+                          {meeting.title}
+                        </h3>
+                        
+                        <div className="flex flex-col gap-2 mt-4 text-sm text-slate-500">
+                          <div className="flex items-center gap-2">
+                            <Calendar className="w-4 h-4 text-slate-400" />
+                            {format(new Date(meeting.date), "MMM d, yyyy")}
+                          </div>
+                          <div className="flex items-center gap-2">
+                            <Clock className="w-4 h-4 text-slate-400" />
+                            {format(new Date(meeting.date), "h:mm a")}
+                          </div>
+                        </div>
+
+                        <div className="mt-6 flex items-center text-primary font-medium text-sm">
+                          View Details
+                          <ChevronRight className="w-4 h-4 ml-1 transition-transform group-hover:translate-x-1" />
+                        </div>
+                      </div>
+                    </Link>
+                  ) : (
+                    <div className="cursor-pointer">
+                      <h3 className="text-xl font-bold text-slate-900 mb-2">
                         {meeting.title}
                       </h3>
-                      
                       <div className="flex flex-col gap-2 mt-4 text-sm text-slate-500">
                         <div className="flex items-center gap-2">
                           <Calendar className="w-4 h-4 text-slate-400" />
@@ -473,13 +581,8 @@ export default function Dashboard() {
                           {format(new Date(meeting.date), "h:mm a")}
                         </div>
                       </div>
-
-                      <div className="mt-6 flex items-center text-primary font-medium text-sm">
-                        View Details
-                        <ChevronRight className="w-4 h-4 ml-1 transition-transform group-hover:translate-x-1" />
-                      </div>
                     </div>
-                  </Link>
+                  )}
                 </motion.div>
               );
             })}
@@ -493,56 +596,103 @@ export default function Dashboard() {
           >
             {sortedMeetings.map((meeting) => {
               const clientName = getClientName(meeting.clientId);
+              const isSelected = selectedForMerge.has(meeting.id);
               return (
                 <motion.div
                   key={meeting.id}
                   variants={item}
-                  className="group relative bg-white dark:bg-card rounded-xl border border-slate-200 dark:border-border hover-elevate transition-all duration-200"
+                  className={`group relative bg-white dark:bg-card rounded-xl border hover-elevate transition-all duration-200 ${
+                    mergeMode && isSelected ? "border-primary ring-2 ring-primary/20" : "border-slate-200 dark:border-border"
+                  }`}
                   data-testid={`row-meeting-${meeting.id}`}
+                  onClick={mergeMode ? () => toggleMergeSelection(meeting.id) : undefined}
                 >
                   <div className="flex items-center gap-3 p-3">
-                    <Link href={`/meeting/${meeting.id}`} className="flex-1 min-w-0" data-testid={`link-meeting-${meeting.id}`}>
-                      <div className="flex flex-col sm:flex-row sm:items-center gap-1 sm:gap-3 cursor-pointer">
-                        <div className="min-w-0 flex-1">
-                          <h3 className="font-semibold text-slate-900 dark:text-foreground truncate group-hover:text-primary transition-colors text-sm sm:text-base" data-testid={`text-meeting-title-${meeting.id}`}>
-                            {meeting.title}
-                          </h3>
+                    {mergeMode && (
+                      <div onClick={(e) => e.stopPropagation()}>
+                        <Checkbox
+                          checked={isSelected}
+                          onCheckedChange={() => toggleMergeSelection(meeting.id)}
+                          className="shrink-0"
+                          data-testid={`checkbox-merge-list-${meeting.id}`}
+                        />
+                      </div>
+                    )}
+                    {!mergeMode ? (
+                      <Link href={`/meeting/${meeting.id}`} className="flex-1 min-w-0" data-testid={`link-meeting-${meeting.id}`}>
+                        <div className="flex flex-col sm:flex-row sm:items-center gap-1 sm:gap-3 cursor-pointer">
+                          <div className="min-w-0 flex-1">
+                            <h3 className="font-semibold text-slate-900 dark:text-foreground truncate group-hover:text-primary transition-colors text-sm sm:text-base" data-testid={`text-meeting-title-${meeting.id}`}>
+                              {meeting.title}
+                            </h3>
+                          </div>
+                          <div className="flex items-center gap-2 text-xs sm:text-sm text-slate-500 shrink-0 flex-wrap">
+                            <span className="flex items-center gap-1">
+                              <Calendar className="w-3 h-3 sm:w-3.5 sm:h-3.5 text-slate-400 shrink-0" />
+                              {format(new Date(meeting.date), "MMM d")}
+                            </span>
+                            <span className="flex items-center gap-1">
+                              <Clock className="w-3 h-3 sm:w-3.5 sm:h-3.5 text-slate-400 shrink-0" />
+                              {format(new Date(meeting.date), "h:mm a")}
+                            </span>
+                            <StatusBadge status={meeting.status as any} />
+                            {clientName && (
+                              <Badge variant="outline" className="rounded-lg text-xs">
+                                {clientName}
+                              </Badge>
+                            )}
+                          </div>
                         </div>
-                        <div className="flex items-center gap-2 text-xs sm:text-sm text-slate-500 shrink-0 flex-wrap">
-                          <span className="flex items-center gap-1">
-                            <Calendar className="w-3 h-3 sm:w-3.5 sm:h-3.5 text-slate-400 shrink-0" />
-                            {format(new Date(meeting.date), "MMM d")}
-                          </span>
-                          <span className="flex items-center gap-1">
-                            <Clock className="w-3 h-3 sm:w-3.5 sm:h-3.5 text-slate-400 shrink-0" />
-                            {format(new Date(meeting.date), "h:mm a")}
-                          </span>
-                          <StatusBadge status={meeting.status as any} />
-                          {clientName && (
-                            <Badge variant="outline" className="rounded-lg text-xs">
-                              {clientName}
-                            </Badge>
-                          )}
+                      </Link>
+                    ) : (
+                      <div className="flex-1 min-w-0 cursor-pointer">
+                        <div className="flex flex-col sm:flex-row sm:items-center gap-1 sm:gap-3">
+                          <div className="min-w-0 flex-1">
+                            <h3 className="font-semibold text-slate-900 dark:text-foreground truncate text-sm sm:text-base">
+                              {meeting.title}
+                            </h3>
+                          </div>
+                          <div className="flex items-center gap-2 text-xs sm:text-sm text-slate-500 shrink-0 flex-wrap">
+                            <span className="flex items-center gap-1">
+                              <Calendar className="w-3 h-3 sm:w-3.5 sm:h-3.5 text-slate-400 shrink-0" />
+                              {format(new Date(meeting.date), "MMM d")}
+                            </span>
+                            <StatusBadge status={meeting.status as any} />
+                          </div>
                         </div>
                       </div>
-                    </Link>
-                    <ChevronRight className="w-4 h-4 text-slate-400 shrink-0 transition-transform group-hover:translate-x-1 hidden sm:block" />
-                    <DropdownMenu>
-                      <DropdownMenuTrigger asChild>
-                        <Button variant="ghost" size="icon" className="text-slate-400 shrink-0">
-                          <MoreVertical className="w-4 h-4" />
-                        </Button>
-                      </DropdownMenuTrigger>
-                      <DropdownMenuContent align="end" className="w-48 rounded-xl p-1">
-                        <DropdownMenuItem
-                          className="text-red-600 focus:text-red-700 focus:bg-red-50 rounded-lg cursor-pointer"
-                          onClick={() => setDeleteMeetingId(meeting.id)}
-                        >
-                          <Trash2 className="mr-2 w-4 h-4" />
-                          Delete
-                        </DropdownMenuItem>
-                      </DropdownMenuContent>
-                    </DropdownMenu>
+                    )}
+                    {!mergeMode && (
+                      <>
+                        <ChevronRight className="w-4 h-4 text-slate-400 shrink-0 transition-transform group-hover:translate-x-1 hidden sm:block" />
+                        <DropdownMenu>
+                          <DropdownMenuTrigger asChild>
+                            <Button variant="ghost" size="icon" className="text-slate-400 shrink-0">
+                              <MoreVertical className="w-4 h-4" />
+                            </Button>
+                          </DropdownMenuTrigger>
+                          <DropdownMenuContent align="end" className="w-48 rounded-xl p-1">
+                            <DropdownMenuItem
+                              className="rounded-lg cursor-pointer"
+                              onClick={() => {
+                                setMergeMode(true);
+                                setSelectedForMerge(new Set([meeting.id]));
+                              }}
+                            >
+                              <Merge className="mr-2 w-4 h-4" />
+                              Merge with...
+                            </DropdownMenuItem>
+                            <DropdownMenuItem
+                              className="text-red-600 focus:text-red-700 focus:bg-red-50 rounded-lg cursor-pointer"
+                              onClick={() => setDeleteMeetingId(meeting.id)}
+                            >
+                              <Trash2 className="mr-2 w-4 h-4" />
+                              Delete
+                            </DropdownMenuItem>
+                          </DropdownMenuContent>
+                        </DropdownMenu>
+                      </>
+                    )}
                   </div>
                 </motion.div>
               );
@@ -565,6 +715,19 @@ export default function Dashboard() {
           </Link>
         </div>
       )}
+
+      <MergeDialog
+        open={mergeDialogOpen}
+        onOpenChange={(open) => {
+          setMergeDialogOpen(open);
+          if (!open) exitMergeMode();
+        }}
+        selectedMeetings={selectedMeetingsForMerge}
+        onMergeComplete={(targetId) => {
+          exitMergeMode();
+          setLocation(`/meeting/${targetId}`);
+        }}
+      />
 
       <AlertDialog open={deleteMeetingId !== null} onOpenChange={(open) => { if (!open) setDeleteMeetingId(null); }}>
         <AlertDialogContent>

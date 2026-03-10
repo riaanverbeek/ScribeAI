@@ -1,7 +1,8 @@
 const DB_NAME = "scribeai-offline";
-const DB_VERSION = 2;
+const DB_VERSION = 3;
 const STORE_NAME = "pending-recordings";
 const IN_PROGRESS_STORE = "in-progress-recording";
+const SEGMENTS_STORE = "recording-segments";
 
 export interface OfflineRecording {
   id: string;
@@ -31,6 +32,14 @@ export interface InProgressRecording {
   updatedAt: string;
 }
 
+export interface RecordingSegment {
+  id: string;
+  chunks: ArrayBuffer[];
+  mimeType: string;
+  elapsed: number;
+  savedAt: string;
+}
+
 function openDb(): Promise<IDBDatabase> {
   return new Promise((resolve, reject) => {
     const request = indexedDB.open(DB_NAME, DB_VERSION);
@@ -41,6 +50,9 @@ function openDb(): Promise<IDBDatabase> {
       }
       if (!db.objectStoreNames.contains(IN_PROGRESS_STORE)) {
         db.createObjectStore(IN_PROGRESS_STORE, { keyPath: "id" });
+      }
+      if (!db.objectStoreNames.contains(SEGMENTS_STORE)) {
+        db.createObjectStore(SEGMENTS_STORE, { keyPath: "id" });
       }
     };
     request.onsuccess = () => resolve(request.result);
@@ -157,4 +169,75 @@ export async function deleteInProgressRecording(): Promise<void> {
     tx.oncomplete = () => resolve();
     tx.onerror = () => reject(tx.error);
   });
+}
+
+export async function saveSegment(
+  chunks: Blob[],
+  mimeType: string,
+  elapsed: number
+): Promise<void> {
+  const buffers = await Promise.all(chunks.map(c => c.arrayBuffer()));
+  const segment: RecordingSegment = {
+    id: `segment-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+    chunks: buffers,
+    mimeType,
+    elapsed,
+    savedAt: new Date().toISOString(),
+  };
+  const db = await openDb();
+  return new Promise((resolve, reject) => {
+    const tx = db.transaction(SEGMENTS_STORE, "readwrite");
+    tx.objectStore(SEGMENTS_STORE).put(segment);
+    tx.oncomplete = () => resolve();
+    tx.onerror = () => reject(tx.error);
+  });
+}
+
+export async function getSegments(): Promise<RecordingSegment[]> {
+  const db = await openDb();
+  return new Promise((resolve, reject) => {
+    const tx = db.transaction(SEGMENTS_STORE, "readonly");
+    const request = tx.objectStore(SEGMENTS_STORE).getAll();
+    request.onsuccess = () => resolve(request.result || []);
+    request.onerror = () => reject(request.error);
+  });
+}
+
+export async function getSegmentCount(): Promise<number> {
+  const segments = await getSegments();
+  return segments.length;
+}
+
+export async function clearSegments(): Promise<void> {
+  const db = await openDb();
+  return new Promise((resolve, reject) => {
+    const tx = db.transaction(SEGMENTS_STORE, "readwrite");
+    tx.objectStore(SEGMENTS_STORE).clear();
+    tx.oncomplete = () => resolve();
+    tx.onerror = () => reject(tx.error);
+  });
+}
+
+export async function combineSegmentsWithCurrentChunks(
+  currentChunks: Blob[],
+  currentMimeType: string
+): Promise<{ blob: Blob; mimeType: string; totalElapsed: number }> {
+  const segments = await getSegments();
+  const allBlobs: Blob[] = [];
+  let totalElapsed = 0;
+  const mimeType = segments.length > 0 ? segments[0].mimeType : currentMimeType;
+
+  for (const segment of segments) {
+    for (const buf of segment.chunks) {
+      allBlobs.push(new Blob([buf], { type: segment.mimeType }));
+    }
+    totalElapsed += segment.elapsed;
+  }
+
+  for (const chunk of currentChunks) {
+    allBlobs.push(chunk);
+  }
+
+  const combinedBlob = new Blob(allBlobs, { type: mimeType });
+  return { blob: combinedBlob, mimeType, totalElapsed };
 }

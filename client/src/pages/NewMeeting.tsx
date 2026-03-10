@@ -671,7 +671,7 @@ export default function NewMeeting() {
                             Interrupted recording found
                           </p>
                           <p className="text-xs text-blue-700 dark:text-blue-400 mt-1">
-                            A previous recording was interrupted. Would you like to recover it?
+                            A previous recording was interrupted{recorder.recoverableElapsed > 0 ? ` (${Math.floor(recorder.recoverableElapsed / 60)}:${String(recorder.recoverableElapsed % 60).padStart(2, "0")} captured)` : ""}. Would you like to recover it?
                           </p>
                           <div className="flex gap-2 mt-3">
                             <Button
@@ -817,6 +817,19 @@ export default function NewMeeting() {
                         <p className="text-sm text-slate-500 dark:text-slate-400 mt-1">
                           {recorder.state === "recording" ? "Speak clearly into your microphone" : "Recording is paused. Resume or stop when ready."}
                         </p>
+                        {recorder.segmentCount > 0 && (
+                          <p className="text-xs text-blue-600 dark:text-blue-400 mt-1" data-testid="text-segment-count-newmeeting">
+                            {recorder.segmentCount} segment{recorder.segmentCount !== 1 ? "s" : ""} saved
+                          </p>
+                        )}
+                        {recorder.autoRestarted && (
+                          <div className="flex items-center gap-2 bg-blue-500/10 border border-blue-500/30 rounded-lg px-3 py-2 mt-3 mx-auto max-w-xs" data-testid="banner-auto-restarted-newmeeting">
+                            <RotateCcw className="w-4 h-4 text-blue-500 shrink-0" />
+                            <p className="text-xs text-blue-700 dark:text-blue-400">
+                              Recording interrupted and resumed automatically.
+                            </p>
+                          </div>
+                        )}
                       </div>
 
                       <div className="flex items-center gap-3">

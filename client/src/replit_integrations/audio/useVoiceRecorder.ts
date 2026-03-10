@@ -3,6 +3,11 @@ import {
   saveInProgressChunks,
   getInProgressRecording,
   deleteInProgressRecording,
+  saveSegment,
+  getSegmentCount,
+  clearSegments,
+  combineSegmentsWithCurrentChunks,
+  getSegments,
   type InProgressRecording,
 } from "@/lib/offlineDb";
 import { reportError } from "@/lib/logError";
@@ -97,6 +102,8 @@ export function useVoiceRecorder() {
   const [audioLevel, setAudioLevel] = useState<number>(0);
   const [hasRecoverableRecording, setHasRecoverableRecording] = useState(false);
   const [recoverableElapsed, setRecoverableElapsed] = useState(0);
+  const [segmentCount, setSegmentCount] = useState(0);
+  const [autoRestarted, setAutoRestarted] = useState(false);
 
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
   const chunksRef = useRef<Blob[]>([]);
@@ -107,16 +114,27 @@ export function useVoiceRecorder() {
   const analyserRef = useRef<AnalyserNode | null>(null);
   const animFrameRef = useRef<number | null>(null);
   const streamRef = useRef<MediaStream | null>(null);
+  const isAutoRestartingRef = useRef(false);
+  const onSegmentSavedRef = useRef<((count: number) => void) | null>(null);
 
   useEffect(() => {
-    getInProgressRecording()
-      .then((rec) => {
-        if (rec && rec.chunks && rec.chunks.length > 0) {
+    const checkRecovery = async () => {
+      try {
+        const rec = await getInProgressRecording();
+        const segments = await getSegments();
+        const hasInProgress = !!(rec && rec.chunks && rec.chunks.length > 0);
+        const hasSegments = segments.length > 0;
+
+        if (hasInProgress || hasSegments) {
           setHasRecoverableRecording(true);
-          setRecoverableElapsed(rec.elapsed || 0);
+          let totalElapsed = 0;
+          if (rec) totalElapsed += rec.elapsed || 0;
+          for (const seg of segments) totalElapsed += seg.elapsed || 0;
+          setRecoverableElapsed(totalElapsed);
         }
-      })
-      .catch(() => {});
+      } catch {}
+    };
+    checkRecovery();
   }, []);
 
   const flushToIndexedDB = useCallback(async () => {
@@ -212,9 +230,95 @@ export function useVoiceRecorder() {
     };
   }, [handleVisibilityChange, handlePageHide]);
 
+  const segmentElapsedStartRef = useRef<number>(0);
+
+  const saveCurrentAsSegment = useCallback(async () => {
+    if (chunksRef.current.length === 0) return;
+    try {
+      const segmentDuration = elapsedRef.current - segmentElapsedStartRef.current;
+      await saveSegment(
+        [...chunksRef.current],
+        mimeTypeRef.current,
+        Math.max(0, segmentDuration)
+      );
+      segmentElapsedStartRef.current = elapsedRef.current;
+      const count = await getSegmentCount();
+      setSegmentCount(count);
+      onSegmentSavedRef.current?.(count);
+      chunksRef.current = [];
+      await deleteInProgressRecording().catch(() => {});
+    } catch (e) {
+      console.warn("Failed to save segment:", e);
+    }
+  }, []);
+
+  const attemptAutoRestart = useCallback(async () => {
+    if (isAutoRestartingRef.current) return;
+    isAutoRestartingRef.current = true;
+
+    try {
+      await saveCurrentAsSegment();
+
+      const supportedMime = getSupportedMimeType();
+      if (!supportedMime) {
+        isAutoRestartingRef.current = false;
+        return false;
+      }
+
+      let stream: MediaStream;
+      try {
+        stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      } catch {
+        isAutoRestartingRef.current = false;
+        return false;
+      }
+
+      streamRef.current = stream;
+
+      const recorder = new MediaRecorder(stream, { mimeType: supportedMime });
+      mediaRecorderRef.current = recorder;
+      chunksRef.current = [];
+      mimeTypeRef.current = supportedMime;
+
+      recorder.ondataavailable = (e) => {
+        if (e.data.size > 0) chunksRef.current.push(e.data);
+      };
+
+      recorder.onerror = () => {
+        console.error("MediaRecorder error after auto-restart — saving segment");
+        reportError("MediaRecorder onerror fired after auto-restart", "MediaRecorder:onerror:autorestart");
+        stopAutoSave();
+        cleanupAudioContext();
+        attemptAutoRestart().then((restarted) => {
+          if (!restarted) {
+            flushToIndexedDB();
+            setState("idle");
+          }
+        }).catch(() => {
+          flushToIndexedDB();
+          setState("idle");
+        });
+      };
+
+      recorder.start(100);
+      setState("recording");
+      setAutoRestarted(true);
+      startAudioLevelMonitoring(stream);
+      startAutoSave();
+
+      isAutoRestartingRef.current = false;
+      return true;
+    } catch (e) {
+      console.error("Auto-restart failed:", e);
+      isAutoRestartingRef.current = false;
+      return false;
+    }
+  }, [saveCurrentAsSegment, stopAutoSave, cleanupAudioContext, startAudioLevelMonitoring, startAutoSave]);
+
   const startRecording = useCallback(async (): Promise<MediaStream> => {
     setError(null);
     setErrorType(null);
+    setAutoRestarted(false);
 
     if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
       const msg = "Your browser does not support microphone access. This can happen when using the home screen app on older iPhones. Please open the app in Safari or Chrome instead, or upload an audio file.";
@@ -258,8 +362,11 @@ export function useVoiceRecorder() {
     mediaRecorderRef.current = recorder;
     chunksRef.current = [];
     elapsedRef.current = 0;
+    segmentElapsedStartRef.current = 0;
+    setSegmentCount(0);
 
     await deleteInProgressRecording().catch(() => {});
+    await clearSegments().catch(() => {});
     setHasRecoverableRecording(false);
 
     recorder.ondataavailable = (e) => {
@@ -267,12 +374,16 @@ export function useVoiceRecorder() {
     };
 
     recorder.onerror = () => {
-      console.error("MediaRecorder error — saving chunks to IndexedDB");
+      console.error("MediaRecorder error — attempting auto-restart");
       reportError("MediaRecorder onerror fired during recording", "MediaRecorder:onerror");
-      flushToIndexedDB();
       stopAutoSave();
       cleanupAudioContext();
-      setState("idle");
+      attemptAutoRestart().then((restarted) => {
+        if (!restarted) {
+          flushToIndexedDB();
+          setState("idle");
+        }
+      });
     };
 
     recorder.start(100);
@@ -282,7 +393,7 @@ export function useVoiceRecorder() {
     startAutoSave();
 
     return stream;
-  }, [flushToIndexedDB, startAutoSave, stopAutoSave, startAudioLevelMonitoring, cleanupAudioContext]);
+  }, [flushToIndexedDB, startAutoSave, stopAutoSave, startAudioLevelMonitoring, cleanupAudioContext, attemptAutoRestart]);
 
   const pauseRecording = useCallback((): void => {
     const recorder = mediaRecorderRef.current;
@@ -305,24 +416,39 @@ export function useVoiceRecorder() {
     }
   }, [startAudioLevelMonitoring]);
 
-  const stopRecording = useCallback((): Promise<Blob> => {
-    return new Promise((resolve) => {
-      const recorder = mediaRecorderRef.current;
-      if (!recorder || (recorder.state !== "recording" && recorder.state !== "paused")) {
-        resolve(new Blob());
-        return;
+  const stopRecording = useCallback(async (): Promise<Blob> => {
+    const recorder = mediaRecorderRef.current;
+
+    stopAutoSave();
+    cleanupAudioContext();
+
+    if (!recorder || (recorder.state !== "recording" && recorder.state !== "paused")) {
+      const segments = await getSegments();
+      if (segments.length > 0) {
+        const { blob } = await combineSegmentsWithCurrentChunks([], mimeTypeRef.current);
+        setState("stopped");
+        return blob;
       }
+      setState("stopped");
+      return new Blob();
+    }
 
-      stopAutoSave();
-      cleanupAudioContext();
-
+    return new Promise(async (resolve) => {
       recorder.onstop = async () => {
-        const blob = new Blob(chunksRef.current, { type: mimeTypeRef.current });
         recorder.stream.getTracks().forEach((t) => t.stop());
         streamRef.current = null;
         setState("stopped");
-        await flushToIndexedDB().catch(() => {});
-        resolve(blob);
+
+        const segments = await getSegments();
+        if (segments.length > 0) {
+          const { blob } = await combineSegmentsWithCurrentChunks(chunksRef.current, mimeTypeRef.current);
+          await flushToIndexedDB().catch(() => {});
+          resolve(blob);
+        } else {
+          const blob = new Blob(chunksRef.current, { type: mimeTypeRef.current });
+          await flushToIndexedDB().catch(() => {});
+          resolve(blob);
+        }
       };
 
       recorder.stop();
@@ -331,28 +457,55 @@ export function useVoiceRecorder() {
 
   const clearRecoveryData = useCallback(async () => {
     await deleteInProgressRecording().catch(() => {});
+    await clearSegments().catch(() => {});
     setHasRecoverableRecording(false);
+    setSegmentCount(0);
     invalidateRecoveryState();
   }, []);
 
   const recoverRecording = useCallback(async (): Promise<{ blob: Blob; mimeType: string; elapsed: number } | null> => {
     try {
-      const rec = await getInProgressRecording();
-      if (!rec || !rec.chunks || rec.chunks.length === 0) {
+      const segments = await getSegments();
+      const inProgress = await getInProgressRecording();
+
+      const hasSegments = segments.length > 0;
+      const hasInProgress = !!(inProgress && inProgress.chunks && inProgress.chunks.length > 0);
+
+      if (!hasSegments && !hasInProgress) {
         setHasRecoverableRecording(false);
         invalidateRecoveryState();
         return null;
       }
 
-      const blobs = rec.chunks.map(
-        (buf: ArrayBuffer) => new Blob([buf], { type: rec.mimeType })
-      );
-      const blob = new Blob(blobs, { type: rec.mimeType });
-      const result = { blob, mimeType: rec.mimeType, elapsed: rec.elapsed };
-      await deleteInProgressRecording();
+      const allBlobs: Blob[] = [];
+      let totalElapsed = 0;
+      let mimeType = "audio/webm";
+
+      for (const segment of segments) {
+        mimeType = segment.mimeType;
+        for (const buf of segment.chunks) {
+          allBlobs.push(new Blob([buf], { type: segment.mimeType }));
+        }
+        totalElapsed += segment.elapsed;
+      }
+
+      if (hasInProgress) {
+        mimeType = inProgress!.mimeType;
+        for (const buf of inProgress!.chunks) {
+          allBlobs.push(new Blob([buf], { type: inProgress!.mimeType }));
+        }
+        totalElapsed += inProgress!.elapsed;
+      }
+
+      const blob = new Blob(allBlobs, { type: mimeType });
+
+      await deleteInProgressRecording().catch(() => {});
+      await clearSegments().catch(() => {});
       setHasRecoverableRecording(false);
+      setSegmentCount(0);
       invalidateRecoveryState();
-      return result;
+
+      return { blob, mimeType, elapsed: totalElapsed };
     } catch {
       setHasRecoverableRecording(false);
       invalidateRecoveryState();
@@ -362,7 +515,9 @@ export function useVoiceRecorder() {
 
   const discardRecovery = useCallback(async () => {
     await deleteInProgressRecording().catch(() => {});
+    await clearSegments().catch(() => {});
     setHasRecoverableRecording(false);
+    setSegmentCount(0);
     invalidateRecoveryState();
   }, []);
 
@@ -387,6 +542,8 @@ export function useVoiceRecorder() {
     audioLevel,
     hasRecoverableRecording,
     recoverableElapsed,
+    segmentCount,
+    autoRestarted,
     startRecording,
     pauseRecording,
     resumeRecording,
@@ -397,5 +554,6 @@ export function useVoiceRecorder() {
     setElapsedRef,
     recordingMimeType,
     recordingExtension,
+    onSegmentSavedRef,
   };
 }

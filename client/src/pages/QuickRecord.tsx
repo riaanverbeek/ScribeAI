@@ -369,7 +369,7 @@ export default function QuickRecord() {
                   Interrupted recording found
                 </p>
                 <p className="text-xs text-blue-700 dark:text-blue-400 mt-1">
-                  A previous recording was interrupted ({formatTime(recorder.recoverableElapsed)} captured). Would you like to recover it?
+                  A previous recording was interrupted ({formatTime(recorder.recoverableElapsed)} captured{recorder.segmentCount > 0 ? `, ${recorder.segmentCount} segment${recorder.segmentCount !== 1 ? "s" : ""}` : ""}). Would you like to recover it?
                 </p>
                 <div className="flex gap-2 mt-3">
                   <Button size="sm" onClick={handleRecover} data-testid="button-recover">
@@ -503,12 +503,26 @@ export default function QuickRecord() {
                     <p className="text-sm text-muted-foreground mt-2">
                       {phase === "recording" ? "Recording..." : "Paused"}
                     </p>
+                    {recorder.segmentCount > 0 && (
+                      <p className="text-xs text-blue-600 dark:text-blue-400 mt-1" data-testid="text-segment-count">
+                        {recorder.segmentCount} segment{recorder.segmentCount !== 1 ? "s" : ""} saved
+                      </p>
+                    )}
                   </motion.div>
+
+                  {recorder.autoRestarted && (
+                    <div className="flex items-center gap-2 bg-blue-500/10 border border-blue-500/30 rounded-lg px-3 py-2 max-w-xs" data-testid="banner-auto-restarted">
+                      <RotateCcw className="w-4 h-4 text-blue-500 shrink-0" />
+                      <p className="text-xs text-blue-700 dark:text-blue-400">
+                        Recording was interrupted and automatically resumed. Your previous audio is saved.
+                      </p>
+                    </div>
+                  )}
 
                   <div className="flex items-center gap-2 bg-amber-500/10 border border-amber-500/30 rounded-lg px-3 py-2 max-w-xs" data-testid="warning-stay-on-screen">
                     <AlertTriangle className="w-4 h-4 text-amber-500 shrink-0" />
                     <p className="text-xs text-amber-700 dark:text-amber-400">
-                      If a call interrupts your recording, come back to this page to recover it.
+                      If a call interrupts your recording, it will be saved and resumed automatically.
                     </p>
                   </div>
 
