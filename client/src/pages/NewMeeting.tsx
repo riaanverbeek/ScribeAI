@@ -70,7 +70,7 @@ export default function NewMeeting() {
     if (user?.defaultAudioLanguage && !audioLanguageManuallySet) {
       setAudioLanguage(user.defaultAudioLanguage);
     }
-  }, [user?.defaultAudioLanguage]);
+  }, [user?.defaultAudioLanguage, audioLanguageManuallySet]);
   
   const createMutation = useCreateMeeting();
   const uploadMutation = useUploadAudio();
