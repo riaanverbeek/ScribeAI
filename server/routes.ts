@@ -1285,12 +1285,19 @@ export async function registerRoutes(
         templateId: z.number().nullable().optional(),
         includePreviousContext: z.boolean().optional(),
         outputLanguage: z.enum(["en", "af"]).optional(),
+        audioLanguage: z.string().optional(),
         isInternal: z.boolean().optional(),
         clientRecordingConsent: z.enum(["not_asked", "yes", "no"]).optional(),
         detailLevel: z.enum(["high", "medium", "low"]).optional(),
       }).parse(req.body);
 
       const updated = await storage.updateMeetingContext(id, data);
+
+      if (data.audioLanguage && data.audioLanguage !== meeting.audioLanguage) {
+        await storage.deleteTranscriptForMeeting(id);
+        console.log(`[context] Audio language changed for meeting ${id}: ${meeting.audioLanguage} → ${data.audioLanguage}. Transcript cleared for re-transcription.`);
+      }
+
       res.json(updated);
     } catch (err) {
       if (err instanceof z.ZodError) {

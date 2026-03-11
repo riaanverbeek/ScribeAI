@@ -5,7 +5,7 @@ import { useMeeting, useUpdateMeetingClient } from "@/hooks/use-meetings";
 import { useClients, useCreateClient } from "@/hooks/use-clients";
 import { useSubscriptionStatus } from "@/hooks/use-auth";
 import { useRoute, Link } from "wouter";
-import { ChevronLeft, Calendar, User, LayoutList, FileText, CheckSquare, Sparkles, Users, Plus, Loader2, X, Pencil, Lock, CreditCard, Paperclip, MessageSquareText, RefreshCw, Copy, Check, Download, Mail, Globe, SlidersHorizontal, UploadCloud, AlertTriangle } from "lucide-react";
+import { ChevronLeft, Calendar, User, LayoutList, FileText, CheckSquare, Sparkles, Users, Plus, Loader2, X, Pencil, Lock, CreditCard, Paperclip, MessageSquareText, RefreshCw, Copy, Check, Download, Mail, Globe, Mic, SlidersHorizontal, UploadCloud, AlertTriangle } from "lucide-react";
 import type { Template } from "@shared/schema";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -171,6 +171,7 @@ export default function MeetingDetail() {
   const [editContextFile, setEditContextFile] = useState<File | null>(null);
   const [editIncludePreviousContext, setEditIncludePreviousContext] = useState(false);
   const [editOutputLanguage, setEditOutputLanguage] = useState("en");
+  const [editAudioLanguage, setEditAudioLanguage] = useState("auto");
   const [editIsInternal, setEditIsInternal] = useState(false);
   const [editDetailLevel, setEditDetailLevel] = useState<"high" | "medium" | "low">("high");
   const [isSavingContext, setIsSavingContext] = useState(false);
@@ -396,6 +397,7 @@ export default function MeetingDetail() {
     setEditContextFile(null);
     setEditIncludePreviousContext(meeting.includePreviousContext ?? false);
     setEditOutputLanguage(meeting.outputLanguage || "en");
+    setEditAudioLanguage((meeting as any).audioLanguage || "auto");
     setEditIsInternal(meeting.isInternal ?? false);
     setEditDetailLevel((meeting.detailLevel as "high" | "medium" | "low") || "high");
     setIsEditingContext(true);
@@ -410,6 +412,7 @@ export default function MeetingDetail() {
         contextText: editContextText.trim() || null,
         includePreviousContext: editIncludePreviousContext,
         outputLanguage: editOutputLanguage,
+        audioLanguage: editAudioLanguage,
         isInternal: editIsInternal,
         detailLevel: editDetailLevel,
       };
@@ -814,6 +817,17 @@ export default function MeetingDetail() {
                         )}
                         <div className="flex items-center gap-3">
                           <div className="w-9 h-9 rounded-md bg-muted flex items-center justify-center shrink-0">
+                            <Mic className="w-4 h-4 text-muted-foreground" />
+                          </div>
+                          <div>
+                            <p className="text-xs text-muted-foreground">Audio Language</p>
+                            <p className="text-sm font-semibold" data-testid="text-audio-language">
+                              {(meeting as any).audioLanguage === "af" ? "Afrikaans / English (ZA)" : (meeting as any).audioLanguage === "en" ? "English only" : "Auto-detect"}
+                            </p>
+                          </div>
+                        </div>
+                        <div className="flex items-center gap-3">
+                          <div className="w-9 h-9 rounded-md bg-muted flex items-center justify-center shrink-0">
                             <Globe className="w-4 h-4 text-muted-foreground" />
                           </div>
                           <div>
@@ -949,6 +963,24 @@ export default function MeetingDetail() {
                             </label>
                           </div>
                         )}
+
+                        <div className="space-y-2">
+                          <Label className="text-sm">Audio Language</Label>
+                          <Select value={editAudioLanguage} onValueChange={setEditAudioLanguage}>
+                            <SelectTrigger data-testid="select-edit-audio-language">
+                              <div className="flex items-center gap-2">
+                                <Mic className="w-4 h-4 text-muted-foreground" />
+                                <SelectValue placeholder="Select audio language" />
+                              </div>
+                            </SelectTrigger>
+                            <SelectContent>
+                              <SelectItem value="auto" data-testid="select-edit-audio-language-auto">Auto-detect</SelectItem>
+                              <SelectItem value="af" data-testid="select-edit-audio-language-af">Afrikaans / English (ZA)</SelectItem>
+                              <SelectItem value="en" data-testid="select-edit-audio-language-en">English only</SelectItem>
+                            </SelectContent>
+                          </Select>
+                          <p className="text-xs text-muted-foreground">The spoken language in your audio. Use "Afrikaans / English" for South African code-switching to prevent Dutch mis-transcription. Changing this will re-transcribe the audio.</p>
+                        </div>
 
                         <div className="space-y-2">
                           <Label className="text-sm">Output Language</Label>

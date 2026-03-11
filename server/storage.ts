@@ -78,6 +78,7 @@ export interface IStorage {
     deleteMeeting(id: number): Promise<void>;
 
     // Transcripts
+    deleteTranscriptForMeeting(meetingId: number): Promise<void>;
     getTranscript(meetingId: number): Promise<Transcript | undefined>;
     createTranscript(transcript: InsertTranscript): Promise<Transcript>;
 
@@ -359,7 +360,7 @@ export class DatabaseStorage implements IStorage {
     }
 
     // Meetings - context
-    async updateMeetingContext(id: number, data: { contextText?: string | null; templateId?: number | null; includePreviousContext?: boolean; outputLanguage?: string; isInternal?: boolean; clientRecordingConsent?: string; detailLevel?: string }): Promise<Meeting> {
+    async updateMeetingContext(id: number, data: { contextText?: string | null; templateId?: number | null; includePreviousContext?: boolean; outputLanguage?: string; audioLanguage?: string; isInternal?: boolean; clientRecordingConsent?: string; detailLevel?: string }): Promise<Meeting> {
         const [meeting] = await db.update(meetings).set(data).where(eq(meetings.id, id)).returning();
         return meeting;
     }
@@ -486,6 +487,10 @@ export class DatabaseStorage implements IStorage {
     }
 
     // Transcripts
+    async deleteTranscriptForMeeting(meetingId: number): Promise<void> {
+        await db.delete(transcripts).where(eq(transcripts.meetingId, meetingId));
+    }
+
     async getTranscript(meetingId: number): Promise<Transcript | undefined> {
         const [transcript] = await db.select().from(transcripts).where(eq(transcripts.meetingId, meetingId));
         return transcript;

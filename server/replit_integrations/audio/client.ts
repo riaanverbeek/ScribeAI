@@ -118,13 +118,13 @@ export async function splitAudioChunk(inputPath: string, startSec: number, durat
   }
 }
 
-export async function transcribeLongAudio(audioBuffer: Buffer, format: "wav" | "mp3" | "webm"): Promise<string> {
+export async function transcribeLongAudio(audioBuffer: Buffer, format: "wav" | "mp3" | "webm", language?: string): Promise<string> {
   const duration = await getAudioDuration(audioBuffer);
-  console.log(`Audio duration: ${duration.toFixed(1)} seconds`);
+  console.log(`Audio duration: ${duration.toFixed(1)} seconds${language ? ` [language hint: ${language}]` : ""}`);
 
   if (duration <= MAX_CHUNK_DURATION_SEC) {
     const prepared = await prepareAudioForTranscription(audioBuffer, format);
-    return await speechToText(prepared.buffer, prepared.format);
+    return await speechToText(prepared.buffer, prepared.format, language);
   }
 
   const inputPath = makeTempFile(format);
@@ -148,7 +148,7 @@ export async function transcribeLongAudio(audioBuffer: Buffer, format: "wav" | "
         prepared = { buffer: recompressed, format: "mp3" };
       }
 
-      const text = await speechToText(prepared.buffer, prepared.format);
+      const text = await speechToText(prepared.buffer, prepared.format, language);
       transcripts.push(text);
     }
 
@@ -348,13 +348,18 @@ export async function textToSpeechStream(
  */
 export async function speechToText(
   audioBuffer: Buffer,
-  format: "wav" | "mp3" | "webm" = "wav"
+  format: "wav" | "mp3" | "webm" = "wav",
+  language?: string
 ): Promise<string> {
   const file = await toFile(audioBuffer, `audio.${format}`);
-  const response = await openai.audio.transcriptions.create({
+  const params: any = {
     file,
     model: "gpt-4o-mini-transcribe",
-  });
+  };
+  if (language && language !== "auto") {
+    params.language = language;
+  }
+  const response = await openai.audio.transcriptions.create(params);
   return response.text;
 }
 

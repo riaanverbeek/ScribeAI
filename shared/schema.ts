@@ -95,6 +95,7 @@ export const meetings = pgTable("meetings", {
   userRole: text("user_role"),
   includePreviousContext: boolean("include_previous_context").default(false).notNull(),
   outputLanguage: text("output_language").default("en").notNull(),
+  audioLanguage: text("audio_language").default("auto").notNull(),
   isInternal: boolean("is_internal").default(false).notNull(),
   clientRecordingConsent: text("client_recording_consent", { enum: ["not_asked", "yes", "no"] }).default("not_asked"),
   detailLevel: text("detail_level", { enum: ["high", "medium", "low"] }).default("high").notNull(),

@@ -91,7 +91,8 @@ export async function processMeetingCore(meetingId: number): Promise<void> {
     }
     const audioExt = path.extname(meeting.audioUrl!).toLowerCase();
     const rawFormat: "wav" | "mp3" | "webm" = audioExt === ".mp3" ? "mp3" : audioExt === ".webm" ? "webm" : "wav";
-    transcriptText = await transcribeLongAudio(audioBuffer, rawFormat);
+    const langHint = meeting.audioLanguage && meeting.audioLanguage !== "auto" ? meeting.audioLanguage : undefined;
+    transcriptText = await transcribeLongAudio(audioBuffer, rawFormat, langHint);
 
     await storage.createTranscript({
       meetingId,

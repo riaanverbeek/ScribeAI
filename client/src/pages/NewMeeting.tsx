@@ -48,6 +48,7 @@ export default function NewMeeting() {
   const [contextFile, setContextFile] = useState<File | null>(null);
   const [includePreviousContext, setIncludePreviousContext] = useState(false);
   const [outputLanguage, setOutputLanguage] = useState("en");
+  const [audioLanguage, setAudioLanguage] = useState("auto");
   const [isInternal, setIsInternal] = useState(false);
   const [detailLevel, setDetailLevel] = useState<"high" | "medium" | "low">("high");
   const [newClientName, setNewClientName] = useState("");
@@ -208,6 +209,7 @@ export default function NewMeeting() {
           title,
           date: new Date().toISOString(),
           outputLanguage,
+          audioLanguage,
           detailLevel,
         };
         if (selectedClientId) {
@@ -532,6 +534,26 @@ export default function NewMeeting() {
               </SelectContent>
             </Select>
             <p className="text-xs text-muted-foreground">The language for AI-generated summaries, action items, and topics. The transcript stays in the original spoken language.</p>
+          </div>
+        )}
+
+        {isOnline && (
+          <div className="space-y-3">
+            <Label className="text-base font-semibold text-slate-900">Audio Language</Label>
+            <Select value={audioLanguage} onValueChange={setAudioLanguage}>
+              <SelectTrigger className="h-12 rounded-xl border-slate-200" data-testid="select-audio-language">
+                <div className="flex items-center gap-2">
+                  <Mic className="w-4 h-4 text-slate-400" />
+                  <SelectValue placeholder="Select language" />
+                </div>
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="auto" data-testid="select-audio-language-auto">Auto-detect</SelectItem>
+                <SelectItem value="af" data-testid="select-audio-language-af">Afrikaans / English (ZA)</SelectItem>
+                <SelectItem value="en" data-testid="select-audio-language-en">English only</SelectItem>
+              </SelectContent>
+            </Select>
+            <p className="text-xs text-muted-foreground">The spoken language in your audio. Use "Afrikaans / English" for South African code-switching to prevent Dutch mis-transcription.</p>
           </div>
         )}
 
