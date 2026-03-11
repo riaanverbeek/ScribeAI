@@ -1147,6 +1147,22 @@ export async function registerRoutes(
     res.json(roleList);
   });
 
+  // ========== USER PREFERENCES ==========
+
+  app.patch("/api/users/me/preferences", requireAuth, async (req, res) => {
+    try {
+      const user = (req as any).user as User;
+      const data = z.object({
+        defaultAudioLanguage: z.enum(["auto", "af", "en"]).optional(),
+      }).parse(req.body);
+      const updated = await storage.updateUser(user.id, data);
+      res.json({ user: sanitizeUser(updated) });
+    } catch (err) {
+      if (err instanceof z.ZodError) return res.status(400).json({ message: err.errors[0].message });
+      throw err;
+    }
+  });
+
   // ========== USER ROLE UPDATE ==========
 
   app.patch("/api/users/me/role", requireAuth, requireVerified, async (req, res) => {
