@@ -89,20 +89,7 @@ export function useUploadAudio() {
   return useMutation({
     mutationFn: async ({ id, file }: { id: number; file: File | Blob }) => {
       const fileName = (file as File).name || "audio.wav";
-
-      const urlRes = await fetch(`/api/meetings/${id}/audio/request-url`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        credentials: "include",
-      });
-      if (!urlRes.ok) {
-        const errText = await urlRes.text().catch(() => "");
-        const msg = `request-url failed: ${urlRes.status} ${errText}`;
-        console.error(`[upload] ${msg}`);
-        reportError(msg, "useUploadAudio");
-        throw new Error("Failed to get upload URL");
-      }
-      const { uploadURL, objectPath } = await urlRes.json();
+      const contentType = (file as File).type || "application/octet-stream";
 
       const fileSize = file.size || 0;
       if (fileSize < 100) {
@@ -112,28 +99,61 @@ export function useUploadAudio() {
         throw new Error("The recording appears to be empty or corrupted. Please try recording again.");
       }
 
-      try {
-        const putRes = await fetch(uploadURL, {
-          method: "PUT",
-          body: file,
-          headers: {
-            "Content-Type": (file as File).type || "application/octet-stream",
-          },
-        });
-        if (!putRes.ok) {
-          const errText = await putRes.text().catch(() => "");
-          const msg = `GCS PUT failed: ${putRes.status} ${errText}`;
-          console.error(`[upload] ${msg}`);
-          reportError(msg, "useUploadAudio");
-          throw new Error(`Failed to upload audio to storage (${putRes.status})`);
+      const MAX_RETRIES = 3;
+      let lastError: Error | null = null;
+      let objectPath = "";
+
+      for (let attempt = 1; attempt <= MAX_RETRIES; attempt++) {
+        try {
+          console.log(`[upload] Attempt ${attempt}/${MAX_RETRIES} for meeting ${id} (${(fileSize / 1024 / 1024).toFixed(1)} MB)`);
+
+          const urlRes = await fetch(`/api/meetings/${id}/audio/request-url`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            credentials: "include",
+          });
+          if (!urlRes.ok) {
+            const errText = await urlRes.text().catch(() => "");
+            const msg = `request-url failed: ${urlRes.status} ${errText}`;
+            console.error(`[upload] ${msg}`);
+            reportError(msg, "useUploadAudio");
+            throw new Error("Failed to get upload URL");
+          }
+          const urlData = await urlRes.json();
+          objectPath = urlData.objectPath;
+
+          const putRes = await fetch(urlData.uploadURL, {
+            method: "PUT",
+            body: file,
+            headers: { "Content-Type": contentType },
+          });
+          if (!putRes.ok) {
+            const errText = await putRes.text().catch(() => "");
+            const msg = `GCS PUT failed: ${putRes.status} ${errText}`;
+            console.error(`[upload] ${msg}`);
+            reportError(msg, "useUploadAudio");
+            throw new Error(`Failed to upload audio to storage (${putRes.status})`);
+          }
+
+          lastError = null;
+          break;
+        } catch (err: any) {
+          lastError = err;
+          if (err?.message?.includes("empty or corrupted")) throw err;
+          console.warn(`[upload] Attempt ${attempt} failed: ${err?.message}`);
+          if (attempt < MAX_RETRIES) {
+            const delay = Math.min(2000 * Math.pow(2, attempt - 1), 8000);
+            console.log(`[upload] Retrying in ${delay}ms...`);
+            await new Promise(r => setTimeout(r, delay));
+          }
         }
-      } catch (err: any) {
-        if (err?.message?.includes("Failed to upload audio")) throw err;
-        if (err?.message?.includes("empty or corrupted")) throw err;
-        const msg = `GCS PUT network error: ${err?.message || err}`;
+      }
+
+      if (lastError) {
+        const msg = `Upload failed after ${MAX_RETRIES} attempts: ${lastError.message}`;
         console.error(`[upload] ${msg}`);
         reportError(msg, "useUploadAudio");
-        throw new Error("Network error during audio upload. Please check your connection and try again.");
+        throw new Error("Audio upload failed after multiple attempts. Please check your connection and try again.");
       }
 
       const confirmRes = await fetch(`/api/meetings/${id}/audio/confirm`, {

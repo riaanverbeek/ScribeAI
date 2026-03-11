@@ -568,6 +568,17 @@ export default function QuickRecord() {
               exit={{ opacity: 0, y: -20 }}
               className="space-y-6"
             >
+              {failedMeetingId && (
+                <div className="flex items-start gap-3 rounded-xl border border-red-300 bg-red-50 dark:bg-red-950/30 dark:border-red-800 px-4 py-3" data-testid="banner-upload-failed">
+                  <AlertTriangle className="w-5 h-5 text-red-600 dark:text-red-400 shrink-0 mt-0.5" />
+                  <div className="flex-1">
+                    <p className="text-sm font-semibold text-red-900 dark:text-red-200">Upload Failed</p>
+                    <p className="text-xs text-red-700 dark:text-red-400 mt-0.5">
+                      The audio upload failed. Your recording is safe — tap "Save & Process" to retry.
+                    </p>
+                  </div>
+                </div>
+              )}
               <div className="flex items-center gap-3 p-4 rounded-xl bg-muted/50 border">
                 <div className="w-10 h-10 rounded-full bg-green-100 dark:bg-green-900/30 flex items-center justify-center shrink-0">
                   <Check className="w-5 h-5 text-green-600 dark:text-green-400" />
@@ -625,6 +636,7 @@ export default function QuickRecord() {
                     setAudioFile(null);
                     setElapsed(0);
                     setTitle("");
+                    setFailedMeetingId(null);
                   }}
                   disabled={isPending}
                   data-testid="button-discard"
