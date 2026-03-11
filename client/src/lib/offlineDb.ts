@@ -17,7 +17,6 @@ export interface OfflineRecording {
   contextFileName: string | null;
   includePreviousContext: boolean;
   outputLanguage: string;
-  audioLanguage: string;
   isInternal: boolean;
   policyIds: number[];
   createdAt: string;

@@ -90,15 +90,6 @@ export async function retryStaleProcessing() {
   }
 }
 
-export async function migrateDefaultAudioLanguage() {
-  try {
-    await db.execute(sql`ALTER TABLE users ADD COLUMN IF NOT EXISTS default_audio_language TEXT DEFAULT 'af' NOT NULL`);
-    console.log("[migrations] Default audio language column ensured");
-  } catch (err) {
-    console.error("[migrations] Error adding default_audio_language column:", err);
-  }
-}
-
 export async function migrateTemplateTenants() {
   try {
     await storage.migrateTemplateTenants();

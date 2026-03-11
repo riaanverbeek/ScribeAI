@@ -43,7 +43,6 @@ export const users = pgTable("users", {
   roleId: integer("role_id").references(() => roles.id, { onDelete: "set null" }),
   customRole: text("custom_role"),
   cancelledAt: timestamp("cancelled_at"),
-  defaultAudioLanguage: text("default_audio_language").default("af").notNull(),
   tenantId: integer("tenant_id").references(() => tenants.id, { onDelete: "cascade" }),
   createdAt: timestamp("created_at").defaultNow(),
 });

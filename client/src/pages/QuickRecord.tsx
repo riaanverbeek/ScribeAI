@@ -1,6 +1,5 @@
 import { useState, useEffect, useRef, useCallback } from "react";
 import { useLocation } from "wouter";
-import { useAuth } from "@/hooks/use-auth";
 import { useCreateMeeting, useUploadAudio, useProcessMeeting } from "@/hooks/use-meetings";
 import { useClients } from "@/hooks/use-clients";
 import { useOnlineStatus } from "@/hooks/use-offline";
@@ -39,7 +38,6 @@ function getFileExtensionFromMime(mimeType: string): string {
 export default function QuickRecord() {
   const [, setLocation] = useLocation();
   const { toast } = useToast();
-  const { user } = useAuth();
   const isOnline = useOnlineStatus();
 
   const [phase, setPhase] = useState<Phase>("ready");
@@ -257,7 +255,6 @@ export default function QuickRecord() {
           createdAt: new Date().toISOString(),
           status: "pending",
           outputLanguage: "english",
-          audioLanguage: user?.defaultAudioLanguage ?? "af",
           isInternal: false,
           policyIds: [],
         });
@@ -279,7 +276,6 @@ export default function QuickRecord() {
         const meetingData: any = {
           title: title.trim(),
           date: new Date().toISOString(),
-          audioLanguage: user?.defaultAudioLanguage ?? "af",
         };
         if (selectedClientId) {
           meetingData.clientId = Number(selectedClientId);

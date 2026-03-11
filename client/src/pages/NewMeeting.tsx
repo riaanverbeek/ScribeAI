@@ -1,7 +1,6 @@
-import { useState, useEffect } from "react";
+import { useState } from "react";
 import { useLocation } from "wouter";
 import { useQuery } from "@tanstack/react-query";
-import { useAuth } from "@/hooks/use-auth";
 import { useCreateMeeting, useUploadAudio, useProcessMeeting } from "@/hooks/use-meetings";
 import { useClients, useCreateClient } from "@/hooks/use-clients";
 import { useOnlineStatus } from "@/hooks/use-offline";
@@ -38,7 +37,6 @@ import type { Template } from "@shared/schema";
 export default function NewMeeting() {
   const [, setLocation] = useLocation();
   const { toast } = useToast();
-  const { user } = useAuth();
   const isOnline = useOnlineStatus();
   
   const [title, setTitle] = useState("");
@@ -50,8 +48,7 @@ export default function NewMeeting() {
   const [contextFile, setContextFile] = useState<File | null>(null);
   const [includePreviousContext, setIncludePreviousContext] = useState(false);
   const [outputLanguage, setOutputLanguage] = useState("en");
-  const [audioLanguage, setAudioLanguage] = useState(user?.defaultAudioLanguage ?? "af");
-  const [audioLanguageManuallySet, setAudioLanguageManuallySet] = useState(false);
+  const [audioLanguage, setAudioLanguage] = useState("auto");
   const [isInternal, setIsInternal] = useState(false);
   const [detailLevel, setDetailLevel] = useState<"high" | "medium" | "low">("high");
   const [newClientName, setNewClientName] = useState("");
@@ -65,12 +62,6 @@ export default function NewMeeting() {
   const [consentStatus, setConsentStatus] = useState<"not_asked" | "yes" | "no">("not_asked");
   const [consentDialogOpen, setConsentDialogOpen] = useState(false);
   const [failedMeetingId, setFailedMeetingId] = useState<number | null>(null);
-
-  useEffect(() => {
-    if (user?.defaultAudioLanguage && !audioLanguageManuallySet) {
-      setAudioLanguage(user.defaultAudioLanguage);
-    }
-  }, [user?.defaultAudioLanguage, audioLanguageManuallySet]);
   
   const createMutation = useCreateMeeting();
   const uploadMutation = useUploadAudio();
@@ -147,7 +138,6 @@ export default function NewMeeting() {
         contextFileName: ctxFileName,
         includePreviousContext: includePreviousContext,
         outputLanguage: outputLanguage,
-        audioLanguage: audioLanguage,
         isInternal: isInternal,
         policyIds: [],
         createdAt: new Date().toISOString(),
@@ -550,7 +540,7 @@ export default function NewMeeting() {
         {isOnline && (
           <div className="space-y-3">
             <Label className="text-base font-semibold text-slate-900">Audio Language</Label>
-            <Select value={audioLanguage} onValueChange={(v) => { setAudioLanguage(v); setAudioLanguageManuallySet(true); }}>
+            <Select value={audioLanguage} onValueChange={setAudioLanguage}>
               <SelectTrigger className="h-12 rounded-xl border-slate-200" data-testid="select-audio-language">
                 <div className="flex items-center gap-2">
                   <Mic className="w-4 h-4 text-slate-400" />
