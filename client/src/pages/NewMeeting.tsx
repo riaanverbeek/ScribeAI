@@ -147,6 +147,7 @@ export default function NewMeeting() {
         contextFileName: ctxFileName,
         includePreviousContext: includePreviousContext,
         outputLanguage: outputLanguage,
+        audioLanguage: audioLanguage,
         isInternal: isInternal,
         policyIds: [],
         createdAt: new Date().toISOString(),

@@ -257,6 +257,7 @@ export default function QuickRecord() {
           createdAt: new Date().toISOString(),
           status: "pending",
           outputLanguage: "english",
+          audioLanguage: user?.defaultAudioLanguage ?? "af",
           isInternal: false,
           policyIds: [],
         });
