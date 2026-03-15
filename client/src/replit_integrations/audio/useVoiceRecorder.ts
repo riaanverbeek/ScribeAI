@@ -128,8 +128,11 @@ export function useVoiceRecorder() {
         if (hasInProgress || hasSegments) {
           setHasRecoverableRecording(true);
           let totalElapsed = 0;
-          if (rec) totalElapsed += rec.elapsed || 0;
-          for (const seg of segments) totalElapsed += seg.elapsed || 0;
+          if (hasInProgress && rec) {
+            totalElapsed = rec.elapsed || 0;
+          } else {
+            for (const seg of segments) totalElapsed += seg.elapsed || 0;
+          }
           setRecoverableElapsed(totalElapsed);
         }
       } catch {}
@@ -483,13 +486,16 @@ export function useVoiceRecorder() {
     let recoveredElapsed = 0;
 
     const segments = await getSegments().catch(() => []);
-    for (const seg of segments) recoveredElapsed += seg.elapsed || 0;
+    const segmentsElapsedSum = segments.reduce((sum, s) => sum + (s.elapsed || 0), 0);
 
     if (inProgress && inProgress.chunks && inProgress.chunks.length > 0) {
-      recoveredElapsed += inProgress.elapsed || 0;
+      recoveredElapsed = inProgress.elapsed || 0;
+      const inProgressDelta = Math.max(0, recoveredElapsed - segmentsElapsedSum);
       const blobs = inProgress.chunks.map(buf => new Blob([buf], { type: inProgress.mimeType }));
-      await saveSegment(blobs, inProgress.mimeType, inProgress.elapsed).catch(() => {});
+      await saveSegment(blobs, inProgress.mimeType, inProgressDelta).catch(() => {});
       await deleteInProgressRecording().catch(() => {});
+    } else {
+      recoveredElapsed = segmentsElapsedSum;
     }
 
     const segCount = await getSegmentCount().catch(() => 0);
