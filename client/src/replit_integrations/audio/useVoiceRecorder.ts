@@ -455,7 +455,7 @@ export function useVoiceRecorder() {
     });
   }, [stopAutoSave, cleanupAudioContext, flushToIndexedDB]);
 
-  const startContinueRecording = useCallback(async (recoveredElapsed: number): Promise<MediaStream> => {
+  const startContinueRecording = useCallback(async (): Promise<{ stream: MediaStream; totalElapsed: number }> => {
     setError(null);
     setErrorType(null);
     setAutoRestarted(false);
@@ -480,7 +480,13 @@ export function useVoiceRecorder() {
     mimeTypeRef.current = supportedMime;
 
     const inProgress = await getInProgressRecording().catch(() => undefined);
+    let recoveredElapsed = 0;
+
+    const segments = await getSegments().catch(() => []);
+    for (const seg of segments) recoveredElapsed += seg.elapsed || 0;
+
     if (inProgress && inProgress.chunks && inProgress.chunks.length > 0) {
+      recoveredElapsed += inProgress.elapsed || 0;
       const blobs = inProgress.chunks.map(buf => new Blob([buf], { type: inProgress.mimeType }));
       await saveSegment(blobs, inProgress.mimeType, inProgress.elapsed).catch(() => {});
       await deleteInProgressRecording().catch(() => {});
@@ -535,7 +541,7 @@ export function useVoiceRecorder() {
     startAudioLevelMonitoring(stream);
     startAutoSave();
 
-    return stream;
+    return { stream, totalElapsed: recoveredElapsed };
   }, [flushToIndexedDB, startAutoSave, stopAutoSave, startAudioLevelMonitoring, cleanupAudioContext, attemptAutoRestart]);
 
   const clearRecoveryData = useCallback(async () => {

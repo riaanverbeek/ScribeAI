@@ -75,7 +75,7 @@ export default function QuickRecord() {
       setElapsed(recorder.recoverableElapsed);
       setPhase("continue");
     }
-  }, [recorder.hasRecoverableRecording, recorder.recoverableElapsed]);
+  }, [recorder.hasRecoverableRecording, recorder.recoverableElapsed, phase]);
 
   useEffect(() => {
     recorder.setElapsedRef(elapsed);
@@ -207,11 +207,10 @@ export default function QuickRecord() {
 
   const handleContinueRecording = async () => {
     try {
-      const recoveredTime = recorder.recoverableElapsed;
-      await recorder.startContinueRecording(recoveredTime);
+      const { totalElapsed } = await recorder.startContinueRecording();
 
       setPhase("recording");
-      setElapsed(recoveredTime);
+      setElapsed(totalElapsed);
       timerRef.current = setInterval(() => {
         setElapsed((prev) => prev + 1);
       }, 1000);
