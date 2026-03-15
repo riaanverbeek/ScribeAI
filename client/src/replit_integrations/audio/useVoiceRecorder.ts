@@ -589,7 +589,11 @@ export function useVoiceRecorder() {
         for (const buf of inProgress!.chunks) {
           allBlobs.push(new Blob([buf], { type: inProgress!.mimeType }));
         }
-        totalElapsed += inProgress!.elapsed;
+        if (hasSegments) {
+          totalElapsed = inProgress!.elapsed || totalElapsed;
+        } else {
+          totalElapsed = inProgress!.elapsed || 0;
+        }
       }
 
       const blob = new Blob(allBlobs, { type: mimeType });
