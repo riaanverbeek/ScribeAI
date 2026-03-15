@@ -26,7 +26,7 @@ import { useToast } from "@/hooks/use-toast";
 import { motion, AnimatePresence } from "framer-motion";
 import { format } from "date-fns";
 
-type Phase = "ready" | "recording" | "paused" | "saving";
+type Phase = "ready" | "continue" | "recording" | "paused" | "saving";
 
 function getFileExtensionFromMime(mimeType: string): string {
   if (mimeType.includes("webm")) return ".webm";
@@ -69,6 +69,13 @@ export default function QuickRecord() {
       return () => window.removeEventListener("beforeunload", handler);
     }
   }, [phase]);
+
+  useEffect(() => {
+    if (recorder.hasRecoverableRecording && phase === "ready") {
+      setElapsed(recorder.recoverableElapsed);
+      setPhase("continue");
+    }
+  }, [recorder.hasRecoverableRecording, recorder.recoverableElapsed]);
 
   useEffect(() => {
     recorder.setElapsedRef(elapsed);
@@ -198,7 +205,41 @@ export default function QuickRecord() {
     setPhase("saving");
   };
 
-  const handleRecover = async () => {
+  const handleContinueRecording = async () => {
+    try {
+      const recoveredTime = recorder.recoverableElapsed;
+      await recorder.startContinueRecording(recoveredTime);
+
+      setPhase("recording");
+      setElapsed(recoveredTime);
+      timerRef.current = setInterval(() => {
+        setElapsed((prev) => prev + 1);
+      }, 1000);
+
+      drawWaveform();
+    } catch (err: any) {
+      const errType = recorder.errorType;
+      let title = "Recording Failed";
+      let description = err?.message || "An unexpected error occurred.";
+
+      if (errType === "unsupported" || errType === "no_mediadevices") {
+        title = "Recording Not Supported";
+        description = err?.message + " You can create a new session and upload an audio file instead.";
+      } else if (errType === "permission_denied") {
+        title = "Microphone Access Denied";
+      } else if (errType === "not_found") {
+        title = "No Microphone Found";
+      } else if (errType === "not_readable") {
+        title = "Microphone Unavailable";
+      } else if (errType === "aborted") {
+        title = "Recording Interrupted";
+      }
+
+      toast({ title, description, variant: "destructive" });
+    }
+  };
+
+  const handleSaveRecovered = async () => {
     const recovered = await recorder.recoverRecording();
     if (recovered) {
       const ext = getFileExtensionFromMime(recovered.mimeType);
@@ -206,23 +247,23 @@ export default function QuickRecord() {
       setAudioFile(file);
       setElapsed(recovered.elapsed);
       const now = new Date();
-      setTitle(`Recovered Call - ${format(now, "MMM d, yyyy h:mm a")}`);
+      setTitle(`Phone Call - ${format(now, "MMM d, yyyy h:mm a")}`);
       setPhase("saving");
-      toast({
-        title: "Recording Recovered",
-        description: `${formatTime(recovered.elapsed)} of audio has been recovered.`,
-      });
     } else {
       toast({
         title: "Recovery Failed",
         description: "The interrupted recording could not be recovered.",
         variant: "destructive",
       });
+      setElapsed(0);
+      setPhase("ready");
     }
   };
 
   const handleDiscardRecovery = async () => {
     await recorder.discardRecovery();
+    setElapsed(0);
+    setPhase("ready");
     toast({ title: "Recording discarded" });
   };
 
@@ -345,6 +386,7 @@ export default function QuickRecord() {
           </div>
           <p className="text-sm text-muted-foreground">
             {phase === "ready" && "Tap the button to start recording your call"}
+            {phase === "continue" && "Your previous recording can be continued"}
             {phase === "recording" && "Recording in progress..."}
             {phase === "paused" && "Recording paused"}
             {phase === "saving" && "Save your recording"}
@@ -360,33 +402,71 @@ export default function QuickRecord() {
           </div>
         )}
 
-        {recorder.hasRecoverableRecording && phase === "ready" && (
-          <div className="mb-6 rounded-lg border border-blue-200 bg-blue-50 dark:bg-blue-950/20 dark:border-blue-800 p-4" data-testid="banner-recovery">
-            <div className="flex items-start gap-3">
-              <RotateCcw className="w-5 h-5 text-blue-600 dark:text-blue-400 shrink-0 mt-0.5" />
-              <div className="flex-1">
-                <p className="text-sm font-medium text-blue-900 dark:text-blue-200">
-                  Interrupted recording found
-                </p>
-                <p className="text-xs text-blue-700 dark:text-blue-400 mt-1">
-                  A previous recording was interrupted ({formatTime(recorder.recoverableElapsed)} captured{recorder.segmentCount > 0 ? `, ${recorder.segmentCount} segment${recorder.segmentCount !== 1 ? "s" : ""}` : ""}). Would you like to recover it?
-                </p>
-                <div className="flex gap-2 mt-3">
-                  <Button size="sm" onClick={handleRecover} data-testid="button-recover">
-                    <RotateCcw className="w-3.5 h-3.5 mr-1.5" />
-                    Recover
-                  </Button>
-                  <Button size="sm" variant="outline" onClick={handleDiscardRecovery} data-testid="button-discard-recovery">
-                    <Trash2 className="w-3.5 h-3.5 mr-1.5" />
-                    Discard
-                  </Button>
+        <AnimatePresence mode="wait">
+          {phase === "continue" && (
+            <motion.div
+              key="continue"
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: -20 }}
+              className="flex flex-col items-center gap-6"
+            >
+              <div className="w-full rounded-xl border border-blue-200 bg-blue-50 dark:bg-blue-950/20 dark:border-blue-800 p-5" data-testid="banner-continue-session">
+                <div className="flex items-start gap-3">
+                  <RotateCcw className="w-5 h-5 text-blue-600 dark:text-blue-400 shrink-0 mt-0.5" />
+                  <div className="flex-1">
+                    <p className="text-sm font-medium text-blue-900 dark:text-blue-200">
+                      Interrupted recording found
+                    </p>
+                    <p className="text-xs text-blue-700 dark:text-blue-400 mt-1">
+                      {formatTime(recorder.recoverableElapsed)} of audio was captured before the interruption.
+                    </p>
+                  </div>
                 </div>
               </div>
-            </div>
-          </div>
-        )}
 
-        <AnimatePresence mode="wait">
+              <div className="text-center">
+                <p className="text-4xl font-mono font-bold tabular-nums text-foreground" data-testid="text-recovered-time">
+                  {formatTime(elapsed)}
+                </p>
+                <p className="text-sm text-muted-foreground mt-2">previously captured</p>
+              </div>
+
+              <div className="relative">
+                <Button
+                  onClick={handleContinueRecording}
+                  variant="default"
+                  className="relative z-10 w-28 h-28 sm:w-32 sm:h-32 rounded-full"
+                  data-testid="button-continue-recording"
+                >
+                  <Mic className="w-10 h-10 sm:w-12 sm:h-12" />
+                </Button>
+              </div>
+              <p className="text-sm font-medium text-foreground">Tap to continue recording</p>
+
+              <div className="flex gap-3 w-full">
+                <Button
+                  variant="outline"
+                  className="flex-1 rounded-xl"
+                  onClick={handleSaveRecovered}
+                  data-testid="button-save-recovered"
+                >
+                  <Check className="w-4 h-4 mr-2" />
+                  Save what was captured
+                </Button>
+                <Button
+                  variant="ghost"
+                  className="rounded-xl"
+                  onClick={handleDiscardRecovery}
+                  data-testid="button-discard-recovery"
+                >
+                  <Trash2 className="w-4 h-4 mr-2" />
+                  Discard
+                </Button>
+              </div>
+            </motion.div>
+          )}
+
           {(phase === "ready" || phase === "recording" || phase === "paused") && (
             <motion.div
               key="recorder"

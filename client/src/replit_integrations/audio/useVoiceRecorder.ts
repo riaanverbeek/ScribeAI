@@ -455,6 +455,89 @@ export function useVoiceRecorder() {
     });
   }, [stopAutoSave, cleanupAudioContext, flushToIndexedDB]);
 
+  const startContinueRecording = useCallback(async (recoveredElapsed: number): Promise<MediaStream> => {
+    setError(null);
+    setErrorType(null);
+    setAutoRestarted(false);
+
+    if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+      const msg = "Your browser does not support microphone access. This can happen when using the home screen app on older iPhones. Please open the app in Safari or Chrome instead, or upload an audio file.";
+      setError(msg);
+      setErrorType("no_mediadevices");
+      reportError(msg, "startContinueRecording:no_mediadevices");
+      throw new Error(msg);
+    }
+
+    const supportedMime = getSupportedMimeType();
+    if (!supportedMime) {
+      const msg = "Your browser does not support audio recording. Please use the file upload option instead, or try a different browser.";
+      setError(msg);
+      setErrorType("unsupported");
+      reportError(msg, "startContinueRecording:unsupported_mime");
+      throw new Error(msg);
+    }
+
+    mimeTypeRef.current = supportedMime;
+
+    const inProgress = await getInProgressRecording().catch(() => undefined);
+    if (inProgress && inProgress.chunks && inProgress.chunks.length > 0) {
+      const blobs = inProgress.chunks.map(buf => new Blob([buf], { type: inProgress.mimeType }));
+      await saveSegment(blobs, inProgress.mimeType, inProgress.elapsed).catch(() => {});
+      await deleteInProgressRecording().catch(() => {});
+    }
+
+    const segCount = await getSegmentCount().catch(() => 0);
+    setSegmentCount(segCount);
+
+    let stream: MediaStream;
+    try {
+      stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+    } catch (mediaErr) {
+      const classified = classifyMediaError(mediaErr);
+      setError(classified.message);
+      setErrorType(classified.type);
+      const errDetail = mediaErr instanceof DOMException
+        ? `${mediaErr.name}: ${mediaErr.message}`
+        : String(mediaErr);
+      reportError(`getUserMedia failed: ${errDetail}`, `startContinueRecording:${classified.type}`);
+      throw new Error(classified.message);
+    }
+
+    streamRef.current = stream;
+
+    const recorder = new MediaRecorder(stream, { mimeType: supportedMime });
+    mediaRecorderRef.current = recorder;
+    chunksRef.current = [];
+    elapsedRef.current = recoveredElapsed;
+    segmentElapsedStartRef.current = recoveredElapsed;
+    setHasRecoverableRecording(false);
+
+    recorder.ondataavailable = (e) => {
+      if (e.data.size > 0) chunksRef.current.push(e.data);
+    };
+
+    recorder.onerror = () => {
+      console.error("MediaRecorder error — attempting auto-restart");
+      reportError("MediaRecorder onerror fired during continue recording", "MediaRecorder:onerror:continue");
+      stopAutoSave();
+      cleanupAudioContext();
+      attemptAutoRestart().then((restarted) => {
+        if (!restarted) {
+          flushToIndexedDB();
+          setState("idle");
+        }
+      });
+    };
+
+    recorder.start(100);
+    setState("recording");
+
+    startAudioLevelMonitoring(stream);
+    startAutoSave();
+
+    return stream;
+  }, [flushToIndexedDB, startAutoSave, stopAutoSave, startAudioLevelMonitoring, cleanupAudioContext, attemptAutoRestart]);
+
   const clearRecoveryData = useCallback(async () => {
     await deleteInProgressRecording().catch(() => {});
     await clearSegments().catch(() => {});
@@ -545,6 +628,7 @@ export function useVoiceRecorder() {
     segmentCount,
     autoRestarted,
     startRecording,
+    startContinueRecording,
     pauseRecording,
     resumeRecording,
     stopRecording,
