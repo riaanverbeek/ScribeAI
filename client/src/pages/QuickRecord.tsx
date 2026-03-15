@@ -431,17 +431,15 @@ export default function QuickRecord() {
                 <p className="text-sm text-muted-foreground mt-2">previously captured</p>
               </div>
 
-              <div className="relative">
-                <Button
-                  onClick={handleContinueRecording}
-                  variant="default"
-                  className="relative z-10 w-28 h-28 sm:w-32 sm:h-32 rounded-full"
-                  data-testid="button-continue-recording"
-                >
-                  <Mic className="w-10 h-10 sm:w-12 sm:h-12" />
-                </Button>
-              </div>
-              <p className="text-sm font-medium text-foreground">Tap to continue recording</p>
+              <Button
+                onClick={handleContinueRecording}
+                variant="default"
+                className="w-full rounded-xl py-6 text-base"
+                data-testid="button-continue-recording"
+              >
+                <Mic className="w-5 h-5 mr-2" />
+                Continue Recording
+              </Button>
 
               <div className="flex gap-3 w-full">
                 <Button
