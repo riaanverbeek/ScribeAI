@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useRef } from "react";
 import { useLocation } from "wouter";
 import { useQuery } from "@tanstack/react-query";
 import { useCreateMeeting, useUploadAudio, useProcessMeeting } from "@/hooks/use-meetings";
@@ -27,7 +27,7 @@ import {
 } from "@/components/ui/dialog";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from "@/components/ui/command";
-import { Mic, UploadCloud, CloudUpload, ChevronLeft, Loader2, Plus, Users, FileText, Paperclip, WifiOff, Wifi, Pause, Play, Square, Globe, ClipboardPaste, FileUp, AlertTriangle, ShieldCheck, Check, ChevronsUpDown, RotateCcw, Trash2 } from "lucide-react";
+import { Mic, UploadCloud, CloudUpload, ChevronLeft, Loader2, Plus, Users, FileText, Paperclip, WifiOff, Wifi, Pause, Play, Square, Globe, ClipboardPaste, FileUp, AlertTriangle, ShieldCheck, Check, ChevronsUpDown, RotateCcw, Trash2, Smartphone } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useToast } from "@/hooks/use-toast";
 import { useVoiceRecorder } from "@/replit_integrations/audio";
@@ -78,6 +78,18 @@ export default function NewMeeting() {
   });
   
   const recorder = useVoiceRecorder();
+  const nativeCaptureRef = useRef<HTMLInputElement>(null);
+
+  const handleNativeCapture = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const capturedFile = e.target.files?.[0];
+    if (capturedFile) {
+      setFile(capturedFile);
+      toast({ title: "Recording Captured", description: "Your device recording is ready for processing." });
+    }
+    if (nativeCaptureRef.current) {
+      nativeCaptureRef.current.value = "";
+    }
+  };
 
   const handleCreateClient = async () => {
     if (!newClientName.trim()) {
@@ -668,6 +680,16 @@ export default function NewMeeting() {
             <TabsContent value="record">
               <Card className="border-2 border-dashed border-slate-200 bg-slate-50/50 shadow-none rounded-xl">
                 <CardContent className="flex flex-col items-center justify-center py-12">
+                  <input
+                    ref={nativeCaptureRef}
+                    type="file"
+                    accept="audio/*"
+                    capture="user"
+                    className="hidden"
+                    onChange={handleNativeCapture}
+                    data-testid="input-native-capture"
+                  />
+
                   {failedMeetingId && file && recorder.state !== "recording" && recorder.state !== "paused" && (
                     <div className="mb-6 w-full max-w-sm rounded-lg border border-red-200 bg-red-50 dark:bg-red-950/20 dark:border-red-800 p-4" data-testid="banner-upload-failed">
                       <div className="flex items-start gap-3">
@@ -889,6 +911,36 @@ export default function NewMeeting() {
                   {file && recorder.state === "stopped" && (
                     <div className="mt-6 px-4 py-2 bg-green-50 text-green-700 dark:bg-green-900/30 dark:text-green-400 rounded-lg text-sm font-medium flex items-center animate-in fade-in slide-in-from-bottom-2">
                       Recording saved ready for processing
+                    </div>
+                  )}
+
+                  {(recorder.state === "idle" || recorder.state === "stopped") && !file && (
+                    <>
+                      <div className="flex items-center gap-3 w-full max-w-xs my-6">
+                        <div className="flex-1 h-px bg-slate-200 dark:bg-slate-700" />
+                        <span className="text-xs font-medium text-slate-400 dark:text-slate-500 uppercase">or</span>
+                        <div className="flex-1 h-px bg-slate-200 dark:bg-slate-700" />
+                      </div>
+
+                      <button
+                        onClick={() => nativeCaptureRef.current?.click()}
+                        className="flex items-center gap-3 px-5 py-3 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 hover:border-primary/40 hover:bg-primary/5 dark:hover:bg-primary/10 transition-colors group"
+                        data-testid="button-native-capture"
+                      >
+                        <div className="w-10 h-10 rounded-full bg-primary/10 flex items-center justify-center group-hover:bg-primary/20 transition-colors">
+                          <Smartphone className="w-5 h-5 text-primary" />
+                        </div>
+                        <div className="text-left">
+                          <span className="text-sm font-semibold text-slate-900 dark:text-slate-100">Record with Device Mic</span>
+                          <p className="text-xs text-slate-500 dark:text-slate-400">Opens your device's native recorder</p>
+                        </div>
+                      </button>
+                    </>
+                  )}
+
+                  {file && (recorder.state === "idle") && (
+                    <div className="mt-6 px-4 py-2 bg-green-50 text-green-700 dark:bg-green-900/30 dark:text-green-400 rounded-lg text-sm font-medium flex items-center animate-in fade-in slide-in-from-bottom-2" data-testid="text-native-capture-ready">
+                      Device recording ready for processing
                     </div>
                   )}
                 </CardContent>
