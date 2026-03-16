@@ -1,4 +1,4 @@
-import { useState, useRef } from "react";
+import { useState, useRef, useEffect, useCallback } from "react";
 import { useLocation } from "wouter";
 import { useQuery } from "@tanstack/react-query";
 import { useCreateMeeting, useUploadAudio, useProcessMeeting } from "@/hooks/use-meetings";
@@ -62,6 +62,7 @@ export default function NewMeeting() {
   const [consentStatus, setConsentStatus] = useState<"not_asked" | "yes" | "no">("not_asked");
   const [consentDialogOpen, setConsentDialogOpen] = useState(false);
   const [failedMeetingId, setFailedMeetingId] = useState<number | null>(null);
+  const [nativeCaptureAutoSubmit, setNativeCaptureAutoSubmit] = useState(false);
   
   const createMutation = useCreateMeeting();
   const uploadMutation = useUploadAudio();
@@ -84,12 +85,19 @@ export default function NewMeeting() {
     const capturedFile = e.target.files?.[0];
     if (capturedFile) {
       setFile(capturedFile);
-      toast({ title: "Recording Captured", description: "Your device recording is ready for processing." });
+      setNativeCaptureAutoSubmit(true);
     }
     if (nativeCaptureRef.current) {
       nativeCaptureRef.current.value = "";
     }
   };
+
+  useEffect(() => {
+    if (nativeCaptureAutoSubmit && file) {
+      setNativeCaptureAutoSubmit(false);
+      handleCreate();
+    }
+  }, [nativeCaptureAutoSubmit, file]);
 
   const handleCreateClient = async () => {
     if (!newClientName.trim()) {
@@ -684,7 +692,7 @@ export default function NewMeeting() {
                     ref={nativeCaptureRef}
                     type="file"
                     accept="audio/*"
-                    capture="user"
+                    capture="microphone"
                     className="hidden"
                     onChange={handleNativeCapture}
                     data-testid="input-native-capture"
@@ -938,11 +946,6 @@ export default function NewMeeting() {
                     </>
                   )}
 
-                  {file && (recorder.state === "idle") && (
-                    <div className="mt-6 px-4 py-2 bg-green-50 text-green-700 dark:bg-green-900/30 dark:text-green-400 rounded-lg text-sm font-medium flex items-center animate-in fade-in slide-in-from-bottom-2" data-testid="text-native-capture-ready">
-                      Device recording ready for processing
-                    </div>
-                  )}
                 </CardContent>
               </Card>
             </TabsContent>
