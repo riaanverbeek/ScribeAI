@@ -1,0 +1,20 @@
+{
+  "appId": "com.scribeai.app",
+  "appName": "ScribeAI",
+  "webDir": "www",
+  "server": {
+    "url": "https://7ed4bcff-61ee-4fa0-9b6d-594f88944ece-00-18prt02ycz3rx.worf.replit.dev",
+    "cleartext": false,
+    "allowNavigation": ["*.replit.app", "*.replit.dev"]
+  },
+  "plugins": {
+    "VoiceRecorder": {}
+  },
+  "ios": {
+    "contentInset": "automatic",
+    "backgroundColor": "#0f172a"
+  },
+  "android": {
+    "backgroundColor": "#0f172a"
+  }
+}

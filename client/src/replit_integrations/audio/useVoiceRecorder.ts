@@ -12,6 +12,10 @@ import {
 } from "@/lib/offlineDb";
 import { reportError } from "@/lib/logError";
 import { invalidateRecoveryState } from "@/hooks/use-recovery";
+import { Capacitor } from "@capacitor/core";
+import { VoiceRecorder } from "capacitor-voice-recorder";
+
+const IS_NATIVE = Capacitor.isNativePlatform();
 
 export type RecordingState = "idle" | "recording" | "paused" | "stopped";
 
@@ -116,6 +120,9 @@ export function useVoiceRecorder() {
   const streamRef = useRef<MediaStream | null>(null);
   const isAutoRestartingRef = useRef(false);
   const onSegmentSavedRef = useRef<((count: number) => void) | null>(null);
+  const nativeRecordingRef = useRef(false);
+  const nativePulsTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const nativePulsPhaseRef = useRef(0);
 
   useEffect(() => {
     const checkRecovery = async () => {
@@ -151,6 +158,24 @@ export function useVoiceRecorder() {
     } catch (e) {
       console.warn("Auto-save to IndexedDB failed:", e);
     }
+  }, []);
+
+  const startNativePulse = useCallback(() => {
+    if (nativePulsTimerRef.current) clearInterval(nativePulsTimerRef.current);
+    nativePulsPhaseRef.current = 0;
+    nativePulsTimerRef.current = setInterval(() => {
+      nativePulsPhaseRef.current += 0.12;
+      const level = 0.25 + 0.25 * Math.sin(nativePulsPhaseRef.current);
+      setAudioLevel(level);
+    }, 80);
+  }, []);
+
+  const stopNativePulse = useCallback(() => {
+    if (nativePulsTimerRef.current) {
+      clearInterval(nativePulsTimerRef.current);
+      nativePulsTimerRef.current = null;
+    }
+    setAudioLevel(0);
   }, []);
 
   const startAudioLevelMonitoring = useCallback((stream: MediaStream) => {
@@ -323,6 +348,34 @@ export function useVoiceRecorder() {
     setErrorType(null);
     setAutoRestarted(false);
 
+    if (IS_NATIVE) {
+      try {
+        const permResult = await VoiceRecorder.requestAudioRecordingPermission();
+        if (permResult && (permResult as any).value === false) {
+          const msg = "Microphone permission was denied. Please allow it in your device Settings.";
+          setError(msg);
+          setErrorType("permission_denied");
+          throw new Error(msg);
+        }
+        await VoiceRecorder.startRecording();
+        nativeRecordingRef.current = true;
+        elapsedRef.current = 0;
+        await deleteInProgressRecording().catch(() => {});
+        await clearSegments().catch(() => {});
+        setHasRecoverableRecording(false);
+        setSegmentCount(0);
+        setState("recording");
+        startNativePulse();
+        return new MediaStream();
+      } catch (err: any) {
+        const msg = err?.message || "Native recording failed to start.";
+        setError(msg);
+        setErrorType("unknown");
+        reportError(msg, "startRecording:native");
+        throw new Error(msg);
+      }
+    }
+
     if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
       const msg = "Your browser does not support microphone access. This can happen when using the home screen app on older iPhones. Please open the app in Safari or Chrome instead, or upload an audio file.";
       setError(msg);
@@ -396,9 +449,18 @@ export function useVoiceRecorder() {
     startAutoSave();
 
     return stream;
-  }, [flushToIndexedDB, startAutoSave, stopAutoSave, startAudioLevelMonitoring, cleanupAudioContext, attemptAutoRestart]);
+  }, [flushToIndexedDB, startAutoSave, stopAutoSave, startAudioLevelMonitoring, cleanupAudioContext, attemptAutoRestart, startNativePulse]);
 
   const pauseRecording = useCallback((): void => {
+    if (IS_NATIVE && nativeRecordingRef.current) {
+      VoiceRecorder.pauseRecording().then(() => {
+        setState("paused");
+        stopNativePulse();
+      }).catch((e: any) => {
+        console.warn("Native pauseRecording not supported or failed:", e?.message);
+      });
+      return;
+    }
     const recorder = mediaRecorderRef.current;
     if (recorder && recorder.state === "recording") {
       recorder.pause();
@@ -406,9 +468,18 @@ export function useVoiceRecorder() {
       stopAudioLevelMonitoring();
       flushToIndexedDB();
     }
-  }, [stopAudioLevelMonitoring, flushToIndexedDB]);
+  }, [stopAudioLevelMonitoring, flushToIndexedDB, stopNativePulse]);
 
   const resumeRecording = useCallback((): void => {
+    if (IS_NATIVE && nativeRecordingRef.current) {
+      VoiceRecorder.resumeRecording().then(() => {
+        setState("recording");
+        startNativePulse();
+      }).catch((e: any) => {
+        console.warn("Native resumeRecording not supported or failed:", e?.message);
+      });
+      return;
+    }
     const recorder = mediaRecorderRef.current;
     if (recorder && recorder.state === "paused") {
       recorder.resume();
@@ -417,9 +488,33 @@ export function useVoiceRecorder() {
         startAudioLevelMonitoring(streamRef.current);
       }
     }
-  }, [startAudioLevelMonitoring]);
+  }, [startAudioLevelMonitoring, startNativePulse]);
 
   const stopRecording = useCallback(async (): Promise<Blob> => {
+    if (IS_NATIVE && nativeRecordingRef.current) {
+      stopNativePulse();
+      try {
+        const result = await VoiceRecorder.stopRecording();
+        const value = (result as any)?.value ?? result;
+        const base64 = value?.recordDataBase64 ?? "";
+        const mimeType: string = value?.mimeType ?? "audio/aac";
+        nativeRecordingRef.current = false;
+        setState("stopped");
+
+        if (!base64) return new Blob();
+        const binary = atob(base64);
+        const bytes = new Uint8Array(binary.length);
+        for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
+        mimeTypeRef.current = mimeType;
+        return new Blob([bytes], { type: mimeType });
+      } catch (err: any) {
+        nativeRecordingRef.current = false;
+        setState("stopped");
+        reportError(err?.message || "Native stopRecording failed", "stopRecording:native");
+        return new Blob();
+      }
+    }
+
     const recorder = mediaRecorderRef.current;
 
     stopAutoSave();
@@ -456,7 +551,7 @@ export function useVoiceRecorder() {
 
       recorder.stop();
     });
-  }, [stopAutoSave, cleanupAudioContext, flushToIndexedDB]);
+  }, [stopAutoSave, cleanupAudioContext, flushToIndexedDB, stopNativePulse]);
 
   const startContinueRecording = useCallback(async (): Promise<{ stream: MediaStream; totalElapsed: number }> => {
     setError(null);
@@ -628,8 +723,9 @@ export function useVoiceRecorder() {
     return () => {
       stopAutoSave();
       cleanupAudioContext();
+      stopNativePulse();
     };
-  }, [stopAutoSave, cleanupAudioContext]);
+  }, [stopAutoSave, cleanupAudioContext, stopNativePulse]);
 
   const recordingMimeType = mimeTypeRef.current;
   const recordingExtension = getFileExtension(mimeTypeRef.current);
