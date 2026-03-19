@@ -60,7 +60,7 @@ const AUTO_SAVE_INTERVAL_MS = 5000;
 function isIOS(): boolean {
   return typeof navigator !== "undefined" &&
     /iPad|iPhone|iPod/i.test(navigator.userAgent) &&
-    !(window as any).MSStream;
+    !("MSStream" in window);
 }
 
 /**
