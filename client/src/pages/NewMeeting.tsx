@@ -78,6 +78,15 @@ export default function NewMeeting() {
     },
   });
   
+  const [elapsed, setElapsed] = useState(0);
+  const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
+
+  const formatTime = (seconds: number) => {
+    const m = Math.floor(seconds / 60);
+    const s = seconds % 60;
+    return `${m.toString().padStart(2, "0")}:${s.toString().padStart(2, "0")}`;
+  };
+
   const recorder = useVoiceRecorder();
   const nativeCaptureRef = useRef<HTMLInputElement>(null);
 
@@ -98,6 +107,16 @@ export default function NewMeeting() {
       handleCreate();
     }
   }, [nativeCaptureAutoSubmit, file]);
+
+  useEffect(() => {
+    recorder.setElapsedRef(elapsed);
+  }, [elapsed, recorder.setElapsedRef]);
+
+  useEffect(() => {
+    return () => {
+      if (timerRef.current) clearInterval(timerRef.current);
+    };
+  }, []);
 
   const handleCreateClient = async () => {
     if (!newClientName.trim()) {
@@ -342,6 +361,10 @@ export default function NewMeeting() {
   };
 
   const handleStopRecording = async () => {
+    if (timerRef.current) {
+      clearInterval(timerRef.current);
+      timerRef.current = null;
+    }
     const blob = await recorder.stopRecording();
     const ext = recorder.recordingExtension || ".webm";
     const mime = recorder.recordingMimeType || "audio/webm";
@@ -784,6 +807,11 @@ export default function NewMeeting() {
                           onClick={async () => {
                             try {
                               await recorder.startRecording();
+                              setElapsed(0);
+                              if (timerRef.current) clearInterval(timerRef.current);
+                              timerRef.current = setInterval(() => {
+                                setElapsed((prev) => prev + 1);
+                              }, 1000);
                               if (selectedClientId) {
                                 setTimeout(() => setConsentDialogOpen(true), 150);
                               }
@@ -863,6 +891,12 @@ export default function NewMeeting() {
                       </div>
 
                       <div className="text-center mb-6">
+                        <p
+                          className="text-3xl font-mono font-bold tabular-nums text-foreground mb-2"
+                          data-testid="text-recording-timer"
+                        >
+                          {formatTime(elapsed)}
+                        </p>
                         <h3 className="font-semibold text-slate-900 dark:text-slate-100">
                           {recorder.state === "recording" ? "Recording..." : "Paused"}
                         </h3>
@@ -888,7 +922,13 @@ export default function NewMeeting() {
                         {recorder.state === "recording" ? (
                           <Button
                             variant="outline"
-                            onClick={recorder.pauseRecording}
+                            onClick={() => {
+                              recorder.pauseRecording();
+                              if (timerRef.current) {
+                                clearInterval(timerRef.current);
+                                timerRef.current = null;
+                              }
+                            }}
                             data-testid="button-pause-recording"
                           >
                             <Pause className="w-4 h-4 mr-2" />
@@ -897,7 +937,13 @@ export default function NewMeeting() {
                         ) : (
                           <Button
                             variant="outline"
-                            onClick={recorder.resumeRecording}
+                            onClick={() => {
+                              recorder.resumeRecording();
+                              if (timerRef.current) clearInterval(timerRef.current);
+                              timerRef.current = setInterval(() => {
+                                setElapsed((prev) => prev + 1);
+                              }, 1000);
+                            }}
                             data-testid="button-resume-recording"
                           >
                             <Play className="w-4 h-4 mr-2" />
