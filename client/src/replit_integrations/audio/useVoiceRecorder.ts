@@ -40,6 +40,13 @@ export type RecordingErrorType =
   | "aborted"
   | "unknown";
 
+const RECORDER_TIMESLICE_MS = 1000;
+
+const IOS_MIME_PREFERENCES = [
+  "audio/mp4",
+  "audio/mp4;codecs=mp4a.40.2",
+];
+
 const MIME_PREFERENCES = [
   "audio/webm;codecs=opus",
   "audio/webm",
@@ -50,12 +57,37 @@ const MIME_PREFERENCES = [
 
 const AUTO_SAVE_INTERVAL_MS = 5000;
 
+function isIOS(): boolean {
+  return typeof navigator !== "undefined" &&
+    /iPad|iPhone|iPod/i.test(navigator.userAgent) &&
+    !(window as any).MSStream;
+}
+
+/**
+ * Returns the MIME type to use for recording:
+ * - A non-empty string → use as explicit mimeType
+ * - ""               → iOS browser-default (omit mimeType from constructor)
+ * - null             → MediaRecorder not available at all
+ *
+ * On iOS, mp4 variants are tried first. If none are reported as supported
+ * (can happen on some iOS versions despite actually working), we return ""
+ * so the MediaRecorder constructor uses its own default, which is reliable
+ * on iOS Safari even when isTypeSupported gives false negatives.
+ */
 function getSupportedMimeType(): string | null {
   if (typeof MediaRecorder === "undefined") return null;
-  for (const mime of MIME_PREFERENCES) {
+  const onIOS = isIOS();
+  const prefs = onIOS ? [...IOS_MIME_PREFERENCES, ...MIME_PREFERENCES] : MIME_PREFERENCES;
+  for (const mime of prefs) {
     if (MediaRecorder.isTypeSupported(mime)) return mime;
   }
+  if (onIOS) return "";
   return null;
+}
+
+/** Build MediaRecorderOptions — omit mimeType entirely when empty/null so iOS uses its own default. */
+function makeRecorderOptions(mime: string | null): MediaRecorderOptions {
+  return mime ? { mimeType: mime } : {};
 }
 
 function getFileExtension(mimeType: string): string {
@@ -300,7 +332,7 @@ export function useVoiceRecorder() {
       await saveCurrentAsSegment();
 
       const supportedMime = getSupportedMimeType();
-      if (!supportedMime) {
+      if (supportedMime === null) {
         isAutoRestartingRef.current = false;
         return false;
       }
@@ -315,10 +347,10 @@ export function useVoiceRecorder() {
 
       streamRef.current = stream;
 
-      const recorder = new MediaRecorder(stream, { mimeType: supportedMime });
+      const recorder = new MediaRecorder(stream, makeRecorderOptions(supportedMime));
       mediaRecorderRef.current = recorder;
       chunksRef.current = [];
-      mimeTypeRef.current = supportedMime;
+      mimeTypeRef.current = recorder.mimeType || supportedMime || "audio/mp4";
 
       recorder.ondataavailable = (e) => {
         if (e.data.size > 0) chunksRef.current.push(e.data);
@@ -340,7 +372,7 @@ export function useVoiceRecorder() {
         });
       };
 
-      recorder.start(100);
+      recorder.start(RECORDER_TIMESLICE_MS);
       setState("recording");
       setAutoRestarted(true);
       startAudioLevelMonitoring(stream);
@@ -401,15 +433,13 @@ export function useVoiceRecorder() {
     }
 
     const supportedMime = getSupportedMimeType();
-    if (!supportedMime) {
+    if (supportedMime === null) {
       const msg = "Your browser does not support audio recording. Please use the file upload option instead, or try a different browser.";
       setError(msg);
       setErrorType("unsupported");
       reportError(msg, "startRecording:unsupported_mime");
       throw new Error(msg);
     }
-
-    mimeTypeRef.current = supportedMime;
 
     let stream: MediaStream;
     try {
@@ -427,9 +457,8 @@ export function useVoiceRecorder() {
 
     streamRef.current = stream;
 
-    const recorder = new MediaRecorder(stream, {
-      mimeType: supportedMime,
-    });
+    const recorder = new MediaRecorder(stream, makeRecorderOptions(supportedMime));
+    mimeTypeRef.current = recorder.mimeType || supportedMime || "audio/mp4";
 
     mediaRecorderRef.current = recorder;
     chunksRef.current = [];
@@ -458,7 +487,7 @@ export function useVoiceRecorder() {
       });
     };
 
-    recorder.start(100);
+    recorder.start(RECORDER_TIMESLICE_MS);
     setState("recording");
 
     startAudioLevelMonitoring(stream);
@@ -590,15 +619,13 @@ export function useVoiceRecorder() {
     }
 
     const supportedMime = getSupportedMimeType();
-    if (!supportedMime) {
+    if (supportedMime === null) {
       const msg = "Your browser does not support audio recording. Please use the file upload option instead, or try a different browser.";
       setError(msg);
       setErrorType("unsupported");
       reportError(msg, "startContinueRecording:unsupported_mime");
       throw new Error(msg);
     }
-
-    mimeTypeRef.current = supportedMime;
 
     const inProgress = await getInProgressRecording().catch(() => undefined);
     let recoveredElapsed = 0;
@@ -635,7 +662,8 @@ export function useVoiceRecorder() {
 
     streamRef.current = stream;
 
-    const recorder = new MediaRecorder(stream, { mimeType: supportedMime });
+    const recorder = new MediaRecorder(stream, makeRecorderOptions(supportedMime));
+    mimeTypeRef.current = recorder.mimeType || supportedMime || "audio/mp4";
     mediaRecorderRef.current = recorder;
     chunksRef.current = [];
     elapsedRef.current = recoveredElapsed;
@@ -659,7 +687,7 @@ export function useVoiceRecorder() {
       });
     };
 
-    recorder.start(100);
+    recorder.start(RECORDER_TIMESLICE_MS);
     setState("recording");
 
     startAudioLevelMonitoring(stream);
