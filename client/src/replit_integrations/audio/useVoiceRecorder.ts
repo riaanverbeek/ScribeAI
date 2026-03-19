@@ -17,6 +17,18 @@ import { VoiceRecorder } from "capacitor-voice-recorder";
 
 const IS_NATIVE = Capacitor.isNativePlatform();
 
+interface VoiceRecorderResult {
+  value: {
+    recordDataBase64: string;
+    mimeType: string;
+    msDuration: number;
+  };
+}
+
+interface VoiceRecorderPermissionResult {
+  value: boolean;
+}
+
 export type RecordingState = "idle" | "recording" | "paused" | "stopped";
 
 export type RecordingErrorType =
@@ -349,12 +361,15 @@ export function useVoiceRecorder() {
     setAutoRestarted(false);
 
     if (IS_NATIVE) {
+      let permissionDenied = false;
       try {
-        const permResult = await VoiceRecorder.requestAudioRecordingPermission();
-        if (permResult && (permResult as any).value === false) {
+        const permResult = await VoiceRecorder.requestAudioRecordingPermission() as VoiceRecorderPermissionResult;
+        if (permResult && permResult.value === false) {
+          permissionDenied = true;
           const msg = "Microphone permission was denied. Please allow it in your device Settings.";
           setError(msg);
           setErrorType("permission_denied");
+          reportError(msg, "startRecording:native:permission_denied");
           throw new Error(msg);
         }
         await VoiceRecorder.startRecording();
@@ -367,8 +382,9 @@ export function useVoiceRecorder() {
         setState("recording");
         startNativePulse();
         return new MediaStream();
-      } catch (err: any) {
-        const msg = err?.message || "Native recording failed to start.";
+      } catch (err: unknown) {
+        if (permissionDenied) throw err;
+        const msg = err instanceof Error ? err.message : "Native recording failed to start.";
         setError(msg);
         setErrorType("unknown");
         reportError(msg, "startRecording:native");
@@ -453,12 +469,16 @@ export function useVoiceRecorder() {
 
   const pauseRecording = useCallback((): void => {
     if (IS_NATIVE && nativeRecordingRef.current) {
-      VoiceRecorder.pauseRecording().then(() => {
-        setState("paused");
-        stopNativePulse();
-      }).catch((e: any) => {
-        console.warn("Native pauseRecording not supported or failed:", e?.message);
-      });
+      if (typeof VoiceRecorder.pauseRecording === "function") {
+        VoiceRecorder.pauseRecording().then(() => {
+          setState("paused");
+          stopNativePulse();
+        }).catch((e: unknown) => {
+          console.warn("Native pauseRecording failed:", e instanceof Error ? e.message : e);
+        });
+      } else {
+        console.warn("VoiceRecorder.pauseRecording is not available on this platform.");
+      }
       return;
     }
     const recorder = mediaRecorderRef.current;
@@ -472,12 +492,16 @@ export function useVoiceRecorder() {
 
   const resumeRecording = useCallback((): void => {
     if (IS_NATIVE && nativeRecordingRef.current) {
-      VoiceRecorder.resumeRecording().then(() => {
-        setState("recording");
-        startNativePulse();
-      }).catch((e: any) => {
-        console.warn("Native resumeRecording not supported or failed:", e?.message);
-      });
+      if (typeof VoiceRecorder.resumeRecording === "function") {
+        VoiceRecorder.resumeRecording().then(() => {
+          setState("recording");
+          startNativePulse();
+        }).catch((e: unknown) => {
+          console.warn("Native resumeRecording failed:", e instanceof Error ? e.message : e);
+        });
+      } else {
+        console.warn("VoiceRecorder.resumeRecording is not available on this platform.");
+      }
       return;
     }
     const recorder = mediaRecorderRef.current;
@@ -494,10 +518,8 @@ export function useVoiceRecorder() {
     if (IS_NATIVE && nativeRecordingRef.current) {
       stopNativePulse();
       try {
-        const result = await VoiceRecorder.stopRecording();
-        const value = (result as any)?.value ?? result;
-        const base64 = value?.recordDataBase64 ?? "";
-        const mimeType: string = value?.mimeType ?? "audio/aac";
+        const result = await VoiceRecorder.stopRecording() as VoiceRecorderResult;
+        const { recordDataBase64: base64, mimeType } = result.value;
         nativeRecordingRef.current = false;
         setState("stopped");
 
@@ -507,10 +529,11 @@ export function useVoiceRecorder() {
         for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
         mimeTypeRef.current = mimeType;
         return new Blob([bytes], { type: mimeType });
-      } catch (err: any) {
+      } catch (err: unknown) {
         nativeRecordingRef.current = false;
         setState("stopped");
-        reportError(err?.message || "Native stopRecording failed", "stopRecording:native");
+        const msg = err instanceof Error ? err.message : "Native stopRecording failed";
+        reportError(msg, "stopRecording:native");
         return new Blob();
       }
     }
