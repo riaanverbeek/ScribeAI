@@ -806,8 +806,14 @@ export default function NewMeeting() {
                         <button
                           onClick={async () => {
                             try {
-                              await recorder.startRecording();
-                              setElapsed(0);
+                              let startElapsed = 0;
+                              if (recorder.hasRecoverableRecording) {
+                                const { totalElapsed } = await recorder.startContinueRecording();
+                                startElapsed = totalElapsed;
+                              } else {
+                                await recorder.startRecording();
+                              }
+                              setElapsed(startElapsed);
                               if (timerRef.current) clearInterval(timerRef.current);
                               timerRef.current = setInterval(() => {
                                 setElapsed((prev) => prev + 1);
