@@ -6,3 +6,9 @@ id = "Lm5IDKzHIlP5mPrJcDr5R"
 uri = "file://client/public/logo.svg"
 type = "image"
 title = "ScribeAI Logo (orange microphone)"
+
+[[outputs]]
+id = "ll1UCOR7TlYs7qRciRcSE"
+uri = "file://client/public/logo.png"
+type = "image"
+title = "ScribeAI Logo (PNG, 512×512)"
