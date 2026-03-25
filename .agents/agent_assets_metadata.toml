@@ -1,0 +1,8 @@
+uploads = []
+generated = []
+
+[[outputs]]
+id = "Lm5IDKzHIlP5mPrJcDr5R"
+uri = "file://client/public/logo.svg"
+type = "image"
+title = "ScribeAI Logo (orange microphone)"
