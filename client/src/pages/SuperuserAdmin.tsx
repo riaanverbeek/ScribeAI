@@ -15,7 +15,7 @@ import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, 
 import { Switch } from "@/components/ui/switch";
 import { Pencil, Trash2, Plus, Users, Briefcase, Calendar, Shield, ShieldCheck, Tag, ArrowLeft, Eye, ChevronRight, Loader2, Building2, Globe, Palette, ArrowUpDown, Languages } from "lucide-react";
 import { format } from "date-fns";
-import type { SafeUser, Client, Meeting, Role, Transcript, ActionItem, Topic, MeetingSummary, Tenant, LanguageOption } from "@shared/schema";
+import type { SafeUser, Client, Meeting, Role, Transcript, ActionItem, Topic, MeetingSummary, Tenant, AudioLanguageOption } from "@shared/schema";
 
 type SuperuserUser = SafeUser & { isSuperuser: boolean };
 
@@ -1144,28 +1144,28 @@ function TenantsTab() {
 
 function LanguageOptionsTab() {
   const { toast } = useToast();
-  const { data: options = [], isLoading } = useQuery<LanguageOption[]>({ queryKey: ["/api/superuser/language-options"] });
-  const [editOpt, setEditOpt] = useState<LanguageOption | null>(null);
-  const [deleteOpt, setDeleteOpt] = useState<LanguageOption | null>(null);
+  const { data: options = [], isLoading } = useQuery<AudioLanguageOption[]>({ queryKey: ["/api/superuser/audio-language-options"] });
+  const [editOpt, setEditOpt] = useState<AudioLanguageOption | null>(null);
+  const [deleteOpt, setDeleteOpt] = useState<AudioLanguageOption | null>(null);
   const [showCreate, setShowCreate] = useState(false);
-  const [form, setForm] = useState({ code: "", label: "", sortOrder: 0, isActive: true });
+  const [form, setForm] = useState({ code: "", label: "", normalize: false, sortOrder: 0, isActive: true });
 
-  const resetForm = () => setForm({ code: "", label: "", sortOrder: 0, isActive: true });
+  const resetForm = () => setForm({ code: "", label: "", normalize: false, sortOrder: 0, isActive: true });
 
   const openCreate = () => { resetForm(); setShowCreate(true); };
-  const openEdit = (opt: LanguageOption) => {
-    setForm({ code: opt.code, label: opt.label, sortOrder: opt.sortOrder, isActive: opt.isActive });
+  const openEdit = (opt: AudioLanguageOption) => {
+    setForm({ code: opt.code, label: opt.label, normalize: opt.normalize, sortOrder: opt.sortOrder, isActive: opt.isActive });
     setEditOpt(opt);
   };
 
   const createMutation = useMutation({
     mutationFn: async (data: typeof form) => {
-      const res = await apiRequest("POST", "/api/superuser/language-options", data);
+      const res = await apiRequest("POST", "/api/superuser/audio-language-options", data);
       return res.json();
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["/api/superuser/language-options"] });
-      queryClient.invalidateQueries({ queryKey: ["/api/language-options"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/superuser/audio-language-options"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/audio-language-options"] });
       setShowCreate(false);
       resetForm();
       toast({ title: "Language option created" });
@@ -1175,12 +1175,12 @@ function LanguageOptionsTab() {
 
   const updateMutation = useMutation({
     mutationFn: async ({ id, data }: { id: number; data: typeof form }) => {
-      const res = await apiRequest("PATCH", `/api/superuser/language-options/${id}`, data);
+      const res = await apiRequest("PATCH", `/api/superuser/audio-language-options/${id}`, data);
       return res.json();
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["/api/superuser/language-options"] });
-      queryClient.invalidateQueries({ queryKey: ["/api/language-options"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/superuser/audio-language-options"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/audio-language-options"] });
       setEditOpt(null);
       toast({ title: "Language option updated" });
     },
@@ -1189,11 +1189,11 @@ function LanguageOptionsTab() {
 
   const deleteMutation = useMutation({
     mutationFn: async (id: number) => {
-      await apiRequest("DELETE", `/api/superuser/language-options/${id}`);
+      await apiRequest("DELETE", `/api/superuser/audio-language-options/${id}`);
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["/api/superuser/language-options"] });
-      queryClient.invalidateQueries({ queryKey: ["/api/language-options"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/superuser/audio-language-options"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/audio-language-options"] });
       setDeleteOpt(null);
       toast({ title: "Language option deleted" });
     },
@@ -1215,7 +1215,7 @@ function LanguageOptionsTab() {
   return (
     <div className="space-y-3">
       <div className="flex items-center justify-between">
-        <p className="text-sm text-muted-foreground">Control which audio language options appear in the recording form. Changes take effect immediately for all users.</p>
+        <p className="text-sm text-muted-foreground">Control which audio language options appear in the recording form. Enable normalization to post-process transcripts into pure language via AI.</p>
         <Button size="sm" onClick={openCreate} data-testid="button-create-language-option">
           <Plus className="w-4 h-4 mr-1" /> Add Language
         </Button>
@@ -1233,6 +1233,11 @@ function LanguageOptionsTab() {
                 <Badge variant={opt.isActive ? "default" : "secondary"} className="text-[10px]" data-testid={`badge-lang-active-${opt.id}`}>
                   {opt.isActive ? "Active" : "Inactive"}
                 </Badge>
+                {opt.normalize && (
+                  <Badge variant="outline" className="text-[10px] text-amber-600 border-amber-400" data-testid={`badge-lang-normalize-${opt.id}`}>
+                    Normalize
+                  </Badge>
+                )}
               </div>
               <p className="text-xs text-muted-foreground mt-0.5">Sort order: {opt.sortOrder}</p>
             </div>
@@ -1281,6 +1286,13 @@ function LanguageOptionsTab() {
                 data-testid="input-lang-sort-order"
               />
               <p className="text-[10px] text-muted-foreground mt-0.5">Lower numbers appear first in the dropdown.</p>
+            </div>
+            <div className="flex items-center justify-between">
+              <div>
+                <Label>Normalize Transcript</Label>
+                <p className="text-[10px] text-muted-foreground mt-0.5">When enabled, the AI will post-process the transcript into pure language (e.g. removing code-switching).</p>
+              </div>
+              <Switch checked={form.normalize} onCheckedChange={(checked) => setForm(f => ({ ...f, normalize: checked }))} data-testid="switch-lang-normalize" />
             </div>
             <div className="flex items-center justify-between">
               <Label>Active</Label>

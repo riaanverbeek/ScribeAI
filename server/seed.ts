@@ -1,23 +1,23 @@
 import { storage } from "./storage";
 
-const DEFAULT_LANGUAGE_OPTIONS = [
-  { code: "auto", label: "Auto-detect", sortOrder: 0, isActive: true },
-  { code: "af", label: "Afrikaans / English (ZA)", sortOrder: 10, isActive: true },
-  { code: "en", label: "English only", sortOrder: 20, isActive: true },
+const DEFAULT_AUDIO_LANGUAGE_OPTIONS = [
+  { code: "auto", label: "Auto-detect", normalize: false, sortOrder: 0, isActive: true },
+  { code: "af", label: "Afrikaans / English (ZA)", normalize: true, sortOrder: 10, isActive: true },
+  { code: "en", label: "English only", normalize: false, sortOrder: 20, isActive: true },
 ];
 
-async function seedLanguageOptions() {
-  const existing = await storage.getLanguageOptions();
+async function seedAudioLanguageOptions() {
+  const existing = await storage.getAudioLanguageOptions();
   if (existing.length === 0) {
-    for (const opt of DEFAULT_LANGUAGE_OPTIONS) {
-      await storage.createLanguageOption(opt);
+    for (const opt of DEFAULT_AUDIO_LANGUAGE_OPTIONS) {
+      await storage.createAudioLanguageOption(opt);
     }
-    console.log("[seed] Default language options seeded.");
+    console.log("[seed] Default audio language options seeded.");
   }
 }
 
 export async function seedDatabase() {
-  await seedLanguageOptions();
+  await seedAudioLanguageOptions();
 
   const existingMeetings = await storage.getMeetings();
   if (existingMeetings.length === 0) {

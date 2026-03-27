@@ -1,8 +1,8 @@
 import { db } from "./db";
 import { 
-    users, clients, meetings, transcripts, actionItems, topics, meetingSummaries, templates, templateTenants, roles, policies, meetingPolicies, tenants, languageOptions,
-    type InsertUser, type InsertClient, type InsertMeeting, type InsertTranscript, type InsertActionItem, type InsertTopic, type InsertMeetingSummary, type InsertTemplate, type InsertRole, type InsertPolicy, type InsertMeetingPolicy, type InsertTenant, type InsertLanguageOption,
-    type User, type Client, type Meeting, type Transcript, type ActionItem, type Topic, type MeetingSummary, type Template, type TemplateWithTenants, type Role, type Policy, type MeetingPolicy, type Tenant, type LanguageOption
+    users, clients, meetings, transcripts, actionItems, topics, meetingSummaries, templates, templateTenants, roles, policies, meetingPolicies, tenants, audioLanguageOptions,
+    type InsertUser, type InsertClient, type InsertMeeting, type InsertTranscript, type InsertActionItem, type InsertTopic, type InsertMeetingSummary, type InsertTemplate, type InsertRole, type InsertPolicy, type InsertMeetingPolicy, type InsertTenant, type InsertAudioLanguageOption,
+    type User, type Client, type Meeting, type Transcript, type ActionItem, type Topic, type MeetingSummary, type Template, type TemplateWithTenants, type Role, type Policy, type MeetingPolicy, type Tenant, type AudioLanguageOption
 } from "@shared/schema";
 import { eq, and, desc, lt, ne, or, isNull, sql, inArray } from "drizzle-orm";
 
@@ -113,12 +113,13 @@ export interface IStorage {
     clearMeetingAnalysis(meetingId: number): Promise<void>;
     clearTranscript(meetingId: number): Promise<void>;
 
-    // Language Options
-    getLanguageOptions(activeOnly?: boolean): Promise<LanguageOption[]>;
-    getLanguageOption(id: number): Promise<LanguageOption | undefined>;
-    createLanguageOption(option: InsertLanguageOption): Promise<LanguageOption>;
-    updateLanguageOption(id: number, data: Partial<Pick<LanguageOption, "code" | "label" | "sortOrder" | "isActive">>): Promise<LanguageOption>;
-    deleteLanguageOption(id: number): Promise<void>;
+    // Audio Language Options
+    getAudioLanguageOptions(activeOnly?: boolean): Promise<AudioLanguageOption[]>;
+    getAudioLanguageOptionByCode(code: string): Promise<AudioLanguageOption | undefined>;
+    getAudioLanguageOption(id: number): Promise<AudioLanguageOption | undefined>;
+    createAudioLanguageOption(option: InsertAudioLanguageOption): Promise<AudioLanguageOption>;
+    updateAudioLanguageOption(id: number, data: Partial<Pick<AudioLanguageOption, "code" | "label" | "normalize" | "sortOrder" | "isActive">>): Promise<AudioLanguageOption>;
+    deleteAudioLanguageOption(id: number): Promise<void>;
 }
 
 export class DatabaseStorage implements IStorage {
@@ -621,32 +622,36 @@ export class DatabaseStorage implements IStorage {
         await db.delete(transcripts).where(eq(transcripts.meetingId, meetingId));
     }
 
-    // Language Options
-    async getLanguageOptions(activeOnly = false): Promise<LanguageOption[]> {
-        const query = db.select().from(languageOptions);
+    // Audio Language Options
+    async getAudioLanguageOptions(activeOnly = false): Promise<AudioLanguageOption[]> {
         if (activeOnly) {
-            return await query.where(eq(languageOptions.isActive, true)).orderBy(languageOptions.sortOrder, languageOptions.label);
+            return await db.select().from(audioLanguageOptions).where(eq(audioLanguageOptions.isActive, true)).orderBy(audioLanguageOptions.sortOrder, audioLanguageOptions.label);
         }
-        return await query.orderBy(languageOptions.sortOrder, languageOptions.label);
+        return await db.select().from(audioLanguageOptions).orderBy(audioLanguageOptions.sortOrder, audioLanguageOptions.label);
     }
 
-    async getLanguageOption(id: number): Promise<LanguageOption | undefined> {
-        const [opt] = await db.select().from(languageOptions).where(eq(languageOptions.id, id));
+    async getAudioLanguageOptionByCode(code: string): Promise<AudioLanguageOption | undefined> {
+        const [opt] = await db.select().from(audioLanguageOptions).where(eq(audioLanguageOptions.code, code));
         return opt;
     }
 
-    async createLanguageOption(option: InsertLanguageOption): Promise<LanguageOption> {
-        const [opt] = await db.insert(languageOptions).values(option).returning();
+    async getAudioLanguageOption(id: number): Promise<AudioLanguageOption | undefined> {
+        const [opt] = await db.select().from(audioLanguageOptions).where(eq(audioLanguageOptions.id, id));
         return opt;
     }
 
-    async updateLanguageOption(id: number, data: Partial<Pick<LanguageOption, "code" | "label" | "sortOrder" | "isActive">>): Promise<LanguageOption> {
-        const [opt] = await db.update(languageOptions).set(data).where(eq(languageOptions.id, id)).returning();
+    async createAudioLanguageOption(option: InsertAudioLanguageOption): Promise<AudioLanguageOption> {
+        const [opt] = await db.insert(audioLanguageOptions).values(option).returning();
         return opt;
     }
 
-    async deleteLanguageOption(id: number): Promise<void> {
-        await db.delete(languageOptions).where(eq(languageOptions.id, id));
+    async updateAudioLanguageOption(id: number, data: Partial<Pick<AudioLanguageOption, "code" | "label" | "normalize" | "sortOrder" | "isActive">>): Promise<AudioLanguageOption> {
+        const [opt] = await db.update(audioLanguageOptions).set(data).where(eq(audioLanguageOptions.id, id)).returning();
+        return opt;
+    }
+
+    async deleteAudioLanguageOption(id: number): Promise<void> {
+        await db.delete(audioLanguageOptions).where(eq(audioLanguageOptions.id, id));
     }
 }
 

@@ -163,12 +163,14 @@ export const meetingPolicies = pgTable("meeting_policies", {
   policyId: integer("policy_id").notNull().references(() => policies.id, { onDelete: "cascade" }),
 });
 
-export const languageOptions = pgTable("language_options", {
+export const audioLanguageOptions = pgTable("audio_language_options", {
   id: serial("id").primaryKey(),
   code: text("code").notNull().unique(),
   label: text("label").notNull(),
+  normalize: boolean("normalize").notNull().default(false),
   sortOrder: integer("sort_order").notNull().default(0),
   isActive: boolean("is_active").notNull().default(true),
+  createdAt: timestamp("created_at").defaultNow(),
 });
 
 // === CHAT TABLES FOR REPLIT INTEGRATIONS ===
@@ -317,7 +319,7 @@ export const insertMeetingSummarySchema = createInsertSchema(meetingSummaries).o
 export const insertPolicySchema = createInsertSchema(policies).omit({ id: true, createdAt: true });
 export const insertMeetingPolicySchema = createInsertSchema(meetingPolicies).omit({ id: true });
 
-export const insertLanguageOptionSchema = createInsertSchema(languageOptions).omit({ id: true });
+export const insertAudioLanguageOptionSchema = createInsertSchema(audioLanguageOptions).omit({ id: true, createdAt: true });
 
 export const insertConversationSchema = createInsertSchema(conversations).omit({
   id: true,
@@ -369,8 +371,8 @@ export type InsertPolicy = z.infer<typeof insertPolicySchema>;
 export type MeetingPolicy = typeof meetingPolicies.$inferSelect;
 export type InsertMeetingPolicy = z.infer<typeof insertMeetingPolicySchema>;
 
-export type LanguageOption = typeof languageOptions.$inferSelect;
-export type InsertLanguageOption = z.infer<typeof insertLanguageOptionSchema>;
+export type AudioLanguageOption = typeof audioLanguageOptions.$inferSelect;
+export type InsertAudioLanguageOption = z.infer<typeof insertAudioLanguageOptionSchema>;
 
 export type Conversation = typeof conversations.$inferSelect;
 export type InsertConversation = z.infer<typeof insertConversationSchema>;

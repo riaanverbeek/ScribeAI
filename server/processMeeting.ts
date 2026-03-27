@@ -21,8 +21,7 @@ const NORMALIZATION_PROMPTS: Record<string, string> = {
     "Gee SLEGS die genormaliseerde Afrikaanse teks terug, geen verduidelikings nie.",
 };
 
-function buildNormalizationPrompt(languageCode: string): string | null {
-  if (languageCode === "auto" || languageCode === "en") return null;
+function buildNormalizationPrompt(languageCode: string): string {
   if (NORMALIZATION_PROMPTS[languageCode]) return NORMALIZATION_PROMPTS[languageCode];
   return (
     `You are a professional language specialist for the language with ISO code "${languageCode}". ` +
@@ -35,9 +34,11 @@ function buildNormalizationPrompt(languageCode: string): string | null {
 }
 
 async function normalizeTranscriptToPureLanguage(text: string, audioLanguage: string): Promise<string> {
-  const systemPrompt = buildNormalizationPrompt(audioLanguage);
-  if (!systemPrompt) return text;
+  const langOption = await storage.getAudioLanguageOptionByCode(audioLanguage);
+  const shouldNormalize = langOption ? langOption.normalize : false;
+  if (!shouldNormalize) return text;
 
+  const systemPrompt = buildNormalizationPrompt(audioLanguage);
   console.log(`[process] Normalizing transcript to pure language: ${audioLanguage}...`);
 
   const CHUNK_CHARS = 8000;

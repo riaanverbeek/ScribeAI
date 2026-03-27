@@ -1140,22 +1140,23 @@ export async function registerRoutes(
     res.status(204).send();
   });
 
-  // ========== LANGUAGE OPTIONS (SUPERUSER CRUD) ==========
+  // ========== AUDIO LANGUAGE OPTIONS (SUPERUSER CRUD) ==========
 
-  app.get("/api/superuser/language-options", requireAuth, requireVerified, requireSuperuser, async (req, res) => {
-    const opts = await storage.getLanguageOptions();
+  app.get("/api/superuser/audio-language-options", requireAuth, requireVerified, requireSuperuser, async (req, res) => {
+    const opts = await storage.getAudioLanguageOptions();
     res.json(opts);
   });
 
-  app.post("/api/superuser/language-options", requireAuth, requireVerified, requireSuperuser, async (req, res) => {
+  app.post("/api/superuser/audio-language-options", requireAuth, requireVerified, requireSuperuser, async (req, res) => {
     try {
       const data = z.object({
         code: z.string().min(1, "Language code is required"),
         label: z.string().min(1, "Label is required"),
+        normalize: z.boolean().default(false),
         sortOrder: z.number().int().default(0),
         isActive: z.boolean().default(true),
       }).parse(req.body);
-      const opt = await storage.createLanguageOption(data);
+      const opt = await storage.createAudioLanguageOption(data);
       res.status(201).json(opt);
     } catch (err) {
       if (err instanceof z.ZodError) return res.status(400).json({ message: err.errors[0].message });
@@ -1164,18 +1165,19 @@ export async function registerRoutes(
     }
   });
 
-  app.patch("/api/superuser/language-options/:id", requireAuth, requireVerified, requireSuperuser, async (req, res) => {
+  app.patch("/api/superuser/audio-language-options/:id", requireAuth, requireVerified, requireSuperuser, async (req, res) => {
     const id = Number(req.params.id);
-    const existing = await storage.getLanguageOption(id);
+    const existing = await storage.getAudioLanguageOption(id);
     if (!existing) return res.status(404).json({ message: "Language option not found" });
     try {
       const data = z.object({
         code: z.string().min(1).optional(),
         label: z.string().min(1).optional(),
+        normalize: z.boolean().optional(),
         sortOrder: z.number().int().optional(),
         isActive: z.boolean().optional(),
       }).parse(req.body);
-      const updated = await storage.updateLanguageOption(id, data);
+      const updated = await storage.updateAudioLanguageOption(id, data);
       res.json(updated);
     } catch (err) {
       if (err instanceof z.ZodError) return res.status(400).json({ message: err.errors[0].message });
@@ -1184,18 +1186,18 @@ export async function registerRoutes(
     }
   });
 
-  app.delete("/api/superuser/language-options/:id", requireAuth, requireVerified, requireSuperuser, async (req, res) => {
+  app.delete("/api/superuser/audio-language-options/:id", requireAuth, requireVerified, requireSuperuser, async (req, res) => {
     const id = Number(req.params.id);
-    const existing = await storage.getLanguageOption(id);
+    const existing = await storage.getAudioLanguageOption(id);
     if (!existing) return res.status(404).json({ message: "Language option not found" });
-    await storage.deleteLanguageOption(id);
+    await storage.deleteAudioLanguageOption(id);
     res.status(204).send();
   });
 
-  // ========== LANGUAGE OPTIONS (PUBLIC) ==========
+  // ========== AUDIO LANGUAGE OPTIONS (PUBLIC) ==========
 
-  app.get("/api/language-options", requireAuth, async (req, res) => {
-    const opts = await storage.getLanguageOptions(true);
+  app.get("/api/audio-language-options", requireAuth, async (req, res) => {
+    const opts = await storage.getAudioLanguageOptions(true);
     res.json(opts);
   });
 
