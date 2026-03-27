@@ -11,6 +11,50 @@ const openai = new OpenAI({
   baseURL: process.env.AI_INTEGRATIONS_OPENAI_BASE_URL,
 });
 
+async function normalizeTranscriptToPureLanguage(text: string, audioLanguage: string): Promise<string> {
+  if (audioLanguage !== "af") return text;
+
+  console.log("[process] Normalizing transcript to pure Afrikaans...");
+
+  const CHUNK_CHARS = 8000;
+  const paragraphs = text.split(/\n\n+/);
+  const chunks: string[] = [];
+  let current = "";
+
+  for (const para of paragraphs) {
+    if (current.length + para.length > CHUNK_CHARS && current.length > 0) {
+      chunks.push(current.trim());
+      current = "";
+    }
+    current += (current ? "\n\n" : "") + para;
+  }
+  if (current.trim()) chunks.push(current.trim());
+
+  const normalized: string[] = [];
+  for (const chunk of chunks) {
+    const completion = await openai.chat.completions.create({
+      model: "gpt-4o-mini",
+      messages: [
+        {
+          role: "system",
+          content:
+            "Jy is 'n Suid-Afrikaanse Afrikaanse taalverskaffer. " +
+            "Die volgende teks is 'n spraak-na-teks transkripsie van 'n Suid-Afrikaanse spreker wat Afrikaans en Engels meng (code-switching). " +
+            "Skakel ALLE Engelse woorde, frases en sinne om na hul natuurlike Afrikaanse eweknieë. " +
+            "Behou eiename (mense, plekke, handelsmerke) en hoogs tegniese terme wat geen algemene Afrikaanse ekwivalent het nie. " +
+            "Handhaaf die natuurlike vloei en betekenis van die oorspronklike teks. " +
+            "Gee SLEGS die genormaliseerde Afrikaanse teks terug, geen verduidelikings nie.",
+        },
+        { role: "user", content: chunk },
+      ],
+      temperature: 0.1,
+    });
+    normalized.push(completion.choices[0].message.content?.trim() || chunk);
+  }
+
+  return normalized.join("\n\n");
+}
+
 function cleanAiOutput(text: string): string {
   const lines = text.split('\n');
   const cleanedLines: string[] = [];
@@ -93,11 +137,12 @@ export async function processMeetingCore(meetingId: number): Promise<void> {
     const rawFormat: "wav" | "mp3" | "webm" = audioExt === ".mp3" ? "mp3" : audioExt === ".webm" ? "webm" : "wav";
     const langHint = meeting.audioLanguage && meeting.audioLanguage !== "auto" ? meeting.audioLanguage : undefined;
     transcriptText = await transcribeLongAudio(audioBuffer, rawFormat, langHint);
+    transcriptText = await normalizeTranscriptToPureLanguage(transcriptText, meeting.audioLanguage ?? "auto");
 
     await storage.createTranscript({
       meetingId,
       content: transcriptText,
-      language: "en"
+      language: meeting.audioLanguage && meeting.audioLanguage !== "auto" ? meeting.audioLanguage : "en",
     });
   }
 
