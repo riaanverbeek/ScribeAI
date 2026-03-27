@@ -832,7 +832,7 @@ export default function MeetingDetail() {
                           <div>
                             <p className="text-xs text-muted-foreground">Audio Language</p>
                             <p className="text-sm font-semibold" data-testid="text-audio-language">
-                              {(meeting as any).audioLanguage === "af" ? "Afrikaans / English (ZA)" : (meeting as any).audioLanguage === "en" ? "English only" : "Auto-detect"}
+                              {audioLanguageOptions?.find(o => o.code === (meeting as any).audioLanguage)?.label ?? (meeting as any).audioLanguage ?? "Auto-detect"}
                             </p>
                           </div>
                         </div>
