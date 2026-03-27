@@ -98,3 +98,31 @@ export async function migrateTemplateTenants() {
     console.error("[migrations] Error migrating template tenants:", err);
   }
 }
+
+export async function migrateAudioLanguageOptions() {
+  try {
+    await db.execute(sql`DROP TABLE IF EXISTS language_options`);
+    await db.execute(sql`
+      CREATE TABLE IF NOT EXISTS audio_language_options (
+        id SERIAL PRIMARY KEY,
+        code TEXT NOT NULL UNIQUE,
+        label TEXT NOT NULL,
+        normalize BOOLEAN NOT NULL DEFAULT false,
+        sort_order INTEGER NOT NULL DEFAULT 0,
+        is_active BOOLEAN NOT NULL DEFAULT true,
+        created_at TIMESTAMP DEFAULT NOW()
+      )
+    `);
+    await db.execute(sql`
+      INSERT INTO audio_language_options (code, label, normalize, sort_order, is_active)
+      VALUES
+        ('auto', 'Auto-detect', false, 0, true),
+        ('af', 'Afrikaans / English (ZA)', true, 10, true),
+        ('en', 'English only', false, 20, true)
+      ON CONFLICT (code) DO NOTHING
+    `);
+    console.log("[migrations] audio_language_options table ready");
+  } catch (err) {
+    console.error("[migrations] Error migrating audio_language_options:", err);
+  }
+}

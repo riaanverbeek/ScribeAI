@@ -11,6 +11,7 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Card, CardContent } from "@/components/ui/card";
+import { Skeleton } from "@/components/ui/skeleton";
 import {
   Select,
   SelectContent,
@@ -592,23 +593,25 @@ export default function NewMeeting() {
         {isOnline && (
           <div className="space-y-3">
             <Label className="text-base font-semibold text-slate-900">Audio Language</Label>
-            <Select value={audioLanguage} onValueChange={setAudioLanguage}>
-              <SelectTrigger className="h-12 rounded-xl border-slate-200" data-testid="select-audio-language">
-                <div className="flex items-center gap-2">
-                  <Mic className="w-4 h-4 text-slate-400" />
-                  <SelectValue placeholder="Select language" />
-                </div>
-              </SelectTrigger>
-              <SelectContent>
-                {audioLangLoading ? (
-                  <SelectItem value="loading" disabled>Loading languages...</SelectItem>
-                ) : (audioLanguageOptions ?? []).map((opt) => (
-                  <SelectItem key={opt.code} value={opt.code} data-testid={`select-audio-language-${opt.code}`}>
-                    {opt.label}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+            {audioLangLoading ? (
+              <Skeleton className="h-12 w-full rounded-xl" data-testid="skeleton-audio-language" />
+            ) : (
+              <Select value={audioLanguage} onValueChange={setAudioLanguage}>
+                <SelectTrigger className="h-12 rounded-xl border-slate-200" data-testid="select-audio-language">
+                  <div className="flex items-center gap-2">
+                    <Mic className="w-4 h-4 text-slate-400" />
+                    <SelectValue placeholder="Select language" />
+                  </div>
+                </SelectTrigger>
+                <SelectContent>
+                  {(audioLanguageOptions ?? []).map((opt) => (
+                    <SelectItem key={opt.code} value={opt.code} data-testid={`select-audio-language-${opt.code}`}>
+                      {opt.label}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            )}
             <p className="text-xs text-muted-foreground">The spoken language in your audio. Use "Afrikaans / English" for South African code-switching to prevent Dutch mis-transcription.</p>
           </div>
         )}
