@@ -1995,8 +1995,8 @@ export async function registerRoutes(
       }
 
       const transcript = await storage.getTranscript(id);
-      if (!transcript) {
-          return res.status(400).json({ message: "No transcript available. Process the session first." });
+      if (!transcript && !meeting.audioUrl) {
+          return res.status(400).json({ message: "No audio or transcript available. Process the session first." });
       }
 
       res.json({ message: "Reprocessing started", status: "processing" });
