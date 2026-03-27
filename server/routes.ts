@@ -1140,6 +1140,65 @@ export async function registerRoutes(
     res.status(204).send();
   });
 
+  // ========== LANGUAGE OPTIONS (SUPERUSER CRUD) ==========
+
+  app.get("/api/superuser/language-options", requireAuth, requireVerified, requireSuperuser, async (req, res) => {
+    const opts = await storage.getLanguageOptions();
+    res.json(opts);
+  });
+
+  app.post("/api/superuser/language-options", requireAuth, requireVerified, requireSuperuser, async (req, res) => {
+    try {
+      const data = z.object({
+        code: z.string().min(1, "Language code is required"),
+        label: z.string().min(1, "Label is required"),
+        sortOrder: z.number().int().default(0),
+        isActive: z.boolean().default(true),
+      }).parse(req.body);
+      const opt = await storage.createLanguageOption(data);
+      res.status(201).json(opt);
+    } catch (err) {
+      if (err instanceof z.ZodError) return res.status(400).json({ message: err.errors[0].message });
+      if ((err as any)?.code === "23505") return res.status(400).json({ message: "A language option with that code already exists" });
+      throw err;
+    }
+  });
+
+  app.patch("/api/superuser/language-options/:id", requireAuth, requireVerified, requireSuperuser, async (req, res) => {
+    const id = Number(req.params.id);
+    const existing = await storage.getLanguageOption(id);
+    if (!existing) return res.status(404).json({ message: "Language option not found" });
+    try {
+      const data = z.object({
+        code: z.string().min(1).optional(),
+        label: z.string().min(1).optional(),
+        sortOrder: z.number().int().optional(),
+        isActive: z.boolean().optional(),
+      }).parse(req.body);
+      const updated = await storage.updateLanguageOption(id, data);
+      res.json(updated);
+    } catch (err) {
+      if (err instanceof z.ZodError) return res.status(400).json({ message: err.errors[0].message });
+      if ((err as any)?.code === "23505") return res.status(400).json({ message: "A language option with that code already exists" });
+      throw err;
+    }
+  });
+
+  app.delete("/api/superuser/language-options/:id", requireAuth, requireVerified, requireSuperuser, async (req, res) => {
+    const id = Number(req.params.id);
+    const existing = await storage.getLanguageOption(id);
+    if (!existing) return res.status(404).json({ message: "Language option not found" });
+    await storage.deleteLanguageOption(id);
+    res.status(204).send();
+  });
+
+  // ========== LANGUAGE OPTIONS (PUBLIC) ==========
+
+  app.get("/api/language-options", requireAuth, async (req, res) => {
+    const opts = await storage.getLanguageOptions(true);
+    res.json(opts);
+  });
+
   // ========== ROLES (PUBLIC) ==========
 
   app.get("/api/roles", requireAuth, requireVerified, async (req, res) => {

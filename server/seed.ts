@@ -1,6 +1,24 @@
 import { storage } from "./storage";
 
+const DEFAULT_LANGUAGE_OPTIONS = [
+  { code: "auto", label: "Auto-detect", sortOrder: 0, isActive: true },
+  { code: "af", label: "Afrikaans / English (ZA)", sortOrder: 10, isActive: true },
+  { code: "en", label: "English only", sortOrder: 20, isActive: true },
+];
+
+async function seedLanguageOptions() {
+  const existing = await storage.getLanguageOptions();
+  if (existing.length === 0) {
+    for (const opt of DEFAULT_LANGUAGE_OPTIONS) {
+      await storage.createLanguageOption(opt);
+    }
+    console.log("[seed] Default language options seeded.");
+  }
+}
+
 export async function seedDatabase() {
+  await seedLanguageOptions();
+
   const existingMeetings = await storage.getMeetings();
   if (existingMeetings.length === 0) {
     // Meeting 1: Product Strategy (Completed with full analysis)

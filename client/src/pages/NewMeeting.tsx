@@ -32,7 +32,7 @@ import { cn } from "@/lib/utils";
 import { useToast } from "@/hooks/use-toast";
 import { useVoiceRecorder } from "@/replit_integrations/audio";
 import { motion } from "framer-motion";
-import type { Template } from "@shared/schema";
+import type { Template, LanguageOption } from "@shared/schema";
 
 export default function NewMeeting() {
   const [, setLocation] = useLocation();
@@ -74,6 +74,15 @@ export default function NewMeeting() {
     queryFn: async () => {
       const res = await fetch("/api/templates", { credentials: "include" });
       if (!res.ok) throw new Error("Failed to load templates");
+      return res.json();
+    },
+  });
+
+  const { data: languageOptions } = useQuery<LanguageOption[]>({
+    queryKey: ["/api/language-options"],
+    queryFn: async () => {
+      const res = await fetch("/api/language-options", { credentials: "include" });
+      if (!res.ok) throw new Error("Failed to load language options");
       return res.json();
     },
   });
@@ -591,9 +600,15 @@ export default function NewMeeting() {
                 </div>
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="auto" data-testid="select-audio-language-auto">Auto-detect</SelectItem>
-                <SelectItem value="af" data-testid="select-audio-language-af">Afrikaans / English (ZA)</SelectItem>
-                <SelectItem value="en" data-testid="select-audio-language-en">English only</SelectItem>
+                {(languageOptions && languageOptions.length > 0 ? languageOptions : [
+                  { id: 1, code: "auto", label: "Auto-detect", sortOrder: 0, isActive: true },
+                  { id: 2, code: "af", label: "Afrikaans / English (ZA)", sortOrder: 10, isActive: true },
+                  { id: 3, code: "en", label: "English only", sortOrder: 20, isActive: true },
+                ]).map((opt) => (
+                  <SelectItem key={opt.code} value={opt.code} data-testid={`select-audio-language-${opt.code}`}>
+                    {opt.label}
+                  </SelectItem>
+                ))}
               </SelectContent>
             </Select>
             <p className="text-xs text-muted-foreground">The spoken language in your audio. Use "Afrikaans / English" for South African code-switching to prevent Dutch mis-transcription.</p>

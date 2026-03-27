@@ -11,10 +11,34 @@ const openai = new OpenAI({
   baseURL: process.env.AI_INTEGRATIONS_OPENAI_BASE_URL,
 });
 
-async function normalizeTranscriptToPureLanguage(text: string, audioLanguage: string): Promise<string> {
-  if (audioLanguage !== "af") return text;
+const NORMALIZATION_PROMPTS: Record<string, string> = {
+  af:
+    "Jy is 'n Suid-Afrikaanse Afrikaanse taalverskaffer. " +
+    "Die volgende teks is 'n spraak-na-teks transkripsie van 'n spreker wat moontlik tale meng. " +
+    "Skakel ALLE nie-Afrikaanse woorde, frases en sinne om na hul natuurlike Afrikaanse eweknieë. " +
+    "Behou eiename (mense, plekke, handelsmerke) en hoogs tegniese terme wat geen algemene Afrikaanse ekwivalent het nie. " +
+    "Handhaaf die natuurlike vloei en betekenis van die oorspronklike teks. " +
+    "Gee SLEGS die genormaliseerde Afrikaanse teks terug, geen verduidelikings nie.",
+};
 
-  console.log("[process] Normalizing transcript to pure Afrikaans...");
+function buildNormalizationPrompt(languageCode: string): string | null {
+  if (languageCode === "auto" || languageCode === "en") return null;
+  if (NORMALIZATION_PROMPTS[languageCode]) return NORMALIZATION_PROMPTS[languageCode];
+  return (
+    `You are a professional language specialist for the language with ISO code "${languageCode}". ` +
+    "The following text is a speech-to-text transcript that may contain code-switching or words in other languages. " +
+    `Convert ALL non-${languageCode} words, phrases and sentences to their natural equivalents in this language. ` +
+    "Preserve proper nouns (names of people, places, brands) and highly technical terms that have no common equivalent. " +
+    "Maintain the natural flow and meaning of the original text. " +
+    "Return ONLY the normalized text, no explanations."
+  );
+}
+
+async function normalizeTranscriptToPureLanguage(text: string, audioLanguage: string): Promise<string> {
+  const systemPrompt = buildNormalizationPrompt(audioLanguage);
+  if (!systemPrompt) return text;
+
+  console.log(`[process] Normalizing transcript to pure language: ${audioLanguage}...`);
 
   const CHUNK_CHARS = 8000;
   const paragraphs = text.split(/\n\n+/);
@@ -35,16 +59,7 @@ async function normalizeTranscriptToPureLanguage(text: string, audioLanguage: st
     const completion = await openai.chat.completions.create({
       model: "gpt-4o-mini",
       messages: [
-        {
-          role: "system",
-          content:
-            "Jy is 'n Suid-Afrikaanse Afrikaanse taalverskaffer. " +
-            "Die volgende teks is 'n spraak-na-teks transkripsie van 'n Suid-Afrikaanse spreker wat Afrikaans en Engels meng (code-switching). " +
-            "Skakel ALLE Engelse woorde, frases en sinne om na hul natuurlike Afrikaanse eweknieë. " +
-            "Behou eiename (mense, plekke, handelsmerke) en hoogs tegniese terme wat geen algemene Afrikaanse ekwivalent het nie. " +
-            "Handhaaf die natuurlike vloei en betekenis van die oorspronklike teks. " +
-            "Gee SLEGS die genormaliseerde Afrikaanse teks terug, geen verduidelikings nie.",
-        },
+        { role: "system", content: systemPrompt },
         { role: "user", content: chunk },
       ],
       temperature: 0.1,

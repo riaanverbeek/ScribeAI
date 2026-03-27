@@ -13,9 +13,9 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 import { Switch } from "@/components/ui/switch";
-import { Pencil, Trash2, Plus, Users, Briefcase, Calendar, Shield, ShieldCheck, Tag, ArrowLeft, Eye, ChevronRight, Loader2, Building2, Globe, Palette, ArrowUpDown } from "lucide-react";
+import { Pencil, Trash2, Plus, Users, Briefcase, Calendar, Shield, ShieldCheck, Tag, ArrowLeft, Eye, ChevronRight, Loader2, Building2, Globe, Palette, ArrowUpDown, Languages } from "lucide-react";
 import { format } from "date-fns";
-import type { SafeUser, Client, Meeting, Role, Transcript, ActionItem, Topic, MeetingSummary, Tenant } from "@shared/schema";
+import type { SafeUser, Client, Meeting, Role, Transcript, ActionItem, Topic, MeetingSummary, Tenant, LanguageOption } from "@shared/schema";
 
 type SuperuserUser = SafeUser & { isSuperuser: boolean };
 
@@ -1142,6 +1142,184 @@ function TenantsTab() {
   );
 }
 
+function LanguageOptionsTab() {
+  const { toast } = useToast();
+  const { data: options = [], isLoading } = useQuery<LanguageOption[]>({ queryKey: ["/api/superuser/language-options"] });
+  const [editOpt, setEditOpt] = useState<LanguageOption | null>(null);
+  const [deleteOpt, setDeleteOpt] = useState<LanguageOption | null>(null);
+  const [showCreate, setShowCreate] = useState(false);
+  const [form, setForm] = useState({ code: "", label: "", sortOrder: 0, isActive: true });
+
+  const resetForm = () => setForm({ code: "", label: "", sortOrder: 0, isActive: true });
+
+  const openCreate = () => { resetForm(); setShowCreate(true); };
+  const openEdit = (opt: LanguageOption) => {
+    setForm({ code: opt.code, label: opt.label, sortOrder: opt.sortOrder, isActive: opt.isActive });
+    setEditOpt(opt);
+  };
+
+  const createMutation = useMutation({
+    mutationFn: async (data: typeof form) => {
+      const res = await apiRequest("POST", "/api/superuser/language-options", data);
+      return res.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/superuser/language-options"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/language-options"] });
+      setShowCreate(false);
+      resetForm();
+      toast({ title: "Language option created" });
+    },
+    onError: (err: Error) => toast({ title: "Error", description: err.message, variant: "destructive" }),
+  });
+
+  const updateMutation = useMutation({
+    mutationFn: async ({ id, data }: { id: number; data: typeof form }) => {
+      const res = await apiRequest("PATCH", `/api/superuser/language-options/${id}`, data);
+      return res.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/superuser/language-options"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/language-options"] });
+      setEditOpt(null);
+      toast({ title: "Language option updated" });
+    },
+    onError: (err: Error) => toast({ title: "Error", description: err.message, variant: "destructive" }),
+  });
+
+  const deleteMutation = useMutation({
+    mutationFn: async (id: number) => {
+      await apiRequest("DELETE", `/api/superuser/language-options/${id}`);
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/superuser/language-options"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/language-options"] });
+      setDeleteOpt(null);
+      toast({ title: "Language option deleted" });
+    },
+    onError: (err: Error) => toast({ title: "Error", description: err.message, variant: "destructive" }),
+  });
+
+  const handleSave = () => {
+    if (!form.code.trim() || !form.label.trim()) return;
+    const payload = { ...form, sortOrder: Number(form.sortOrder) };
+    if (editOpt) {
+      updateMutation.mutate({ id: editOpt.id, data: payload });
+    } else {
+      createMutation.mutate(payload);
+    }
+  };
+
+  if (isLoading) return <div className="p-6 text-muted-foreground">Loading language options...</div>;
+
+  return (
+    <div className="space-y-3">
+      <div className="flex items-center justify-between">
+        <p className="text-sm text-muted-foreground">Control which audio language options appear in the recording form. Changes take effect immediately for all users.</p>
+        <Button size="sm" onClick={openCreate} data-testid="button-create-language-option">
+          <Plus className="w-4 h-4 mr-1" /> Add Language
+        </Button>
+      </div>
+
+      {options.length === 0 && <p className="text-sm text-muted-foreground p-4">No language options found.</p>}
+
+      {options.map((opt) => (
+        <Card key={opt.id}>
+          <CardContent className="flex items-center justify-between gap-3 p-4">
+            <div className="min-w-0 flex-1">
+              <div className="flex items-center gap-2 flex-wrap">
+                <span className="font-medium text-sm" data-testid={`text-lang-label-${opt.id}`}>{opt.label}</span>
+                <Badge variant="outline" className="text-[10px] font-mono" data-testid={`badge-lang-code-${opt.id}`}>{opt.code}</Badge>
+                <Badge variant={opt.isActive ? "default" : "secondary"} className="text-[10px]" data-testid={`badge-lang-active-${opt.id}`}>
+                  {opt.isActive ? "Active" : "Inactive"}
+                </Badge>
+              </div>
+              <p className="text-xs text-muted-foreground mt-0.5">Sort order: {opt.sortOrder}</p>
+            </div>
+            <div className="flex items-center gap-1 shrink-0">
+              <Button size="icon" variant="ghost" onClick={() => openEdit(opt)} data-testid={`button-edit-lang-${opt.id}`}>
+                <Pencil className="w-4 h-4" />
+              </Button>
+              <Button size="icon" variant="ghost" onClick={() => setDeleteOpt(opt)} data-testid={`button-delete-lang-${opt.id}`}>
+                <Trash2 className="w-4 h-4" />
+              </Button>
+            </div>
+          </CardContent>
+        </Card>
+      ))}
+
+      <Dialog open={showCreate || !!editOpt} onOpenChange={(open) => { if (!open) { setShowCreate(false); setEditOpt(null); resetForm(); } }}>
+        <DialogContent>
+          <DialogHeader><DialogTitle>{editOpt ? "Edit Language Option" : "Add Language Option"}</DialogTitle></DialogHeader>
+          <div className="space-y-3">
+            <div>
+              <Label>Language Code</Label>
+              <Input
+                value={form.code}
+                onChange={(e) => setForm(f => ({ ...f, code: e.target.value.toLowerCase().trim() }))}
+                placeholder="e.g. af, en, fr, de, zu"
+                data-testid="input-lang-code"
+              />
+              <p className="text-[10px] text-muted-foreground mt-0.5">ISO 639-1 language code (e.g. "af" for Afrikaans, "en" for English). Use "auto" for auto-detect.</p>
+            </div>
+            <div>
+              <Label>Display Label</Label>
+              <Input
+                value={form.label}
+                onChange={(e) => setForm(f => ({ ...f, label: e.target.value }))}
+                placeholder="e.g. Afrikaans / English (ZA)"
+                data-testid="input-lang-label"
+              />
+            </div>
+            <div>
+              <Label>Sort Order</Label>
+              <Input
+                type="number"
+                value={form.sortOrder}
+                onChange={(e) => setForm(f => ({ ...f, sortOrder: Number(e.target.value) }))}
+                placeholder="0"
+                data-testid="input-lang-sort-order"
+              />
+              <p className="text-[10px] text-muted-foreground mt-0.5">Lower numbers appear first in the dropdown.</p>
+            </div>
+            <div className="flex items-center justify-between">
+              <Label>Active</Label>
+              <Switch checked={form.isActive} onCheckedChange={(checked) => setForm(f => ({ ...f, isActive: checked }))} data-testid="switch-lang-active" />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => { setShowCreate(false); setEditOpt(null); resetForm(); }}>Cancel</Button>
+            <Button
+              onClick={handleSave}
+              disabled={!form.code.trim() || !form.label.trim() || createMutation.isPending || updateMutation.isPending}
+              data-testid="button-save-language-option"
+            >
+              {(createMutation.isPending || updateMutation.isPending) ? "Saving..." : "Save"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <AlertDialog open={!!deleteOpt} onOpenChange={(open) => !open && setDeleteOpt(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete Language Option</AlertDialogTitle>
+            <AlertDialogDescription>
+              This will permanently remove "{deleteOpt?.label}" from the language list. Users who have selected this language will retain their setting, but it won't appear in the dropdown for new recordings.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction onClick={() => deleteOpt && deleteMutation.mutate(deleteOpt.id)} data-testid="button-confirm-delete-lang">
+              Delete
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+    </div>
+  );
+}
+
 export default function SuperuserAdmin() {
   return (
     <div className="p-4 sm:p-6 lg:p-8 max-w-5xl mx-auto">
@@ -1154,7 +1332,7 @@ export default function SuperuserAdmin() {
       </div>
 
       <Tabs defaultValue="users">
-        <TabsList className="w-full grid grid-cols-5 mb-4" data-testid="tabs-superuser">
+        <TabsList className="w-full grid grid-cols-6 mb-4" data-testid="tabs-superuser">
           <TabsTrigger value="users" className="gap-1" data-testid="tab-users">
             <Users className="w-4 h-4 hidden sm:block" /> Users
           </TabsTrigger>
@@ -1170,6 +1348,9 @@ export default function SuperuserAdmin() {
           <TabsTrigger value="tenants" className="gap-1" data-testid="tab-tenants">
             <Building2 className="w-4 h-4 hidden sm:block" /> Tenants
           </TabsTrigger>
+          <TabsTrigger value="languages" className="gap-1" data-testid="tab-languages">
+            <Languages className="w-4 h-4 hidden sm:block" /> Languages
+          </TabsTrigger>
         </TabsList>
 
         <TabsContent value="users"><UsersTab /></TabsContent>
@@ -1177,6 +1358,7 @@ export default function SuperuserAdmin() {
         <TabsContent value="meetings"><MeetingsTab /></TabsContent>
         <TabsContent value="roles"><RolesTab /></TabsContent>
         <TabsContent value="tenants"><TenantsTab /></TabsContent>
+        <TabsContent value="languages"><LanguageOptionsTab /></TabsContent>
       </Tabs>
     </div>
   );

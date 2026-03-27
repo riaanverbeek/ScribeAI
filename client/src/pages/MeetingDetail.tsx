@@ -6,7 +6,7 @@ import { useClients, useCreateClient } from "@/hooks/use-clients";
 import { useSubscriptionStatus } from "@/hooks/use-auth";
 import { useRoute, Link } from "wouter";
 import { ChevronLeft, Calendar, User, LayoutList, FileText, CheckSquare, Sparkles, Users, Plus, Loader2, X, Pencil, Lock, CreditCard, Paperclip, MessageSquareText, RefreshCw, Copy, Check, Download, Mail, Globe, Mic, SlidersHorizontal, UploadCloud, AlertTriangle } from "lucide-react";
-import type { Template } from "@shared/schema";
+import type { Template, LanguageOption } from "@shared/schema";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { StatusBadge } from "@/components/StatusBadge";
@@ -154,6 +154,15 @@ export default function MeetingDetail() {
     queryFn: async () => {
       const res = await fetch("/api/templates", { credentials: "include" });
       if (!res.ok) throw new Error("Failed to load templates");
+      return res.json();
+    },
+  });
+
+  const { data: languageOptions } = useQuery<LanguageOption[]>({
+    queryKey: ["/api/language-options"],
+    queryFn: async () => {
+      const res = await fetch("/api/language-options", { credentials: "include" });
+      if (!res.ok) throw new Error("Failed to load language options");
       return res.json();
     },
   });
@@ -974,9 +983,15 @@ export default function MeetingDetail() {
                               </div>
                             </SelectTrigger>
                             <SelectContent>
-                              <SelectItem value="auto" data-testid="select-edit-audio-language-auto">Auto-detect</SelectItem>
-                              <SelectItem value="af" data-testid="select-edit-audio-language-af">Afrikaans / English (ZA)</SelectItem>
-                              <SelectItem value="en" data-testid="select-edit-audio-language-en">English only</SelectItem>
+                              {(languageOptions && languageOptions.length > 0 ? languageOptions : [
+                                { id: 1, code: "auto", label: "Auto-detect", sortOrder: 0, isActive: true },
+                                { id: 2, code: "af", label: "Afrikaans / English (ZA)", sortOrder: 10, isActive: true },
+                                { id: 3, code: "en", label: "English only", sortOrder: 20, isActive: true },
+                              ]).map((opt) => (
+                                <SelectItem key={opt.code} value={opt.code} data-testid={`select-edit-audio-language-${opt.code}`}>
+                                  {opt.label}
+                                </SelectItem>
+                              ))}
                             </SelectContent>
                           </Select>
                           <p className="text-xs text-muted-foreground">The spoken language in your audio. Use "Afrikaans / English" for South African code-switching to prevent Dutch mis-transcription. Changing this will re-transcribe the audio.</p>
