@@ -49,5 +49,7 @@
         <true/>
         <key>ITSAppUsesNonExemptEncryption</key>
         <false/>
+        <key>NSMicrophoneUsageDescription</key>
+        <string>ScribeAI needs microphone access to record your sessions for transcription.</string>
 </dict>
 </plist>
