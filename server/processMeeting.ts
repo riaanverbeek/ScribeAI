@@ -22,14 +22,14 @@ async function getPromptValue(key: string, vars: Record<string, string> = {}): P
   return substituteVars(def.value, vars);
 }
 
-async function buildNormalizationPrompt(languageCode: string, langOptionOverride?: string | null): Promise<string> {
+async function buildNormalizationPrompt(languageCode: string, langOptionOverride?: string | null, vars: Record<string, string> = {}): Promise<string> {
   if (langOptionOverride && langOptionOverride.trim()) {
-    return langOptionOverride.trim();
+    return substituteVars(langOptionOverride.trim(), { "{{languageCode}}": languageCode, ...vars });
   }
   if (languageCode === "af") {
-    return await getPromptValue("normalization.af");
+    return await getPromptValue("normalization.af", { "{{languageCode}}": languageCode, ...vars });
   }
-  return await getPromptValue("normalization.generic", { "{{languageCode}}": languageCode });
+  return await getPromptValue("normalization.generic", { "{{languageCode}}": languageCode, ...vars });
 }
 
 async function normalizeTranscriptToPureLanguage(text: string, audioLanguage: string): Promise<string> {
@@ -243,17 +243,24 @@ export async function processMeetingCore(meetingId: number): Promise<void> {
   }
 
   const detailKey = `analysis.detail.${meeting.detailLevel || "high"}`;
-  const detailInstruction = await getPromptValue(detailKey).catch(() =>
-    PROMPT_DEFAULTS["analysis.detail.high"].value
+
+  const runtimeVars: Record<string, string> = {
+    "{{outputLanguage}}": outputLangName,
+    "{{clientName}}": clientName || "",
+    "{{languageCode}}": meeting.audioLanguage && meeting.audioLanguage !== "auto" ? meeting.audioLanguage : "en",
+  };
+
+  const detailInstruction = await getPromptValue(detailKey, runtimeVars).catch(() =>
+    substituteVars(PROMPT_DEFAULTS["analysis.detail.high"].value, runtimeVars)
   );
 
-  const corePrompt = await getPromptValue("analysis.core", { "{{outputLanguage}}": outputLangName });
+  const corePrompt = await getPromptValue("analysis.core", { ...runtimeVars, "{{detailInstruction}}": detailInstruction });
 
   let summaryStructure = "";
   if (!templateFormatInstructions) {
     const structureKey = outputLangName === "Afrikaans" ? "analysis.summary_format.af" : "analysis.summary_format.en";
-    summaryStructure = await getPromptValue(structureKey).catch(() =>
-      PROMPT_DEFAULTS["analysis.summary_format.en"].value
+    summaryStructure = await getPromptValue(structureKey, runtimeVars).catch(() =>
+      substituteVars(PROMPT_DEFAULTS["analysis.summary_format.en"].value, runtimeVars)
     );
   }
 

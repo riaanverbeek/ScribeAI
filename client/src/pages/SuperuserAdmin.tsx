@@ -1346,14 +1346,14 @@ function LanguageOptionsTab() {
 }
 
 const PROMPT_VAR_HINTS: Record<string, string[]> = {
-  "normalization.af": [],
-  "normalization.generic": ["{{languageCode}}"],
-  "analysis.core": ["{{outputLanguage}}"],
-  "analysis.detail.high": [],
-  "analysis.detail.medium": [],
-  "analysis.detail.low": [],
-  "analysis.summary_format.en": [],
-  "analysis.summary_format.af": [],
+  "normalization.af": ["{{languageCode}}", "{{clientName}}"],
+  "normalization.generic": ["{{languageCode}}", "{{clientName}}"],
+  "analysis.core": ["{{outputLanguage}}", "{{clientName}}", "{{detailInstruction}}"],
+  "analysis.detail.high": ["{{outputLanguage}}", "{{clientName}}"],
+  "analysis.detail.medium": ["{{outputLanguage}}", "{{clientName}}"],
+  "analysis.detail.low": ["{{outputLanguage}}", "{{clientName}}"],
+  "analysis.summary_format.en": ["{{outputLanguage}}", "{{clientName}}"],
+  "analysis.summary_format.af": ["{{outputLanguage}}", "{{clientName}}"],
 };
 
 function PromptCard({ prompt, onSave, onReset, isSaving, isResetting }: {
