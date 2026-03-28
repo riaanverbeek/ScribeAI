@@ -8,7 +8,7 @@ workflows:
     environment:
       ios_signing:
         distribution_type: app_store
-        bundle_identifier: com.fant-app
+        bundle_identifier: com.fant.app
       vars:
         APP_STORE_APPLE_ID: "6761292458"
         XCODE_WORKSPACE: "ios/App/App.xcworkspace"
