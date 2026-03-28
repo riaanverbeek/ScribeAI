@@ -22,7 +22,10 @@ async function getPromptValue(key: string, vars: Record<string, string> = {}): P
   return substituteVars(def.value, vars);
 }
 
-async function buildNormalizationPrompt(languageCode: string): Promise<string> {
+async function buildNormalizationPrompt(languageCode: string, langOptionOverride?: string | null): Promise<string> {
+  if (langOptionOverride && langOptionOverride.trim()) {
+    return langOptionOverride.trim();
+  }
   if (languageCode === "af") {
     return await getPromptValue("normalization.af");
   }
@@ -34,7 +37,7 @@ async function normalizeTranscriptToPureLanguage(text: string, audioLanguage: st
   const shouldNormalize = langOption ? langOption.normalize : false;
   if (!shouldNormalize) return text;
 
-  const systemPrompt = await buildNormalizationPrompt(audioLanguage);
+  const systemPrompt = await buildNormalizationPrompt(audioLanguage, langOption?.normalizationPrompt);
   console.log(`[process] Normalizing transcript to pure language: ${audioLanguage}...`);
 
   const CHUNK_CHARS = 8000;

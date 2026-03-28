@@ -1153,6 +1153,7 @@ export async function registerRoutes(
         code: z.string().min(1, "Language code is required"),
         label: z.string().min(1, "Label is required"),
         normalize: z.boolean().default(false),
+        normalizationPrompt: z.string().nullable().optional(),
         sortOrder: z.number().int().default(0),
         isActive: z.boolean().default(true),
       }).parse(req.body);
@@ -1174,6 +1175,7 @@ export async function registerRoutes(
         code: z.string().min(1).optional(),
         label: z.string().min(1).optional(),
         normalize: z.boolean().optional(),
+        normalizationPrompt: z.string().nullable().optional(),
         sortOrder: z.number().int().optional(),
         isActive: z.boolean().optional(),
       }).parse(req.body);

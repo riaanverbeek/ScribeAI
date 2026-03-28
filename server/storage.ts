@@ -118,7 +118,7 @@ export interface IStorage {
     getAudioLanguageOptionByCode(code: string): Promise<AudioLanguageOption | undefined>;
     getAudioLanguageOption(id: number): Promise<AudioLanguageOption | undefined>;
     createAudioLanguageOption(option: InsertAudioLanguageOption): Promise<AudioLanguageOption>;
-    updateAudioLanguageOption(id: number, data: Partial<Pick<AudioLanguageOption, "code" | "label" | "normalize" | "sortOrder" | "isActive">>): Promise<AudioLanguageOption>;
+    updateAudioLanguageOption(id: number, data: Partial<Pick<AudioLanguageOption, "code" | "label" | "normalize" | "normalizationPrompt" | "sortOrder" | "isActive">>): Promise<AudioLanguageOption>;
     deleteAudioLanguageOption(id: number): Promise<void>;
 
     // Prompt Settings
@@ -651,7 +651,7 @@ export class DatabaseStorage implements IStorage {
         return opt;
     }
 
-    async updateAudioLanguageOption(id: number, data: Partial<Pick<AudioLanguageOption, "code" | "label" | "normalize" | "sortOrder" | "isActive">>): Promise<AudioLanguageOption> {
+    async updateAudioLanguageOption(id: number, data: Partial<Pick<AudioLanguageOption, "code" | "label" | "normalize" | "normalizationPrompt" | "sortOrder" | "isActive">>): Promise<AudioLanguageOption> {
         const [opt] = await db.update(audioLanguageOptions).set(data).where(eq(audioLanguageOptions.id, id)).returning();
         return opt;
     }

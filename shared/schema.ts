@@ -168,6 +168,7 @@ export const audioLanguageOptions = pgTable("audio_language_options", {
   code: text("code").notNull().unique(),
   label: text("label").notNull(),
   normalize: boolean("normalize").notNull().default(false),
+  normalizationPrompt: text("normalization_prompt"),
   sortOrder: integer("sort_order").notNull().default(0),
   isActive: boolean("is_active").notNull().default(true),
   createdAt: timestamp("created_at").defaultNow(),

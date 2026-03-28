@@ -1148,13 +1148,13 @@ function LanguageOptionsTab() {
   const [editOpt, setEditOpt] = useState<AudioLanguageOption | null>(null);
   const [deleteOpt, setDeleteOpt] = useState<AudioLanguageOption | null>(null);
   const [showCreate, setShowCreate] = useState(false);
-  const [form, setForm] = useState({ code: "", label: "", normalize: false, sortOrder: 0, isActive: true });
+  const [form, setForm] = useState({ code: "", label: "", normalize: false, normalizationPrompt: "" as string | null, sortOrder: 0, isActive: true });
 
-  const resetForm = () => setForm({ code: "", label: "", normalize: false, sortOrder: 0, isActive: true });
+  const resetForm = () => setForm({ code: "", label: "", normalize: false, normalizationPrompt: "", sortOrder: 0, isActive: true });
 
   const openCreate = () => { resetForm(); setShowCreate(true); };
   const openEdit = (opt: AudioLanguageOption) => {
-    setForm({ code: opt.code, label: opt.label, normalize: opt.normalize, sortOrder: opt.sortOrder, isActive: opt.isActive });
+    setForm({ code: opt.code, label: opt.label, normalize: opt.normalize, normalizationPrompt: opt.normalizationPrompt ?? "", sortOrder: opt.sortOrder, isActive: opt.isActive });
     setEditOpt(opt);
   };
 
@@ -1294,6 +1294,19 @@ function LanguageOptionsTab() {
               </div>
               <Switch checked={form.normalize} onCheckedChange={(checked) => setForm(f => ({ ...f, normalize: checked }))} data-testid="switch-lang-normalize" />
             </div>
+            {form.normalize && (
+              <div>
+                <Label>Custom Normalization Prompt (optional)</Label>
+                <Textarea
+                  value={form.normalizationPrompt ?? ""}
+                  onChange={(e) => setForm(f => ({ ...f, normalizationPrompt: e.target.value || null }))}
+                  placeholder="Leave blank to use the global prompt from the Prompts tab..."
+                  className="font-mono text-xs min-h-[100px] resize-y mt-1"
+                  data-testid="textarea-lang-normalization-prompt"
+                />
+                <p className="text-[10px] text-muted-foreground mt-0.5">Override the global normalization prompt for this language specifically. If blank, the system uses the global "normalization.af" or "normalization.generic" prompt from the Prompts tab.</p>
+              </div>
+            )}
             <div className="flex items-center justify-between">
               <Label>Active</Label>
               <Switch checked={form.isActive} onCheckedChange={(checked) => setForm(f => ({ ...f, isActive: checked }))} data-testid="switch-lang-active" />

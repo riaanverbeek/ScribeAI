@@ -115,6 +115,10 @@ export async function migrateAudioLanguageOptions() {
       )
     `);
     await db.execute(sql`
+      ALTER TABLE audio_language_options
+      ADD COLUMN IF NOT EXISTS normalization_prompt TEXT
+    `);
+    await db.execute(sql`
       INSERT INTO audio_language_options (code, label, normalize, sort_order, is_active)
       VALUES
         ('auto', 'Auto-detect', false, 0, true),
