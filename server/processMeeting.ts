@@ -23,13 +23,11 @@ async function getPromptValue(key: string, vars: Record<string, string> = {}): P
 }
 
 async function buildNormalizationPrompt(languageCode: string, langOptionOverride?: string | null, vars: Record<string, string> = {}): Promise<string> {
+  const allVars = { "{{languageCode}}": languageCode, ...vars };
   if (langOptionOverride && langOptionOverride.trim()) {
-    return substituteVars(langOptionOverride.trim(), { "{{languageCode}}": languageCode, ...vars });
+    return substituteVars(langOptionOverride.trim(), allVars);
   }
-  if (languageCode === "af") {
-    return await getPromptValue("normalization.af", { "{{languageCode}}": languageCode, ...vars });
-  }
-  return await getPromptValue("normalization.generic", { "{{languageCode}}": languageCode, ...vars });
+  return await getPromptValue("normalization", allVars);
 }
 
 async function normalizeTranscriptToPureLanguage(text: string, audioLanguage: string): Promise<string> {
@@ -258,9 +256,8 @@ export async function processMeetingCore(meetingId: number): Promise<void> {
 
   let summaryStructure = "";
   if (!templateFormatInstructions) {
-    const structureKey = outputLangName === "Afrikaans" ? "analysis.summary_format.af" : "analysis.summary_format.en";
-    summaryStructure = await getPromptValue(structureKey, runtimeVars).catch(() =>
-      substituteVars(PROMPT_DEFAULTS["analysis.summary_format.en"].value, runtimeVars)
+    summaryStructure = await getPromptValue("analysis.summary_format", runtimeVars).catch(() =>
+      substituteVars(PROMPT_DEFAULTS["analysis.summary_format"].value, runtimeVars)
     );
   }
 

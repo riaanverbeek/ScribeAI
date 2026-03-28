@@ -6,34 +6,22 @@ export interface PromptDefault {
 }
 
 export const PROMPT_DEFAULTS: Record<string, PromptDefault> = {
-  "normalization.af": {
-    label: "Afrikaans Normalization Prompt",
-    description: "System prompt used to normalize transcripts to pure Afrikaans when the audio language is Afrikaans.",
-    availableVars: [],
-    value:
-      "Jy is 'n Suid-Afrikaanse Afrikaanse taalverskaffer. " +
-      "Die volgende teks is 'n spraak-na-teks transkripsie van 'n spreker wat moontlik tale meng. " +
-      "Skakel ALLE nie-Afrikaanse woorde, frases en sinne om na hul natuurlike Afrikaanse eweknieë. " +
-      "Behou eiename (mense, plekke, handelsmerke) en hoogs tegniese terme wat geen algemene Afrikaanse ekwivalent het nie. " +
-      "Handhaaf die natuurlike vloei en betekenis van die oorspronklike teks. " +
-      "Gee SLEGS die genormaliseerde Afrikaanse teks terug, geen verduidelikings nie.",
-  },
-  "normalization.generic": {
-    label: "Generic Normalization Prompt",
-    description: "System prompt template used to normalize transcripts for any non-Afrikaans language. Use {{languageCode}} as a placeholder for the ISO language code.",
+  "normalization": {
+    label: "Transcript Normalization Prompt",
+    description: "System prompt used to normalize transcripts to pure language for any audio language. Use {{languageCode}} as a placeholder for the ISO language code of the audio.",
     availableVars: ["{{languageCode}}"],
     value:
-      'You are a professional language specialist for the language with ISO code "{{languageCode}}". ' +
-      "The following text is a speech-to-text transcript that may contain code-switching or words in other languages. " +
-      "Convert ALL non-{{languageCode}} words, phrases and sentences to their natural equivalents in this language. " +
-      "Preserve proper nouns (names of people, places, brands) and highly technical terms that have no common equivalent. " +
+      "You are a professional language specialist. " +
+      "The following text is a speech-to-text transcript recorded in {{languageCode}} that may contain code-switching or words from other languages. " +
+      "Convert ALL non-{{languageCode}} words, phrases and sentences to their natural equivalents in {{languageCode}}. " +
+      "Preserve proper nouns (names of people, places, brands) and highly technical terms that have no common equivalent in {{languageCode}}. " +
       "Maintain the natural flow and meaning of the original text. " +
       "Return ONLY the normalized text, no explanations.",
   },
   "analysis.core": {
     label: "Analysis Core System Prompt",
-    description: "The main system prompt sent to the AI for meeting analysis. Use {{outputLanguage}} for the output language name.",
-    availableVars: ["{{outputLanguage}}"],
+    description: "The main system prompt sent to the AI for meeting analysis. Use {{outputLanguage}} for the output language name, {{clientName}} for the client name, and {{detailInstruction}} to embed the active detail level instruction.",
+    availableVars: ["{{outputLanguage}}", "{{clientName}}", "{{detailInstruction}}"],
     value:
       "You are an expert meeting analyst. Analyze the following meeting transcript.\n\n" +
       "IMPORTANT: You MUST write ALL of your output (summary, action items, and topics) in {{outputLanguage}}. " +
@@ -70,10 +58,10 @@ export const PROMPT_DEFAULTS: Record<string, PromptDefault> = {
     value:
       "Provide a BRIEF and CONCISE analysis. Focus only on the most critical points, essential action items, and top-priority topics. Keep the executive summary short and to the point — no more than a few paragraphs.",
   },
-  "analysis.summary_format.en": {
-    label: "Summary Structure: English",
-    description: "The report structure template appended to the analysis prompt when output language is English.",
-    availableVars: [],
+  "analysis.summary_format": {
+    label: "Summary Structure Template",
+    description: "The report structure template appended to the analysis prompt. Section headings are translated by the AI into the selected output language. Use {{outputLanguage}} if needed.",
+    availableVars: ["{{outputLanguage}}", "{{clientName}}"],
     value:
       "## Executive Summary\nA brief 2-3 sentence overview of the meeting.\n\n" +
       "## Key Discussion Points\n- **Point title**: Description of what was discussed\n- **Point title**: Description of what was discussed\n\n" +
@@ -81,18 +69,6 @@ export const PROMPT_DEFAULTS: Record<string, PromptDefault> = {
       "## Recommendations\n- Recommendation with explanation\n\n" +
       "## Action Items & Next Steps\n- **Task**: Description | **Assigned to**: Person | **Priority**: High/Medium/Low\n\n" +
       "## Constraints & Considerations\n- Any limitations or important notes",
-  },
-  "analysis.summary_format.af": {
-    label: "Summary Structure: Afrikaans",
-    description: "The report structure template appended to the analysis prompt when output language is Afrikaans.",
-    availableVars: [],
-    value:
-      "## Uitvoerende Opsomming\n'n Kort 2-3 sin oorsig van die vergadering.\n\n" +
-      "## Sleutel Besprekingspunte\n- **Punttitel**: Beskrywing van wat bespreek is\n- **Punttitel**: Beskrywing van wat bespreek is\n\n" +
-      "## Besluite Geneem\n- Besluit 1\n- Besluit 2\n\n" +
-      "## Aanbevelings\n- Aanbeveling met verduideliking\n\n" +
-      "## Aksie-items & Volgende Stappe\n- **Taak**: Beskrywing | **Toegewys aan**: Persoon | **Prioriteit**: Hoog/Medium/Laag\n\n" +
-      "## Beperkings & Oorwegings\n- Enige beperkings of belangrike notas",
   },
 };
 

@@ -1304,7 +1304,7 @@ function LanguageOptionsTab() {
                   className="font-mono text-xs min-h-[100px] resize-y mt-1"
                   data-testid="textarea-lang-normalization-prompt"
                 />
-                <p className="text-[10px] text-muted-foreground mt-0.5">Override the global normalization prompt for this language specifically. If blank, the system uses the global "normalization.af" or "normalization.generic" prompt from the Prompts tab.</p>
+                <p className="text-[10px] text-muted-foreground mt-0.5">Override the global normalization prompt for this language specifically. If blank, the system uses the global normalization prompt from the Prompts tab. Use <code>{"{{languageCode}}"}</code> as a placeholder for this language's ISO code.</p>
               </div>
             )}
             <div className="flex items-center justify-between">
@@ -1346,14 +1346,12 @@ function LanguageOptionsTab() {
 }
 
 const PROMPT_VAR_HINTS: Record<string, string[]> = {
-  "normalization.af": ["{{languageCode}}"],
-  "normalization.generic": ["{{languageCode}}"],
+  "normalization": ["{{languageCode}}"],
   "analysis.core": ["{{outputLanguage}}", "{{clientName}}", "{{detailInstruction}}"],
   "analysis.detail.high": ["{{outputLanguage}}", "{{clientName}}"],
   "analysis.detail.medium": ["{{outputLanguage}}", "{{clientName}}"],
   "analysis.detail.low": ["{{outputLanguage}}", "{{clientName}}"],
-  "analysis.summary_format.en": ["{{outputLanguage}}", "{{clientName}}"],
-  "analysis.summary_format.af": ["{{outputLanguage}}", "{{clientName}}"],
+  "analysis.summary_format": ["{{outputLanguage}}", "{{clientName}}"],
 };
 
 function PromptCard({ prompt, onSave, onReset, isSaving, isResetting }: {
@@ -1488,10 +1486,10 @@ function PromptsTab() {
   }
 
   const groups = [
-    { title: "Normalization Prompts", keys: ["normalization.af", "normalization.generic"] },
+    { title: "Transcript Normalization", keys: ["normalization"] },
     { title: "Analysis Core Prompt", keys: ["analysis.core"] },
     { title: "Detail Level Instructions", keys: ["analysis.detail.high", "analysis.detail.medium", "analysis.detail.low"] },
-    { title: "Summary Structure Templates", keys: ["analysis.summary_format.en", "analysis.summary_format.af"] },
+    { title: "Summary Structure Template", keys: ["analysis.summary_format"] },
   ];
 
   return (

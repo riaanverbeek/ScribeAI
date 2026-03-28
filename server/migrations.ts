@@ -146,6 +146,13 @@ export async function migratePromptSettings() {
       )
     `);
 
+    // Remove legacy language-specific keys that were replaced by unified keys
+    const legacyKeys = ["normalization.af", "normalization.generic", "analysis.summary_format.en", "analysis.summary_format.af"];
+    for (const legacyKey of legacyKeys) {
+      await db.execute(sql.raw(`DELETE FROM prompt_settings WHERE key = '${legacyKey}'`));
+    }
+
+    // Seed current canonical defaults (INSERT only if not already present)
     for (const [key, def] of Object.entries(PROMPT_DEFAULTS)) {
       const escaped = def.value.replace(/'/g, "''");
       const labelEscaped = def.label.replace(/'/g, "''");
