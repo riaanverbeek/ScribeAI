@@ -3,7 +3,7 @@
   "appName": "ScribeAI",
   "webDir": "www",
   "server": {
-    "url": "https://YOUR_REPLIT_DEPLOY_DOMAIN",
+    "url": "https://meeting-sense--riaanverbeek.replit.app",
     "cleartext": false,
     "allowNavigation": ["*.replit.app", "*.replit.dev"]
   },
