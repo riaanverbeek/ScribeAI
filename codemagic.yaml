@@ -16,8 +16,6 @@ workflows:
     scripts:
       - name: Install npm dependencies
         script: npm install
-      - name: Cocoapods install
-        script: cd ios/App && pod install
       - name: Sync Capacitor
         script: npx cap sync ios
       - name: Set up code signing
