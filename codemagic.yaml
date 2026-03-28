@@ -11,13 +11,15 @@ workflows:
         bundle_identifier: com.fant.app
       vars:
         APP_STORE_APPLE_ID: "6761292458"
-        XCODE_PROJECT: "ios/App/App.xcodeproj"
+        XCODE_WORKSPACE: "ios/App/App.xcworkspace"
         XCODE_SCHEME: "App"
     scripts:
       - name: Install npm dependencies
         script: npm install
       - name: Sync Capacitor
         script: npx cap sync ios
+      - name: CocoaPods install
+        script: cd ios/App && pod install
       - name: Set up code signing
         script: xcode-project use-profiles
       - name: Increment build number
@@ -28,7 +30,7 @@ workflows:
       - name: Build IPA
         script: |
           xcode-project build-ipa \
-            --project "$CM_BUILD_DIR/$XCODE_PROJECT" \
+            --workspace "$CM_BUILD_DIR/$XCODE_WORKSPACE" \
             --scheme "$XCODE_SCHEME" \
             --config Release
     artifacts:
