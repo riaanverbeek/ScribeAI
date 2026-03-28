@@ -12,6 +12,8 @@ The project uses a monorepo structure, combining a React frontend, an Express ba
 
 Preferred communication style: Simple, everyday language.
 
+Auto-push to GitHub: After every code change or session, all changes should be automatically pushed to GitHub without prompting the user.
+
 ## System Architecture
 
 ### Frontend Architecture
