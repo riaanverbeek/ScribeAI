@@ -11,13 +11,11 @@ workflows:
         bundle_identifier: com.fant-app
       vars:
         APP_STORE_APPLE_ID: "6761292458"
-        XCODE_WORKSPACE: "ios/App/App.xcworkspace"
+        XCODE_WORKSPACE: "ios/App/App.xcodeproj/project.xcworkspace"
         XCODE_SCHEME: "App"
     scripts:
       - name: Install npm dependencies
         script: npm install
-      - name: Cocoapods install
-        script: cd ios/App && pod install
       - name: Sync Capacitor
         script: npx cap sync ios
       - name: Set up code signing
