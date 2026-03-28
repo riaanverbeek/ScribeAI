@@ -1,8 +1,8 @@
 import { db } from "./db";
 import { 
-    users, clients, meetings, transcripts, actionItems, topics, meetingSummaries, templates, templateTenants, roles, policies, meetingPolicies, tenants, audioLanguageOptions,
-    type InsertUser, type InsertClient, type InsertMeeting, type InsertTranscript, type InsertActionItem, type InsertTopic, type InsertMeetingSummary, type InsertTemplate, type InsertRole, type InsertPolicy, type InsertMeetingPolicy, type InsertTenant, type InsertAudioLanguageOption,
-    type User, type Client, type Meeting, type Transcript, type ActionItem, type Topic, type MeetingSummary, type Template, type TemplateWithTenants, type Role, type Policy, type MeetingPolicy, type Tenant, type AudioLanguageOption
+    users, clients, meetings, transcripts, actionItems, topics, meetingSummaries, templates, templateTenants, roles, policies, meetingPolicies, tenants, audioLanguageOptions, promptSettings,
+    type InsertUser, type InsertClient, type InsertMeeting, type InsertTranscript, type InsertActionItem, type InsertTopic, type InsertMeetingSummary, type InsertTemplate, type InsertRole, type InsertPolicy, type InsertMeetingPolicy, type InsertTenant, type InsertAudioLanguageOption, type InsertPromptSetting,
+    type User, type Client, type Meeting, type Transcript, type ActionItem, type Topic, type MeetingSummary, type Template, type TemplateWithTenants, type Role, type Policy, type MeetingPolicy, type Tenant, type AudioLanguageOption, type PromptSetting
 } from "@shared/schema";
 import { eq, and, desc, lt, ne, or, isNull, sql, inArray } from "drizzle-orm";
 
@@ -120,6 +120,12 @@ export interface IStorage {
     createAudioLanguageOption(option: InsertAudioLanguageOption): Promise<AudioLanguageOption>;
     updateAudioLanguageOption(id: number, data: Partial<Pick<AudioLanguageOption, "code" | "label" | "normalize" | "sortOrder" | "isActive">>): Promise<AudioLanguageOption>;
     deleteAudioLanguageOption(id: number): Promise<void>;
+
+    // Prompt Settings
+    getPromptSettings(): Promise<PromptSetting[]>;
+    getPromptSettingByKey(key: string): Promise<PromptSetting | undefined>;
+    upsertPromptSetting(key: string, value: string): Promise<PromptSetting>;
+    resetPromptSettingToDefault(key: string): Promise<PromptSetting | undefined>;
 }
 
 export class DatabaseStorage implements IStorage {
@@ -652,6 +658,35 @@ export class DatabaseStorage implements IStorage {
 
     async deleteAudioLanguageOption(id: number): Promise<void> {
         await db.delete(audioLanguageOptions).where(eq(audioLanguageOptions.id, id));
+    }
+
+    // Prompt Settings
+    async getPromptSettings(): Promise<PromptSetting[]> {
+        return await db.select().from(promptSettings).orderBy(promptSettings.key);
+    }
+
+    async getPromptSettingByKey(key: string): Promise<PromptSetting | undefined> {
+        const [row] = await db.select().from(promptSettings).where(eq(promptSettings.key, key));
+        return row;
+    }
+
+    async upsertPromptSetting(key: string, value: string): Promise<PromptSetting> {
+        const existing = await this.getPromptSettingByKey(key);
+        if (!existing) {
+            throw new Error(`Prompt setting key "${key}" not found`);
+        }
+        const [row] = await db.update(promptSettings).set({ value }).where(eq(promptSettings.key, key)).returning();
+        return row;
+    }
+
+    async resetPromptSettingToDefault(key: string): Promise<PromptSetting | undefined> {
+        const existing = await this.getPromptSettingByKey(key);
+        if (!existing) return undefined;
+        const [row] = await db.update(promptSettings)
+            .set({ value: existing.defaultValue })
+            .where(eq(promptSettings.key, key))
+            .returning();
+        return row;
     }
 }
 

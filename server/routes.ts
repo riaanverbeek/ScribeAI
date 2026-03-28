@@ -1194,6 +1194,43 @@ export async function registerRoutes(
     res.status(204).send();
   });
 
+  // ========== PROMPT SETTINGS (SUPERUSER) ==========
+
+  app.get("/api/superuser/prompt-settings", requireAuth, requireVerified, requireSuperuser, async (req, res) => {
+    try {
+      const settings = await storage.getPromptSettings();
+      res.json(settings);
+    } catch (err) {
+      console.error("Error fetching prompt settings:", err);
+      res.status(500).json({ message: "Failed to fetch prompt settings" });
+    }
+  });
+
+  app.patch("/api/superuser/prompt-settings/:key", requireAuth, requireVerified, requireSuperuser, async (req, res) => {
+    try {
+      const key = req.params.key;
+      const { value } = z.object({ value: z.string().min(1) }).parse(req.body);
+      const updated = await storage.upsertPromptSetting(key, value);
+      res.json(updated);
+    } catch (err) {
+      if (err instanceof z.ZodError) return res.status(400).json({ message: err.errors[0].message });
+      console.error("Error updating prompt setting:", err);
+      res.status(500).json({ message: "Failed to update prompt setting" });
+    }
+  });
+
+  app.post("/api/superuser/prompt-settings/:key/reset", requireAuth, requireVerified, requireSuperuser, async (req, res) => {
+    try {
+      const key = req.params.key;
+      const reset = await storage.resetPromptSettingToDefault(key);
+      if (!reset) return res.status(404).json({ message: "Prompt setting not found" });
+      res.json(reset);
+    } catch (err) {
+      console.error("Error resetting prompt setting:", err);
+      res.status(500).json({ message: "Failed to reset prompt setting" });
+    }
+  });
+
   // ========== AUDIO LANGUAGE OPTIONS (PUBLIC) ==========
 
   app.get("/api/audio-language-options", requireAuth, async (req, res) => {

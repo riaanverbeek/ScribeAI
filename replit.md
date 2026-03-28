@@ -59,9 +59,11 @@ Preferred communication style: Simple, everyday language.
 
 ### Data Layer
 - **Database**: PostgreSQL with Drizzle ORM
-- **Core Tables**: `tenants`, `users`, `clients`, `meetings`, `templates`, `template_tenants`, `transcripts`, `action_items`, `topics`, `meeting_summaries`.
+- **Core Tables**: `tenants`, `users`, `clients`, `meetings`, `templates`, `template_tenants`, `transcripts`, `action_items`, `topics`, `meeting_summaries`, `audio_language_options`, `prompt_settings`.
 - **Schema**: Defined in `shared/schema.ts`.
-- **Migrations**: Drizzle Kit.
+- **Migrations**: Runtime SQL migrations in `server/migrations.ts` (called from `server/index.ts` on startup). Drizzle Kit for schema tooling.
+- **Prompt Settings**: `prompt_settings` table stores 8 LLM prompts (normalization.af, normalization.generic, analysis.core, analysis.detail.high/medium/low, analysis.summary_format.en/af). Defaults seeded on startup from `server/promptDefaults.ts`. `processMeeting.ts` reads from DB with `{{variable}}` placeholder substitution, falling back to hardcoded defaults if DB is unavailable.
+- **Superuser Prompts UI**: "Prompts" tab in SuperuserAdmin — collapsible prompt cards per category (Normalization, Analysis Core, Detail Level, Summary Structure). Each card shows label, description, available `{{variable}}` placeholders, an expandable textarea, Save button, and "Reset to default" button when modified. Changes take effect immediately for all new sessions.
 
 ### Key Design Patterns
 - **Shared Types**: `shared/` folder for common frontend/backend definitions.

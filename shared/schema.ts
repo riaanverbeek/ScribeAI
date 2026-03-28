@@ -173,6 +173,16 @@ export const audioLanguageOptions = pgTable("audio_language_options", {
   createdAt: timestamp("created_at").defaultNow(),
 });
 
+export const promptSettings = pgTable("prompt_settings", {
+  id: serial("id").primaryKey(),
+  key: text("key").notNull().unique(),
+  label: text("label").notNull(),
+  description: text("description"),
+  value: text("value").notNull(),
+  defaultValue: text("default_value").notNull(),
+  createdAt: timestamp("created_at").defaultNow(),
+});
+
 // === CHAT TABLES FOR REPLIT INTEGRATIONS ===
 
 export const conversations = pgTable("conversations", {
@@ -321,6 +331,8 @@ export const insertMeetingPolicySchema = createInsertSchema(meetingPolicies).omi
 
 export const insertAudioLanguageOptionSchema = createInsertSchema(audioLanguageOptions).omit({ id: true, createdAt: true });
 
+export const insertPromptSettingSchema = createInsertSchema(promptSettings).omit({ id: true, createdAt: true });
+
 export const insertConversationSchema = createInsertSchema(conversations).omit({
   id: true,
   createdAt: true,
@@ -373,6 +385,9 @@ export type InsertMeetingPolicy = z.infer<typeof insertMeetingPolicySchema>;
 
 export type AudioLanguageOption = typeof audioLanguageOptions.$inferSelect;
 export type InsertAudioLanguageOption = z.infer<typeof insertAudioLanguageOptionSchema>;
+
+export type PromptSetting = typeof promptSettings.$inferSelect;
+export type InsertPromptSetting = z.infer<typeof insertPromptSettingSchema>;
 
 export type Conversation = typeof conversations.$inferSelect;
 export type InsertConversation = z.infer<typeof insertConversationSchema>;

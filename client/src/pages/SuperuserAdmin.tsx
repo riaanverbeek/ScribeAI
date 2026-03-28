@@ -1,4 +1,4 @@
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { queryClient, apiRequest } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
@@ -13,9 +13,9 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 import { Switch } from "@/components/ui/switch";
-import { Pencil, Trash2, Plus, Users, Briefcase, Calendar, Shield, ShieldCheck, Tag, ArrowLeft, Eye, ChevronRight, Loader2, Building2, Globe, Palette, ArrowUpDown, Languages } from "lucide-react";
+import { Pencil, Trash2, Plus, Users, Briefcase, Calendar, Shield, ShieldCheck, Tag, ArrowLeft, Eye, ChevronRight, Loader2, Building2, Globe, Palette, ArrowUpDown, Languages, MessageSquare, RotateCcw, Save, ChevronDown, ChevronUp } from "lucide-react";
 import { format } from "date-fns";
-import type { SafeUser, Client, Meeting, Role, Transcript, ActionItem, Topic, MeetingSummary, Tenant, AudioLanguageOption } from "@shared/schema";
+import type { SafeUser, Client, Meeting, Role, Transcript, ActionItem, Topic, MeetingSummary, Tenant, AudioLanguageOption, PromptSetting } from "@shared/schema";
 
 type SuperuserUser = SafeUser & { isSuperuser: boolean };
 
@@ -1332,6 +1332,183 @@ function LanguageOptionsTab() {
   );
 }
 
+const PROMPT_VAR_HINTS: Record<string, string[]> = {
+  "normalization.af": [],
+  "normalization.generic": ["{{languageCode}}"],
+  "analysis.core": ["{{outputLanguage}}"],
+  "analysis.detail.high": [],
+  "analysis.detail.medium": [],
+  "analysis.detail.low": [],
+  "analysis.summary_format.en": [],
+  "analysis.summary_format.af": [],
+};
+
+function PromptCard({ prompt, onSave, onReset, isSaving, isResetting }: {
+  prompt: PromptSetting;
+  onSave: (key: string, value: string) => void;
+  onReset: (key: string) => void;
+  isSaving: boolean;
+  isResetting: boolean;
+}) {
+  const [expanded, setExpanded] = useState(false);
+  const [editValue, setEditValue] = useState(prompt.value);
+  const isDirty = editValue !== prompt.value;
+  const isDefault = prompt.value === prompt.defaultValue;
+  const vars = PROMPT_VAR_HINTS[prompt.key] || [];
+
+  useEffect(() => { setEditValue(prompt.value); }, [prompt.value]);
+
+  return (
+    <Card key={prompt.key} data-testid={`card-prompt-${prompt.key}`}>
+      <CardContent className="p-4 space-y-3">
+        <div
+          className="flex items-start justify-between gap-2 cursor-pointer"
+          onClick={() => setExpanded(e => !e)}
+          data-testid={`button-toggle-prompt-${prompt.key}`}
+        >
+          <div className="min-w-0 flex-1">
+            <div className="flex items-center gap-2 flex-wrap">
+              <span className="font-medium text-sm" data-testid={`text-prompt-label-${prompt.key}`}>{prompt.label}</span>
+              {!isDefault && (
+                <Badge variant="outline" className="text-[10px] text-amber-600 border-amber-400">Modified</Badge>
+              )}
+            </div>
+            {prompt.description && (
+              <p className="text-xs text-muted-foreground mt-0.5">{prompt.description}</p>
+            )}
+            {vars.length > 0 && (
+              <div className="flex items-center gap-1 mt-1 flex-wrap">
+                <span className="text-[10px] text-muted-foreground">Available variables:</span>
+                {vars.map(v => (
+                  <Badge key={v} variant="secondary" className="text-[10px] font-mono">{v}</Badge>
+                ))}
+              </div>
+            )}
+          </div>
+          <div className="shrink-0 mt-0.5">
+            {expanded ? <ChevronUp className="w-4 h-4 text-muted-foreground" /> : <ChevronDown className="w-4 h-4 text-muted-foreground" />}
+          </div>
+        </div>
+
+        {expanded && (
+          <div className="space-y-3 pt-1">
+            <Textarea
+              value={editValue}
+              onChange={e => setEditValue(e.target.value)}
+              className="font-mono text-xs min-h-[180px] resize-y"
+              data-testid={`textarea-prompt-${prompt.key}`}
+            />
+            <div className="flex items-center gap-2 justify-end flex-wrap">
+              {!isDefault && (
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => { onReset(prompt.key); setEditValue(prompt.defaultValue); }}
+                  disabled={isResetting || isSaving}
+                  data-testid={`button-reset-prompt-${prompt.key}`}
+                >
+                  {isResetting ? <Loader2 className="w-3 h-3 mr-1 animate-spin" /> : <RotateCcw className="w-3 h-3 mr-1" />}
+                  Reset to default
+                </Button>
+              )}
+              <Button
+                size="sm"
+                onClick={() => onSave(prompt.key, editValue)}
+                disabled={!isDirty || isSaving || isResetting || editValue.trim().length === 0}
+                data-testid={`button-save-prompt-${prompt.key}`}
+              >
+                {isSaving ? <Loader2 className="w-3 h-3 mr-1 animate-spin" /> : <Save className="w-3 h-3 mr-1" />}
+                Save
+              </Button>
+            </div>
+          </div>
+        )}
+      </CardContent>
+    </Card>
+  );
+}
+
+function PromptsTab() {
+  const { toast } = useToast();
+  const { data: prompts = [], isLoading } = useQuery<PromptSetting[]>({
+    queryKey: ["/api/superuser/prompt-settings"],
+  });
+  const [savingKey, setSavingKey] = useState<string | null>(null);
+  const [resettingKey, setResettingKey] = useState<string | null>(null);
+
+  const saveMutation = useMutation({
+    mutationFn: async ({ key, value }: { key: string; value: string }) => {
+      const res = await apiRequest("PATCH", `/api/superuser/prompt-settings/${encodeURIComponent(key)}`, { value });
+      return res.json();
+    },
+    onMutate: ({ key }) => setSavingKey(key),
+    onSettled: () => setSavingKey(null),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/superuser/prompt-settings"] });
+      toast({ title: "Prompt saved" });
+    },
+    onError: (err: Error) => toast({ title: "Error", description: err.message, variant: "destructive" }),
+  });
+
+  const resetMutation = useMutation({
+    mutationFn: async (key: string) => {
+      const res = await apiRequest("POST", `/api/superuser/prompt-settings/${encodeURIComponent(key)}/reset`, {});
+      return res.json();
+    },
+    onMutate: (key) => setResettingKey(key),
+    onSettled: () => setResettingKey(null),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/superuser/prompt-settings"] });
+      toast({ title: "Prompt reset to default" });
+    },
+    onError: (err: Error) => toast({ title: "Error", description: err.message, variant: "destructive" }),
+  });
+
+  if (isLoading) {
+    return (
+      <div className="space-y-3">
+        {[1, 2, 3].map(i => (
+          <Card key={i}><CardContent className="p-4 h-16 animate-pulse bg-muted/40 rounded" /></Card>
+        ))}
+      </div>
+    );
+  }
+
+  const groups = [
+    { title: "Normalization Prompts", keys: ["normalization.af", "normalization.generic"] },
+    { title: "Analysis Core Prompt", keys: ["analysis.core"] },
+    { title: "Detail Level Instructions", keys: ["analysis.detail.high", "analysis.detail.medium", "analysis.detail.low"] },
+    { title: "Summary Structure Templates", keys: ["analysis.summary_format.en", "analysis.summary_format.af"] },
+  ];
+
+  return (
+    <div className="space-y-6">
+      <p className="text-sm text-muted-foreground">
+        Edit the AI prompts used during transcription normalization and meeting analysis. Changes take effect immediately for all new sessions — no deployment needed. Use <code className="text-[10px] bg-muted px-1 rounded">{"{{variable}}"}</code> placeholders where indicated.
+      </p>
+      {groups.map(group => {
+        const groupPrompts = group.keys.map(k => prompts.find(p => p.key === k)).filter(Boolean) as PromptSetting[];
+        if (groupPrompts.length === 0) return null;
+        return (
+          <div key={group.title} className="space-y-2">
+            <h3 className="text-sm font-semibold text-muted-foreground uppercase tracking-wide">{group.title}</h3>
+            {groupPrompts.map(prompt => (
+              <PromptCard
+                key={prompt.key}
+                prompt={prompt}
+                onSave={(key, value) => saveMutation.mutate({ key, value })}
+                onReset={(key) => resetMutation.mutate(key)}
+                isSaving={savingKey === prompt.key && saveMutation.isPending}
+                isResetting={resettingKey === prompt.key && resetMutation.isPending}
+              />
+            ))}
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
 export default function SuperuserAdmin() {
   return (
     <div className="p-4 sm:p-6 lg:p-8 max-w-5xl mx-auto">
@@ -1344,7 +1521,7 @@ export default function SuperuserAdmin() {
       </div>
 
       <Tabs defaultValue="users">
-        <TabsList className="w-full grid grid-cols-6 mb-4" data-testid="tabs-superuser">
+        <TabsList className="w-full grid grid-cols-7 mb-4" data-testid="tabs-superuser">
           <TabsTrigger value="users" className="gap-1" data-testid="tab-users">
             <Users className="w-4 h-4 hidden sm:block" /> Users
           </TabsTrigger>
@@ -1363,6 +1540,9 @@ export default function SuperuserAdmin() {
           <TabsTrigger value="languages" className="gap-1" data-testid="tab-languages">
             <Languages className="w-4 h-4 hidden sm:block" /> Languages
           </TabsTrigger>
+          <TabsTrigger value="prompts" className="gap-1" data-testid="tab-prompts">
+            <MessageSquare className="w-4 h-4 hidden sm:block" /> Prompts
+          </TabsTrigger>
         </TabsList>
 
         <TabsContent value="users"><UsersTab /></TabsContent>
@@ -1371,6 +1551,7 @@ export default function SuperuserAdmin() {
         <TabsContent value="roles"><RolesTab /></TabsContent>
         <TabsContent value="tenants"><TenantsTab /></TabsContent>
         <TabsContent value="languages"><LanguageOptionsTab /></TabsContent>
+        <TabsContent value="prompts"><PromptsTab /></TabsContent>
       </Tabs>
     </div>
   );

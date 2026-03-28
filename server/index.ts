@@ -2,7 +2,7 @@ import express, { type Request, Response, NextFunction } from "express";
 import { registerRoutes } from "./routes";
 import { serveStatic } from "./static";
 import { createServer } from "http";
-import { backfillTenantIds, cleanupStaleUploads, migrateTemplateTenants, migrateAudioLanguageOptions, retryStaleProcessing } from "./migrations";
+import { backfillTenantIds, cleanupStaleUploads, migrateTemplateTenants, migrateAudioLanguageOptions, migratePromptSettings, retryStaleProcessing } from "./migrations";
 
 const app = express();
 const httpServer = createServer(app);
@@ -65,6 +65,7 @@ app.use((req, res, next) => {
   await backfillTenantIds();
   await migrateTemplateTenants();
   await migrateAudioLanguageOptions();
+  await migratePromptSettings();
   await cleanupStaleUploads();
   await retryStaleProcessing();
   await registerRoutes(httpServer, app);

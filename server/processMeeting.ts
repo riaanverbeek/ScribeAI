@@ -2,6 +2,7 @@ import { storage } from "./storage";
 import { transcribeLongAudio } from "./replit_integrations/audio";
 import { downloadBufferFromObjectStorage } from "./objectStorageHelper";
 import { sendMeetingCompletedEmail } from "./email";
+import { PROMPT_DEFAULTS, substituteVars } from "./promptDefaults";
 import OpenAI from "openai";
 import fs from "fs";
 import path from "path";
@@ -11,26 +12,21 @@ const openai = new OpenAI({
   baseURL: process.env.AI_INTEGRATIONS_OPENAI_BASE_URL,
 });
 
-const NORMALIZATION_PROMPTS: Record<string, string> = {
-  af:
-    "Jy is 'n Suid-Afrikaanse Afrikaanse taalverskaffer. " +
-    "Die volgende teks is 'n spraak-na-teks transkripsie van 'n spreker wat moontlik tale meng. " +
-    "Skakel ALLE nie-Afrikaanse woorde, frases en sinne om na hul natuurlike Afrikaanse eweknieë. " +
-    "Behou eiename (mense, plekke, handelsmerke) en hoogs tegniese terme wat geen algemene Afrikaanse ekwivalent het nie. " +
-    "Handhaaf die natuurlike vloei en betekenis van die oorspronklike teks. " +
-    "Gee SLEGS die genormaliseerde Afrikaanse teks terug, geen verduidelikings nie.",
-};
+async function getPromptValue(key: string, vars: Record<string, string> = {}): Promise<string> {
+  try {
+    const row = await storage.getPromptSettingByKey(key);
+    if (row) return substituteVars(row.value, vars);
+  } catch (_) {}
+  const def = PROMPT_DEFAULTS[key];
+  if (!def) throw new Error(`No prompt default found for key: ${key}`);
+  return substituteVars(def.value, vars);
+}
 
-function buildNormalizationPrompt(languageCode: string): string {
-  if (NORMALIZATION_PROMPTS[languageCode]) return NORMALIZATION_PROMPTS[languageCode];
-  return (
-    `You are a professional language specialist for the language with ISO code "${languageCode}". ` +
-    "The following text is a speech-to-text transcript that may contain code-switching or words in other languages. " +
-    `Convert ALL non-${languageCode} words, phrases and sentences to their natural equivalents in this language. ` +
-    "Preserve proper nouns (names of people, places, brands) and highly technical terms that have no common equivalent. " +
-    "Maintain the natural flow and meaning of the original text. " +
-    "Return ONLY the normalized text, no explanations."
-  );
+async function buildNormalizationPrompt(languageCode: string): Promise<string> {
+  if (languageCode === "af") {
+    return await getPromptValue("normalization.af");
+  }
+  return await getPromptValue("normalization.generic", { "{{languageCode}}": languageCode });
 }
 
 async function normalizeTranscriptToPureLanguage(text: string, audioLanguage: string): Promise<string> {
@@ -38,7 +34,7 @@ async function normalizeTranscriptToPureLanguage(text: string, audioLanguage: st
   const shouldNormalize = langOption ? langOption.normalize : false;
   if (!shouldNormalize) return text;
 
-  const systemPrompt = buildNormalizationPrompt(audioLanguage);
+  const systemPrompt = await buildNormalizationPrompt(audioLanguage);
   console.log(`[process] Normalizing transcript to pure language: ${audioLanguage}...`);
 
   const CHUNK_CHARS = 8000;
@@ -243,35 +239,28 @@ export async function processMeetingCore(meetingId: number): Promise<void> {
     consentInstruction = `\n\nRECORDING CONSENT: The user has indicated that explicit consent was NOT obtained from the client to record this meeting. Include a note in the summary under a "## Recording Consent" section stating: "Note: Explicit consent to record this meeting was not obtained from the client."`;
   }
 
-  const detailLevelMap: Record<string, string> = {
-    high: "Provide a COMPREHENSIVE and DETAILED analysis. Include thorough discussion points, detailed action items with full context, in-depth topic analysis, and an extensive executive summary covering all aspects of the meeting. Be verbose and leave nothing out.",
-    medium: "Provide a BALANCED analysis with moderate detail. Cover the main discussion points, key action items, and important topics. The executive summary should capture the essentials without being overly brief or overly long.",
-    low: "Provide a BRIEF and CONCISE analysis. Focus only on the most critical points, essential action items, and top-priority topics. Keep the executive summary short and to the point — no more than a few paragraphs.",
-  };
-  const detailInstruction = detailLevelMap[meeting.detailLevel] || detailLevelMap.high;
+  const detailKey = `analysis.detail.${meeting.detailLevel || "high"}`;
+  const detailInstruction = await getPromptValue(detailKey).catch(() =>
+    PROMPT_DEFAULTS["analysis.detail.high"].value
+  );
+
+  const corePrompt = await getPromptValue("analysis.core", { "{{outputLanguage}}": outputLangName });
+
+  let summaryStructure = "";
+  if (!templateFormatInstructions) {
+    const structureKey = outputLangName === "Afrikaans" ? "analysis.summary_format.af" : "analysis.summary_format.en";
+    summaryStructure = await getPromptValue(structureKey).catch(() =>
+      PROMPT_DEFAULTS["analysis.summary_format.en"].value
+    );
+  }
 
   const systemPrompt = `
-            You are an expert meeting analyst. Analyze the following meeting transcript.
-
-            IMPORTANT: You MUST write ALL of your output (summary, action items, and topics) in ${outputLangName}. The transcript may be in any language, but your analysis output MUST be entirely in ${outputLangName}. Do NOT leave any part of your response in a different language. Only the JSON keys should remain in English.
+            ${corePrompt}
             ${internalMeetingInstruction}
             ${consentInstruction}
 
             DETAIL LEVEL: ${detailInstruction}
-            
-            Extract:
-            1. Action Items (assignee if clear, otherwise 'Unknown')
-            2. Key Topics (title, summary, relevance score 1-100)
-            3. Executive Summary as a structured report in Markdown format
             ${contextSection ? `\nTake the following context into account when generating your analysis:${contextSection}` : ""}
-            
-            Return JSON in this format:
-            {
-                "actionItems": [{"content": "...", "assignee": "...", "status": "pending"}],
-                "topics": [{"title": "...", "summary": "...", "relevanceScore": 85}],
-                "summary": "<markdown report string>"
-            }
-
             CRITICAL: The "summary" field MUST be a single Markdown-formatted string (NOT a JSON object).
             ${clientName ? `\n            CLIENT NAME INSTRUCTION: The very first line of the summary MUST be "# ${clientName}" as a top-level heading, followed by a blank line, before any other content. This ensures the client is clearly identified at the top of every report.` : ""}
             ${policyPromptSection}
@@ -284,47 +273,10 @@ export async function processMeetingCore(meetingId: number): Promise<void> {
             ` : `
             Structure it as a professional report with the following format${outputLangName !== "English" ? ` (ALL headings and content MUST be in ${outputLangName})` : ""}:
 
-            ${outputLangName === "Afrikaans" ? `## Uitvoerende Opsomming
-            'n Kort 2-3 sin oorsig van die vergadering.
-
-            ## Sleutel Besprekingspunte
-            - **Punttitel**: Beskrywing van wat bespreek is
-            - **Punttitel**: Beskrywing van wat bespreek is
-
-            ## Besluite Geneem
-            - Besluit 1
-            - Besluit 2
-
-            ## Aanbevelings
-            - Aanbeveling met verduideliking
-
-            ## Aksie-items & Volgende Stappe
-            - **Taak**: Beskrywing | **Toegewys aan**: Persoon | **Prioriteit**: Hoog/Medium/Laag
-
-            ## Beperkings & Oorwegings
-            - Enige beperkings of belangrike notas` : `## Executive Summary
-            A brief 2-3 sentence overview of the meeting.
-
-            ## Key Discussion Points
-            - **Point title**: Description of what was discussed
-            - **Point title**: Description of what was discussed
-
-            ## Decisions Made
-            - Decision 1
-            - Decision 2
-
-            ## Recommendations
-            - Recommendation with explanation
-
-            ## Action Items & Next Steps
-            - **Task**: Description | **Assigned to**: Person | **Priority**: High/Medium/Low
-
-            ## Constraints & Considerations
-            - Any limitations or important notes`}
+            ${summaryStructure}
 
             Use clear headings (##), sub-headings (###), bullet points (-), and bold text (**) throughout. The summary MUST be a string value in the JSON, not a nested object.
             `}
-            Remember: ALL text content (including ALL section headings, labels, and body text) must be in ${outputLangName}. Do NOT use English for any headings or labels when the output language is ${outputLangName}. Do NOT generate random or nonsensical text. Every word must be meaningful and relevant.
           `;
 
   const response = await openai.chat.completions.create({
