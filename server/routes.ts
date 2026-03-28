@@ -1212,6 +1212,8 @@ export async function registerRoutes(
     try {
       const key = req.params.key;
       const { value } = z.object({ value: z.string().min(1) }).parse(req.body);
+      const existing = await storage.getPromptSettingByKey(key);
+      if (!existing) return res.status(404).json({ message: `Prompt setting "${key}" not found` });
       const updated = await storage.upsertPromptSetting(key, value);
       res.json(updated);
     } catch (err) {

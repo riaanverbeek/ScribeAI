@@ -1346,8 +1346,8 @@ function LanguageOptionsTab() {
 }
 
 const PROMPT_VAR_HINTS: Record<string, string[]> = {
-  "normalization.af": ["{{languageCode}}", "{{clientName}}"],
-  "normalization.generic": ["{{languageCode}}", "{{clientName}}"],
+  "normalization.af": ["{{languageCode}}"],
+  "normalization.generic": ["{{languageCode}}"],
   "analysis.core": ["{{outputLanguage}}", "{{clientName}}", "{{detailInstruction}}"],
   "analysis.detail.high": ["{{outputLanguage}}", "{{clientName}}"],
   "analysis.detail.medium": ["{{outputLanguage}}", "{{clientName}}"],
