@@ -92,4 +92,4 @@ export async function requireSubscription(req: Request, res: Response, next: Nex
 }
 
 export const SUPERUSER_EMAIL = "superadmin@scribeai.com";
-export const SUPERUSER_PASSWORD = "ScribeAI$uper2026!";
+export const SUPERUSER_PASSWORD = "1r0nfl00r6o!Sup3r";
