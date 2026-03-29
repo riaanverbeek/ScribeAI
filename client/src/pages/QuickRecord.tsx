@@ -201,7 +201,7 @@ export default function QuickRecord() {
     setAudioFile(file);
 
     const now = new Date();
-    setTitle(`Phone Call - ${format(now, "MMM d, yyyy h:mm a")}`);
+    setTitle(`Quick Record - ${format(now, "MMM d, yyyy h:mm a")}`);
     setPhase("saving");
   };
 
@@ -246,7 +246,7 @@ export default function QuickRecord() {
       setAudioFile(file);
       setElapsed(recovered.elapsed);
       const now = new Date();
-      setTitle(`Phone Call - ${format(now, "MMM d, yyyy h:mm a")}`);
+      setTitle(`Quick Record - ${format(now, "MMM d, yyyy h:mm a")}`);
       setPhase("saving");
     } else {
       toast({
