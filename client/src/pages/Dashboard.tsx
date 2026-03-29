@@ -210,25 +210,25 @@ export default function Dashboard() {
           <h1 className="text-2xl sm:text-3xl font-display font-bold text-slate-900 dark:text-foreground" data-testid="text-dashboard-heading">Your Sessions</h1>
           <p className="text-slate-500 mt-1 font-body text-sm sm:text-base">Manage recordings and view AI insights.</p>
         </div>
-        <div className="flex gap-3 w-full sm:w-auto">
-          <Link href="/quick-record" className="flex-1 sm:flex-none">
+        <div className="flex gap-2 sm:gap-3 w-full sm:w-auto">
+          <Link href="/quick-record" className="flex-1 min-w-0 sm:flex-none">
             <Button 
               size="lg"
               variant="outline"
-              className="rounded-xl w-full"
+              className="rounded-xl w-full px-3 sm:px-8 text-sm sm:text-base"
               data-testid="button-quick-record"
             >
-              <Phone className="mr-2 w-5 h-5" />
+              <Phone className="mr-1.5 sm:mr-2 w-4 h-4 sm:w-5 sm:h-5 shrink-0" />
               Quick Record
             </Button>
           </Link>
-          <Link href="/new" className="flex-1 sm:flex-none">
+          <Link href="/new" className="flex-1 min-w-0 sm:flex-none">
             <Button 
               size="lg"
-              className="rounded-xl w-full"
+              className="rounded-xl w-full px-3 sm:px-8 text-sm sm:text-base"
               data-testid="button-new-meeting"
             >
-              <Plus className="mr-2 w-5 h-5" />
+              <Plus className="mr-1.5 sm:mr-2 w-4 h-4 sm:w-5 sm:h-5 shrink-0" />
               New Session
             </Button>
           </Link>
