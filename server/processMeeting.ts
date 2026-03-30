@@ -54,7 +54,10 @@ async function runAnalysisWithModel(
     "openai-gpt-4o": "gpt-4o",
     "openai-gpt-4o-mini": "gpt-4o-mini",
   };
-  const openaiModel = openaiModelMap[modelId] || "gpt-4o";
+  const openaiModel = openaiModelMap[modelId];
+  if (!openaiModel) {
+    throw new Error(`Unsupported analysis model: "${modelId}". Valid values: openai-gpt-4o, openai-gpt-4o-mini, anthropic-claude-sonnet-4-6, anthropic-claude-haiku-4-5.`);
+  }
   const response = await openai.chat.completions.create({
     model: openaiModel,
     messages: [
@@ -207,8 +210,10 @@ export async function processMeetingCore(meetingId: number): Promise<void> {
     const transcriptionModel = await getSystemSettingValue("transcription_model", "openai-whisper");
     if (transcriptionModel === "soniox") {
       transcriptText = await transcribeWithSoniox(audioBuffer, rawFormat, langHint);
-    } else {
+    } else if (transcriptionModel === "openai-whisper") {
       transcriptText = await transcribeLongAudio(audioBuffer, rawFormat, langHint);
+    } else {
+      throw new Error(`Unsupported transcription model: "${transcriptionModel}". Valid values: openai-whisper, soniox.`);
     }
     transcriptText = await normalizeTranscriptToPureLanguage(transcriptText, meeting.audioLanguage ?? "auto");
 
