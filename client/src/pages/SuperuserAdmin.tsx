@@ -1513,7 +1513,7 @@ function LlmTab() {
               <SelectContent>
                 {models.map(m => {
                   const disabled = !m.available || !m.supportsTranscription;
-                  const reason = !m.supportsTranscription ? "analysis only" : !m.available ? "key missing" : null;
+                  const reason = !m.supportsTranscription ? "analysis only" : !m.available ? "not configured" : null;
                   return (
                     <SelectItem key={m.id} value={m.id} disabled={disabled} data-testid={`option-transcription-${m.id}`}>
                       <span className="flex items-center gap-2">
@@ -1551,7 +1551,7 @@ function LlmTab() {
               <SelectContent>
                 {models.map(m => {
                   const disabled = !m.available || !m.supportsAnalysis;
-                  const reason = !m.supportsAnalysis ? "transcription only" : !m.available ? "key missing" : null;
+                  const reason = !m.supportsAnalysis ? "transcription only" : !m.available ? "not configured" : null;
                   return (
                     <SelectItem key={m.id} value={m.id} disabled={disabled} data-testid={`option-analysis-${m.id}`}>
                       <span className="flex items-center gap-2">
@@ -1581,8 +1581,8 @@ function LlmTab() {
               </div>
               <div className="flex items-center gap-2">
                 {m.available
-                  ? <Badge variant="outline" className="text-green-600 border-green-600 text-xs">Ready</Badge>
-                  : <Badge variant="outline" className="text-muted-foreground text-xs">Key missing</Badge>
+                  ? <Badge variant="outline" className="text-green-600 border-green-600 text-xs">Available</Badge>
+                  : <Badge variant="outline" className="text-muted-foreground text-xs">Not configured</Badge>
                 }
               </div>
             </div>

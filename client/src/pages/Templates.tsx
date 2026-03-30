@@ -312,7 +312,7 @@ export default function Templates() {
                       <SelectItem value="default">Use global default</SelectItem>
                       {allLlmModels.map(m => {
                         const disabled = !m.available || !m.supportsAnalysis;
-                        const reason = !m.supportsAnalysis ? "transcription only" : !m.available ? "key missing" : null;
+                        const reason = !m.supportsAnalysis ? "transcription only" : !m.available ? "not configured" : null;
                         return (
                           <SelectItem key={m.id} value={m.id} disabled={disabled} data-testid={`option-template-model-${m.id}`}>
                             {m.name}{reason ? ` (${reason})` : ""}
