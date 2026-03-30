@@ -3,7 +3,9 @@ import { transcribeLongAudio } from "./replit_integrations/audio";
 import { downloadBufferFromObjectStorage } from "./objectStorageHelper";
 import { sendMeetingCompletedEmail } from "./email";
 import { PROMPT_DEFAULTS, substituteVars } from "./promptDefaults";
+import { transcribeWithSoniox } from "./soniox";
 import OpenAI from "openai";
+import Anthropic from "@anthropic-ai/sdk";
 import fs from "fs";
 import path from "path";
 
@@ -11,6 +13,59 @@ const openai = new OpenAI({
   apiKey: process.env.AI_INTEGRATIONS_OPENAI_API_KEY,
   baseURL: process.env.AI_INTEGRATIONS_OPENAI_BASE_URL,
 });
+
+const anthropic = new Anthropic({
+  apiKey: process.env.AI_INTEGRATIONS_ANTHROPIC_API_KEY,
+  baseURL: process.env.AI_INTEGRATIONS_ANTHROPIC_BASE_URL,
+});
+
+async function getSystemSettingValue(key: string, fallback: string): Promise<string> {
+  try {
+    const row = await storage.getSystemSettingByKey(key);
+    if (row?.value) return row.value;
+  } catch (_) {}
+  return fallback;
+}
+
+async function runAnalysisWithModel(
+  modelId: string,
+  systemPrompt: string,
+  userContent: string
+): Promise<string> {
+  if (modelId.startsWith("anthropic-")) {
+    const modelMap: Record<string, string> = {
+      "anthropic-claude-sonnet-4-6": "claude-sonnet-4-6",
+      "anthropic-claude-haiku-4-5": "claude-haiku-4-5",
+    };
+    const anthropicModel = modelMap[modelId] || "claude-sonnet-4-6";
+    const message = await anthropic.messages.create({
+      model: anthropicModel,
+      max_tokens: 4096,
+      system: systemPrompt + "\n\nYou MUST respond with a valid JSON object only — no markdown fences, no extra text.",
+      messages: [{ role: "user", content: userContent }],
+      temperature: 0.3,
+    });
+    const text = message.content[0].type === "text" ? message.content[0].text : "{}";
+    const cleaned = text.replace(/^```(?:json)?\s*/i, "").replace(/\s*```$/i, "").trim();
+    return cleaned;
+  }
+
+  const openaiModelMap: Record<string, string> = {
+    "openai-gpt-4o": "gpt-4o",
+    "openai-gpt-4o-mini": "gpt-4o-mini",
+  };
+  const openaiModel = openaiModelMap[modelId] || "gpt-4o";
+  const response = await openai.chat.completions.create({
+    model: openaiModel,
+    messages: [
+      { role: "system", content: systemPrompt },
+      { role: "user", content: userContent },
+    ],
+    response_format: { type: "json_object" },
+    temperature: 0.3,
+  });
+  return response.choices[0].message.content || "{}";
+}
 
 async function getPromptValue(key: string, vars: Record<string, string> = {}): Promise<string> {
   try {
@@ -149,7 +204,12 @@ export async function processMeetingCore(meetingId: number): Promise<void> {
     const audioExt = path.extname(meeting.audioUrl!).toLowerCase();
     const rawFormat: "wav" | "mp3" | "webm" = audioExt === ".mp3" ? "mp3" : audioExt === ".webm" ? "webm" : "wav";
     const langHint = meeting.audioLanguage && meeting.audioLanguage !== "auto" ? meeting.audioLanguage : undefined;
-    transcriptText = await transcribeLongAudio(audioBuffer, rawFormat, langHint);
+    const transcriptionModel = await getSystemSettingValue("transcription_model", "openai-whisper");
+    if (transcriptionModel === "soniox") {
+      transcriptText = await transcribeWithSoniox(audioBuffer, rawFormat, langHint);
+    } else {
+      transcriptText = await transcribeLongAudio(audioBuffer, rawFormat, langHint);
+    }
     transcriptText = await normalizeTranscriptToPureLanguage(transcriptText, meeting.audioLanguage ?? "auto");
 
     await storage.createTranscript({
@@ -286,17 +346,15 @@ export async function processMeetingCore(meetingId: number): Promise<void> {
             `}
           `;
 
-  const response = await openai.chat.completions.create({
-    model: "gpt-4o",
-    messages: [
-      { role: "system", content: systemPrompt },
-      { role: "user", content: transcriptText }
-    ],
-    response_format: { type: "json_object" },
-    temperature: 0.3
-  });
+  const defaultAnalysisModel = await getSystemSettingValue("default_analysis_model", "openai-gpt-4o");
+  let analysisModel = defaultAnalysisModel;
+  if (meeting.templateId) {
+    const template = await storage.getTemplate(meeting.templateId);
+    if (template?.analysisModel) analysisModel = template.analysisModel;
+  }
 
-  const analysis = JSON.parse(response.choices[0].message.content || "{}");
+  const rawAnalysisJson = await runAnalysisWithModel(analysisModel, systemPrompt, transcriptText);
+  const analysis = JSON.parse(rawAnalysisJson);
 
   if (analysis.actionItems) {
     for (const item of analysis.actionItems) {

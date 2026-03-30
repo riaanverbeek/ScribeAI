@@ -61,11 +61,17 @@ Auto-push to GitHub: After every code change or session, all changes should be a
 
 ### Data Layer
 - **Database**: PostgreSQL with Drizzle ORM
-- **Core Tables**: `tenants`, `users`, `clients`, `meetings`, `templates`, `template_tenants`, `transcripts`, `action_items`, `topics`, `meeting_summaries`, `audio_language_options`, `prompt_settings`.
+- **Core Tables**: `tenants`, `users`, `clients`, `meetings`, `templates`, `template_tenants`, `transcripts`, `action_items`, `topics`, `meeting_summaries`, `audio_language_options`, `prompt_settings`, `system_settings`.
 - **Schema**: Defined in `shared/schema.ts`.
 - **Migrations**: Runtime SQL migrations in `server/migrations.ts` (called from `server/index.ts` on startup). Drizzle Kit for schema tooling.
 - **Prompt Settings**: `prompt_settings` table stores 8 LLM prompts (normalization.af, normalization.generic, analysis.core, analysis.detail.high/medium/low, analysis.summary_format.en/af). Defaults seeded on startup from `server/promptDefaults.ts`. `processMeeting.ts` reads from DB with `{{variable}}` placeholder substitution, falling back to hardcoded defaults if DB is unavailable.
+- **System Settings**: `system_settings` table stores configurable model keys (e.g. `transcription_model`, `default_analysis_model`). Seeded on startup from `server/llmRegistry.ts` SYSTEM_SETTING_DEFAULTS. Used by `processMeeting.ts` to select which model to use at runtime.
 - **Superuser Prompts UI**: "Prompts" tab in SuperuserAdmin — collapsible prompt cards per category (Normalization, Analysis Core, Detail Level, Summary Structure). Each card shows label, description, available `{{variable}}` placeholders, an expandable textarea, Save button, and "Reset to default" button when modified. Changes take effect immediately for all new sessions.
+- **Superuser LLM UI**: "LLM" tab in SuperuserAdmin — shows model availability (green/grey), two dropdowns to set global transcription model and default analysis model. Changes saved immediately to `system_settings` DB table.
+- **Per-template Analysis Model**: `templates.analysis_model` text column allows overriding the global default on a per-template basis. Set via dropdown in the template create/edit dialog (Templates page). Falls back to global default when null.
+- **LLM Registry**: `server/llmRegistry.ts` defines 6 models: openai-whisper, soniox, openai-gpt-4o, openai-gpt-4o-mini, anthropic-claude-sonnet-4-6, anthropic-claude-haiku-4-5. Availability is determined at runtime by checking required env vars.
+- **Anthropic Support**: `@anthropic-ai/sdk` installed. Uses `AI_INTEGRATIONS_ANTHROPIC_API_KEY` / `AI_INTEGRATIONS_ANTHROPIC_BASE_URL`. Anthropic models require manual JSON parsing (no `response_format: json_object`).
+- **Soniox Support**: `server/soniox.ts` REST API client. Uses `SONIOX_API_KEY` env var.
 
 ### Key Design Patterns
 - **Shared Types**: `shared/` folder for common frontend/backend definitions.

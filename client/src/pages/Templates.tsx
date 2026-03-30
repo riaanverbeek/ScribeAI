@@ -56,6 +56,7 @@ export default function Templates() {
   const [description, setDescription] = useState("");
   const [formatPrompt, setFormatPrompt] = useState("");
   const [isDefault, setIsDefault] = useState(false);
+  const [analysisModel, setAnalysisModel] = useState<string>("");
   const [selectedTenantIds, setSelectedTenantIds] = useState<number[]>([]);
 
   const isSuperuser = !!user?.isSuperuser;
@@ -70,18 +71,26 @@ export default function Templates() {
     enabled: isSuperuser,
   });
 
+  const { data: llmModels = [] } = useQuery<{ id: string; name: string; available: boolean }[]>({
+    queryKey: ["/api/superuser/llm-models"],
+    enabled: isSuperuser,
+  });
+
+  const analysisLlmModels = llmModels.filter(m => !["openai-whisper", "soniox"].includes(m.id));
+
   const resetForm = useCallback(() => {
     setName("");
     setDescription("");
     setFormatPrompt("");
     setIsDefault(false);
+    setAnalysisModel("");
     setSelectedTenantIds([]);
     setEditingTemplate(null);
     setDialogOpen(false);
   }, []);
 
   const createMutation = useMutation({
-    mutationFn: async (data: { name: string; description: string; formatPrompt: string; isDefault: boolean; tenantIds: number[] }) => {
+    mutationFn: async (data: { name: string; description: string; formatPrompt: string; isDefault: boolean; analysisModel?: string; tenantIds: number[] }) => {
       const res = await apiRequest("POST", "/api/superuser/templates", data);
       return res.json();
     },
@@ -97,7 +106,7 @@ export default function Templates() {
   });
 
   const updateMutation = useMutation({
-    mutationFn: async ({ id, data }: { id: number; data: { name?: string; description?: string | null; formatPrompt?: string; isDefault?: boolean; tenantIds?: number[] } }) => {
+    mutationFn: async ({ id, data }: { id: number; data: { name?: string; description?: string | null; formatPrompt?: string; isDefault?: boolean; analysisModel?: string | null; tenantIds?: number[] } }) => {
       const res = await apiRequest("PATCH", `/api/superuser/templates/${id}`, data);
       return res.json();
     },
@@ -192,6 +201,7 @@ export default function Templates() {
     setDescription(template.description || "");
     setFormatPrompt(template.formatPrompt);
     setIsDefault(template.isDefault);
+    setAnalysisModel(template.analysisModel || "");
     setSelectedTenantIds(template.tenantIds || []);
     setDialogOpen(true);
   };
@@ -202,9 +212,9 @@ export default function Templates() {
       return;
     }
     if (editingTemplate) {
-      updateMutation.mutate({ id: editingTemplate.id, data: { name, description: description || null, formatPrompt, isDefault, tenantIds: selectedTenantIds } });
+      updateMutation.mutate({ id: editingTemplate.id, data: { name, description: description || null, formatPrompt, isDefault, analysisModel: analysisModel || null, tenantIds: selectedTenantIds } });
     } else {
-      createMutation.mutate({ name, description, formatPrompt, isDefault, tenantIds: selectedTenantIds });
+      createMutation.mutate({ name, description, formatPrompt, isDefault, analysisModel: analysisModel || undefined, tenantIds: selectedTenantIds });
     }
   };
 
@@ -287,6 +297,30 @@ export default function Templates() {
                 />
                 <Label htmlFor="tpl-default" className="text-sm">Set as default template</Label>
               </div>
+
+              {analysisLlmModels.length > 0 && (
+                <div className="space-y-2">
+                  <Label htmlFor="tpl-model">Analysis Model (optional)</Label>
+                  <p className="text-xs text-muted-foreground">Override the global default model for sessions using this template.</p>
+                  <Select
+                    value={analysisModel || "default"}
+                    onValueChange={(val) => setAnalysisModel(val === "default" ? "" : val)}
+                    data-testid="select-template-model"
+                  >
+                    <SelectTrigger id="tpl-model" data-testid="trigger-template-model">
+                      <SelectValue placeholder="Use global default" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="default">Use global default</SelectItem>
+                      {analysisLlmModels.map(m => (
+                        <SelectItem key={m.id} value={m.id} disabled={!m.available} data-testid={`option-template-model-${m.id}`}>
+                          {m.name}{!m.available ? " (key missing)" : ""}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+              )}
 
               {tenantsList.length > 0 && (
                 <div className="space-y-2">

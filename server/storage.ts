@@ -1,8 +1,8 @@
 import { db } from "./db";
 import { 
-    users, clients, meetings, transcripts, actionItems, topics, meetingSummaries, templates, templateTenants, roles, policies, meetingPolicies, tenants, audioLanguageOptions, promptSettings,
+    users, clients, meetings, transcripts, actionItems, topics, meetingSummaries, templates, templateTenants, roles, policies, meetingPolicies, tenants, audioLanguageOptions, promptSettings, systemSettings,
     type InsertUser, type InsertClient, type InsertMeeting, type InsertTranscript, type InsertActionItem, type InsertTopic, type InsertMeetingSummary, type InsertTemplate, type InsertRole, type InsertPolicy, type InsertMeetingPolicy, type InsertTenant, type InsertAudioLanguageOption, type InsertPromptSetting,
-    type User, type Client, type Meeting, type Transcript, type ActionItem, type Topic, type MeetingSummary, type Template, type TemplateWithTenants, type Role, type Policy, type MeetingPolicy, type Tenant, type AudioLanguageOption, type PromptSetting
+    type User, type Client, type Meeting, type Transcript, type ActionItem, type Topic, type MeetingSummary, type Template, type TemplateWithTenants, type Role, type Policy, type MeetingPolicy, type Tenant, type AudioLanguageOption, type PromptSetting, type SystemSetting
 } from "@shared/schema";
 import { eq, and, desc, lt, ne, or, isNull, sql, inArray } from "drizzle-orm";
 
@@ -47,7 +47,7 @@ export interface IStorage {
     getTemplates(tenantId?: number): Promise<Template[]>;
     getTemplate(id: number): Promise<Template | undefined>;
     createTemplate(template: InsertTemplate): Promise<Template>;
-    updateTemplate(id: number, data: Partial<Pick<Template, "name" | "description" | "formatPrompt" | "isDefault">>): Promise<Template>;
+    updateTemplate(id: number, data: Partial<Pick<Template, "name" | "description" | "formatPrompt" | "isDefault" | "analysisModel">>): Promise<Template>;
     deleteTemplate(id: number): Promise<void>;
     getTemplateTenantIds(templateId: number): Promise<number[]>;
     setTemplateTenants(templateId: number, tenantIds: number[]): Promise<void>;
@@ -126,6 +126,11 @@ export interface IStorage {
     getPromptSettingByKey(key: string): Promise<PromptSetting | undefined>;
     upsertPromptSetting(key: string, value: string): Promise<PromptSetting>;
     resetPromptSettingToDefault(key: string): Promise<PromptSetting | undefined>;
+
+    // System Settings
+    getSystemSettings(): Promise<SystemSetting[]>;
+    getSystemSettingByKey(key: string): Promise<SystemSetting | undefined>;
+    upsertSystemSetting(key: string, value: string): Promise<SystemSetting>;
 }
 
 export class DatabaseStorage implements IStorage {
@@ -324,7 +329,7 @@ export class DatabaseStorage implements IStorage {
         return template;
     }
 
-    async updateTemplate(id: number, data: Partial<Pick<Template, "name" | "description" | "formatPrompt" | "isDefault">>): Promise<Template> {
+    async updateTemplate(id: number, data: Partial<Pick<Template, "name" | "description" | "formatPrompt" | "isDefault" | "analysisModel">>): Promise<Template> {
         const [template] = await db.update(templates).set(data).where(eq(templates.id, id)).returning();
         return template;
     }
@@ -686,6 +691,25 @@ export class DatabaseStorage implements IStorage {
             .set({ value: existing.defaultValue })
             .where(eq(promptSettings.key, key))
             .returning();
+        return row;
+    }
+
+    // System Settings
+    async getSystemSettings(): Promise<SystemSetting[]> {
+        return await db.select().from(systemSettings).orderBy(systemSettings.key);
+    }
+
+    async getSystemSettingByKey(key: string): Promise<SystemSetting | undefined> {
+        const [row] = await db.select().from(systemSettings).where(eq(systemSettings.key, key));
+        return row;
+    }
+
+    async upsertSystemSetting(key: string, value: string): Promise<SystemSetting> {
+        const existing = await this.getSystemSettingByKey(key);
+        if (!existing) {
+            throw new Error(`System setting key "${key}" not found`);
+        }
+        const [row] = await db.update(systemSettings).set({ value }).where(eq(systemSettings.key, key)).returning();
         return row;
     }
 }

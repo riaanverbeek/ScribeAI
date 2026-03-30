@@ -1040,16 +1040,17 @@ export async function registerRoutes(
 
   app.post("/api/superuser/templates", requireAuth, requireVerified, requireSuperuser, async (req, res) => {
     try {
-      const { name, description, formatPrompt, isDefault, tenantIds } = z.object({
+      const { name, description, formatPrompt, isDefault, analysisModel, tenantIds } = z.object({
         name: z.string().min(1),
         description: z.string().optional(),
         formatPrompt: z.string().min(1),
         isDefault: z.boolean().optional(),
+        analysisModel: z.string().nullable().optional(),
         tenantIds: z.array(z.number()).optional(),
       }).parse(req.body);
       const user = (req as any).user as User;
       const template = await storage.createTemplate({
-        name, description: description || null, formatPrompt, isDefault: isDefault || false, createdBy: user.id, tenantId: null,
+        name, description: description || null, formatPrompt, isDefault: isDefault || false, analysisModel: analysisModel || null, createdBy: user.id, tenantId: null,
       });
       if (tenantIds && tenantIds.length > 0) {
         await storage.setTemplateTenants(template.id, tenantIds);
@@ -1072,6 +1073,7 @@ export async function registerRoutes(
         description: z.string().nullable().optional(),
         formatPrompt: z.string().min(1).optional(),
         isDefault: z.boolean().optional(),
+        analysisModel: z.string().nullable().optional(),
         tenantIds: z.array(z.number()).optional(),
       }).parse(req.body);
       const updated = await storage.updateTemplate(id, data);
@@ -1232,6 +1234,42 @@ export async function registerRoutes(
     } catch (err) {
       console.error("Error resetting prompt setting:", err);
       res.status(500).json({ message: "Failed to reset prompt setting" });
+    }
+  });
+
+  // ========== SYSTEM SETTINGS ==========
+
+  app.get("/api/superuser/system-settings", requireAuth, requireVerified, requireSuperuser, async (req, res) => {
+    try {
+      const settings = await storage.getSystemSettings();
+      res.json(settings);
+    } catch (err) {
+      console.error("Error fetching system settings:", err);
+      res.status(500).json({ message: "Failed to fetch system settings" });
+    }
+  });
+
+  app.patch("/api/superuser/system-settings/:key", requireAuth, requireVerified, requireSuperuser, async (req, res) => {
+    try {
+      const { value } = req.body;
+      if (typeof value !== "string") return res.status(400).json({ message: "value is required" });
+      const updated = await storage.upsertSystemSetting(req.params.key, value);
+      res.json(updated);
+    } catch (err) {
+      console.error("Error updating system setting:", err);
+      res.status(500).json({ message: "Failed to update system setting" });
+    }
+  });
+
+  // ========== LLM REGISTRY ==========
+
+  app.get("/api/superuser/llm-models", requireAuth, requireVerified, requireSuperuser, async (req, res) => {
+    try {
+      const { getLlmRegistryWithAvailability } = await import("./llmRegistry");
+      res.json(getLlmRegistryWithAvailability());
+    } catch (err) {
+      console.error("Error fetching LLM registry:", err);
+      res.status(500).json({ message: "Failed to fetch LLM models" });
     }
   });
 

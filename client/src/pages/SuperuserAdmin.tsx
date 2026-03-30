@@ -13,9 +13,9 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 import { Switch } from "@/components/ui/switch";
-import { Pencil, Trash2, Plus, Users, Briefcase, Calendar, Shield, ShieldCheck, Tag, ArrowLeft, Eye, ChevronRight, Loader2, Building2, Globe, Palette, ArrowUpDown, Languages, MessageSquare, RotateCcw, Save, ChevronDown, ChevronUp } from "lucide-react";
+import { Pencil, Trash2, Plus, Users, Briefcase, Calendar, Shield, ShieldCheck, Tag, ArrowLeft, Eye, ChevronRight, Loader2, Building2, Globe, Palette, ArrowUpDown, Languages, MessageSquare, RotateCcw, Save, ChevronDown, ChevronUp, Cpu, CheckCircle, XCircle } from "lucide-react";
 import { format } from "date-fns";
-import type { SafeUser, Client, Meeting, Role, Transcript, ActionItem, Topic, MeetingSummary, Tenant, AudioLanguageOption, PromptSetting } from "@shared/schema";
+import type { SafeUser, Client, Meeting, Role, Transcript, ActionItem, Topic, MeetingSummary, Tenant, AudioLanguageOption, PromptSetting, SystemSetting } from "@shared/schema";
 
 type SuperuserUser = SafeUser & { isSuperuser: boolean };
 
@@ -1439,6 +1439,153 @@ function PromptCard({ prompt, onSave, onReset, isSaving, isResetting }: {
   );
 }
 
+interface LlmModelWithAvailability {
+  id: string;
+  name: string;
+  description: string;
+  requiresEnvVar: string | null;
+  available: boolean;
+}
+
+function LlmTab() {
+  const { toast } = useToast();
+
+  const { data: models = [], isLoading: modelsLoading } = useQuery<LlmModelWithAvailability[]>({
+    queryKey: ["/api/superuser/llm-models"],
+  });
+
+  const { data: settings = [], isLoading: settingsLoading } = useQuery<SystemSetting[]>({
+    queryKey: ["/api/superuser/system-settings"],
+  });
+
+  const saveMutation = useMutation({
+    mutationFn: async ({ key, value }: { key: string; value: string }) => {
+      const res = await apiRequest("PATCH", `/api/superuser/system-settings/${encodeURIComponent(key)}`, { value });
+      return res.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/superuser/system-settings"] });
+      toast({ title: "Setting saved" });
+    },
+    onError: (err: Error) => toast({ title: "Error", description: err.message, variant: "destructive" }),
+  });
+
+  const isLoading = modelsLoading || settingsLoading;
+
+  const getSetting = (key: string) => settings.find(s => s.key === key)?.value ?? "";
+
+  const transcriptionModels = models.filter(m => ["openai-whisper", "soniox"].includes(m.id));
+  const analysisModels = models.filter(m => !["openai-whisper", "soniox"].includes(m.id));
+
+  if (isLoading) {
+    return (
+      <div className="space-y-3">
+        {[1, 2].map(i => (
+          <Card key={i}><CardContent className="p-4 h-20 animate-pulse bg-muted/40 rounded" /></Card>
+        ))}
+      </div>
+    );
+  }
+
+  return (
+    <div className="space-y-6">
+      <p className="text-sm text-muted-foreground">
+        Configure which AI models are used for transcription and session analysis. Changes take effect immediately for all new sessions.
+      </p>
+
+      <div className="grid gap-4 sm:grid-cols-2">
+        <Card>
+          <CardHeader className="pb-2">
+            <CardTitle className="text-sm font-semibold flex items-center gap-2">
+              <Cpu className="w-4 h-4" /> Transcription Model
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-3">
+            <p className="text-xs text-muted-foreground">Used to convert audio recordings into text.</p>
+            <Select
+              value={getSetting("transcription_model")}
+              onValueChange={(val) => saveMutation.mutate({ key: "transcription_model", value: val })}
+              disabled={saveMutation.isPending}
+              data-testid="select-transcription-model"
+            >
+              <SelectTrigger data-testid="trigger-transcription-model">
+                <SelectValue placeholder="Select model…" />
+              </SelectTrigger>
+              <SelectContent>
+                {transcriptionModels.map(m => (
+                  <SelectItem key={m.id} value={m.id} disabled={!m.available} data-testid={`option-transcription-${m.id}`}>
+                    <span className="flex items-center gap-2">
+                      {m.available
+                        ? <CheckCircle className="w-3 h-3 text-green-500" />
+                        : <XCircle className="w-3 h-3 text-muted-foreground" />}
+                      {m.name}
+                      {!m.available && <span className="text-xs text-muted-foreground ml-1">(key missing)</span>}
+                    </span>
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader className="pb-2">
+            <CardTitle className="text-sm font-semibold flex items-center gap-2">
+              <Cpu className="w-4 h-4" /> Default Analysis Model
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-3">
+            <p className="text-xs text-muted-foreground">Used when no template-specific model is set.</p>
+            <Select
+              value={getSetting("default_analysis_model")}
+              onValueChange={(val) => saveMutation.mutate({ key: "default_analysis_model", value: val })}
+              disabled={saveMutation.isPending}
+              data-testid="select-analysis-model"
+            >
+              <SelectTrigger data-testid="trigger-analysis-model">
+                <SelectValue placeholder="Select model…" />
+              </SelectTrigger>
+              <SelectContent>
+                {analysisModels.map(m => (
+                  <SelectItem key={m.id} value={m.id} disabled={!m.available} data-testid={`option-analysis-${m.id}`}>
+                    <span className="flex items-center gap-2">
+                      {m.available
+                        ? <CheckCircle className="w-3 h-3 text-green-500" />
+                        : <XCircle className="w-3 h-3 text-muted-foreground" />}
+                      {m.name}
+                      {!m.available && <span className="text-xs text-muted-foreground ml-1">(key missing)</span>}
+                    </span>
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </CardContent>
+        </Card>
+      </div>
+
+      <div>
+        <h3 className="text-sm font-semibold text-muted-foreground uppercase tracking-wide mb-3">Available Models</h3>
+        <div className="space-y-2">
+          {models.map(m => (
+            <div key={m.id} className="flex items-center justify-between rounded-lg border px-4 py-3" data-testid={`model-row-${m.id}`}>
+              <div className="space-y-0.5">
+                <p className="text-sm font-medium">{m.name}</p>
+                <p className="text-xs text-muted-foreground">{m.description}</p>
+              </div>
+              <div className="flex items-center gap-2">
+                {m.available
+                  ? <Badge variant="outline" className="text-green-600 border-green-600 text-xs">Ready</Badge>
+                  : <Badge variant="outline" className="text-muted-foreground text-xs">Key missing</Badge>
+                }
+              </div>
+            </div>
+          ))}
+        </div>
+      </div>
+    </div>
+  );
+}
+
 function PromptsTab() {
   const { toast } = useToast();
   const { data: prompts = [], isLoading } = useQuery<PromptSetting[]>({
@@ -1532,7 +1679,7 @@ export default function SuperuserAdmin() {
       </div>
 
       <Tabs defaultValue="users">
-        <TabsList className="w-full grid grid-cols-7 mb-4" data-testid="tabs-superuser">
+        <TabsList className="w-full grid grid-cols-8 mb-4" data-testid="tabs-superuser">
           <TabsTrigger value="users" className="gap-1" data-testid="tab-users">
             <Users className="w-4 h-4 hidden sm:block" /> Users
           </TabsTrigger>
@@ -1554,6 +1701,9 @@ export default function SuperuserAdmin() {
           <TabsTrigger value="prompts" className="gap-1" data-testid="tab-prompts">
             <MessageSquare className="w-4 h-4 hidden sm:block" /> Prompts
           </TabsTrigger>
+          <TabsTrigger value="llm" className="gap-1" data-testid="tab-llm">
+            <Cpu className="w-4 h-4 hidden sm:block" /> LLM
+          </TabsTrigger>
         </TabsList>
 
         <TabsContent value="users"><UsersTab /></TabsContent>
@@ -1563,6 +1713,7 @@ export default function SuperuserAdmin() {
         <TabsContent value="tenants"><TenantsTab /></TabsContent>
         <TabsContent value="languages"><LanguageOptionsTab /></TabsContent>
         <TabsContent value="prompts"><PromptsTab /></TabsContent>
+        <TabsContent value="llm"><LlmTab /></TabsContent>
       </Tabs>
     </div>
   );

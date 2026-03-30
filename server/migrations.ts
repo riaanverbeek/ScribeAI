@@ -3,6 +3,7 @@ import { sql } from "drizzle-orm";
 import { storage } from "./storage";
 import { processMeetingCore } from "./processMeeting";
 import { PROMPT_DEFAULTS } from "./promptDefaults";
+import { SYSTEM_SETTING_DEFAULTS } from "./llmRegistry";
 
 export async function backfillTenantIds() {
   try {
@@ -167,5 +168,36 @@ export async function migratePromptSettings() {
     console.log("[migrations] prompt_settings table ready");
   } catch (err) {
     console.error("[migrations] Error migrating prompt_settings:", err);
+  }
+}
+
+export async function migrateSystemSettings() {
+  try {
+    await db.execute(sql`
+      CREATE TABLE IF NOT EXISTS system_settings (
+        id SERIAL PRIMARY KEY,
+        key TEXT NOT NULL UNIQUE,
+        label TEXT NOT NULL,
+        description TEXT,
+        value TEXT NOT NULL,
+        default_value TEXT NOT NULL,
+        created_at TIMESTAMP DEFAULT NOW()
+      )
+    `);
+
+    for (const [key, def] of Object.entries(SYSTEM_SETTING_DEFAULTS)) {
+      const escaped = def.value.replace(/'/g, "''");
+      const labelEscaped = def.label.replace(/'/g, "''");
+      const descEscaped = (def.description || "").replace(/'/g, "''");
+      await db.execute(sql.raw(
+        `INSERT INTO system_settings (key, label, description, value, default_value)
+         VALUES ('${key}', '${labelEscaped}', '${descEscaped}', '${escaped}', '${escaped}')
+         ON CONFLICT (key) DO NOTHING`
+      ));
+    }
+
+    console.log("[migrations] system_settings table ready");
+  } catch (err) {
+    console.error("[migrations] Error migrating system_settings:", err);
   }
 }

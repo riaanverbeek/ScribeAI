@@ -60,6 +60,7 @@ export const templates = pgTable("templates", {
   description: text("description"),
   formatPrompt: text("format_prompt").notNull(),
   isDefault: boolean("is_default").default(false).notNull(),
+  analysisModel: text("analysis_model"),
   createdBy: integer("created_by").references(() => users.id, { onDelete: "set null" }),
   tenantId: integer("tenant_id").references(() => tenants.id, { onDelete: "cascade" }),
   createdAt: timestamp("created_at").defaultNow(),
@@ -175,6 +176,16 @@ export const audioLanguageOptions = pgTable("audio_language_options", {
 });
 
 export const promptSettings = pgTable("prompt_settings", {
+  id: serial("id").primaryKey(),
+  key: text("key").notNull().unique(),
+  label: text("label").notNull(),
+  description: text("description"),
+  value: text("value").notNull(),
+  defaultValue: text("default_value").notNull(),
+  createdAt: timestamp("created_at").defaultNow(),
+});
+
+export const systemSettings = pgTable("system_settings", {
   id: serial("id").primaryKey(),
   key: text("key").notNull().unique(),
   label: text("label").notNull(),
@@ -334,6 +345,8 @@ export const insertAudioLanguageOptionSchema = createInsertSchema(audioLanguageO
 
 export const insertPromptSettingSchema = createInsertSchema(promptSettings).omit({ id: true, createdAt: true });
 
+export const insertSystemSettingSchema = createInsertSchema(systemSettings).omit({ id: true, createdAt: true });
+
 export const insertConversationSchema = createInsertSchema(conversations).omit({
   id: true,
   createdAt: true,
@@ -389,6 +402,9 @@ export type InsertAudioLanguageOption = z.infer<typeof insertAudioLanguageOption
 
 export type PromptSetting = typeof promptSettings.$inferSelect;
 export type InsertPromptSetting = z.infer<typeof insertPromptSettingSchema>;
+
+export type SystemSetting = typeof systemSettings.$inferSelect;
+export type InsertSystemSetting = z.infer<typeof insertSystemSettingSchema>;
 
 export type Conversation = typeof conversations.$inferSelect;
 export type InsertConversation = z.infer<typeof insertConversationSchema>;
