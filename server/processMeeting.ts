@@ -40,7 +40,7 @@ async function runAnalysisWithModel(
     const anthropicModel = modelMap[modelId] || "claude-sonnet-4-6";
     const message = await anthropic.messages.create({
       model: anthropicModel,
-      max_tokens: 4096,
+      max_tokens: 8192,
       system: systemPrompt + "\n\nYou MUST respond with a valid JSON object only — no markdown fences, no extra text.",
       messages: [{ role: "user", content: userContent }],
       temperature: 0.3,
