@@ -1,12 +1,22 @@
 const SONIOX_BASE = "https://api.soniox.com/v1";
-const POLL_INTERVAL_MS = 5_000;
+const POLL_MIN_MS = 3_000;
+const POLL_MAX_MS = 30_000;
 const POLL_TIMEOUT_MS = 5 * 60 * 1_000;
 
 function sonioxHeaders(apiKey: string): Record<string, string> {
   return { Authorization: `Bearer ${apiKey}` };
 }
 
-async function sonioxJson<T>(
+async function safeJson<T>(res: Response): Promise<T> {
+  const text = await res.text();
+  try {
+    return JSON.parse(text) as T;
+  } catch {
+    throw new Error(`Soniox returned non-JSON (${res.status}): ${text.slice(0, 200)}`);
+  }
+}
+
+async function sonioxFetch<T>(
   apiKey: string,
   method: string,
   path: string,
@@ -17,7 +27,7 @@ async function sonioxJson<T>(
     headers: { ...sonioxHeaders(apiKey), "Content-Type": "application/json" },
     body: body !== undefined ? JSON.stringify(body) : undefined,
   });
-  const json = (await res.json()) as T & { status_code?: number; message?: string };
+  const json = await safeJson<T & { message?: string }>(res);
   if (!res.ok) {
     const msg = (json as { message?: string }).message ?? res.statusText;
     throw new Error(`Soniox ${method} ${path} failed (${res.status}): ${msg}`);
@@ -39,7 +49,7 @@ async function uploadFile(
     headers: sonioxHeaders(apiKey),
     body: form,
   });
-  const json = (await res.json()) as { id?: string; message?: string };
+  const json = await safeJson<{ id?: string; message?: string }>(res);
   if (!res.ok || !json.id) {
     throw new Error(`Soniox file upload failed (${res.status}): ${json.message ?? res.statusText}`);
   }
@@ -51,6 +61,11 @@ async function deleteResource(apiKey: string, path: string): Promise<void> {
     method: "DELETE",
     headers: sonioxHeaders(apiKey),
   }).catch(() => {});
+}
+
+function backoffMs(attempt: number): number {
+  const ms = POLL_MIN_MS * Math.pow(2, attempt);
+  return Math.min(ms, POLL_MAX_MS);
 }
 
 export async function transcribeWithSoniox(
@@ -87,7 +102,7 @@ export async function transcribeWithSoniox(
       createBody.language_hints = [languageHint];
     }
 
-    const job = await sonioxJson<{ id: string }>(
+    const job = await sonioxFetch<{ id: string }>(
       apiKey,
       "POST",
       "/transcriptions",
@@ -96,18 +111,20 @@ export async function transcribeWithSoniox(
     transcriptionId = job.id;
 
     const deadline = Date.now() + POLL_TIMEOUT_MS;
+    let attempt = 0;
 
     while (Date.now() < deadline) {
-      await new Promise((r) => setTimeout(r, POLL_INTERVAL_MS));
+      await new Promise((r) => setTimeout(r, backoffMs(attempt)));
+      attempt++;
 
-      const status = await sonioxJson<{ id: string; status: string }>(
+      const status = await sonioxFetch<{ id: string; status: string }>(
         apiKey,
         "GET",
         `/transcriptions/${transcriptionId}`
       );
 
       if (status.status === "completed") {
-        const transcript = await sonioxJson<{ id: string; text: string }>(
+        const transcript = await sonioxFetch<{ id: string; text: string }>(
           apiKey,
           "GET",
           `/transcriptions/${transcriptionId}/transcript`
@@ -124,9 +141,7 @@ export async function transcribeWithSoniox(
       }
     }
 
-    throw new Error(
-      `Soniox transcription timed out after ${POLL_TIMEOUT_MS / 1000}s`
-    );
+    throw new Error(`Soniox transcription timed out after ${POLL_TIMEOUT_MS / 1000}s`);
   } finally {
     if (transcriptionId) await deleteResource(apiKey, `/transcriptions/${transcriptionId}`);
     if (fileId) await deleteResource(apiKey, `/files/${fileId}`);
