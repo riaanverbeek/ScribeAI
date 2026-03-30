@@ -1,8 +1,3 @@
-import FormData from "form-data";
-import fetch from "node-fetch";
-
-const SONIOX_API_URL = "https://api.soniox.com/v1/transcribe-file";
-
 export async function transcribeWithSoniox(
   audioBuffer: Buffer,
   format: "wav" | "mp3" | "webm",
@@ -20,19 +15,15 @@ export async function transcribeWithSoniox(
   };
 
   const form = new FormData();
-  form.append("file", audioBuffer, {
-    filename: `audio.${format}`,
-    contentType: mimeMap[format] || "audio/wav",
-  });
+  form.append("file", new Blob([audioBuffer], { type: mimeMap[format] || "audio/wav" }), `audio.${format}`);
   if (languageHint) {
     form.append("language_hints", languageHint);
   }
 
-  const response = await fetch(SONIOX_API_URL, {
+  const response = await fetch("https://api.soniox.com/v1/transcribe-file", {
     method: "POST",
     headers: {
       Authorization: `Bearer ${apiKey}`,
-      ...form.getHeaders(),
     },
     body: form,
   });

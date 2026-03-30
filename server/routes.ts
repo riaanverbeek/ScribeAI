@@ -5,7 +5,7 @@ import session from "express-session";
 import connectPgSimple from "connect-pg-simple";
 import bcrypt from "bcryptjs";
 import { storage } from "./storage";
-import { LLM_REGISTRY } from "./llmRegistry";
+import { LLM_REGISTRY, SYSTEM_SETTING_CAPABILITIES } from "./llmRegistry";
 import { api } from "@shared/routes";
 import { z } from "zod";
 import multer from "multer";
@@ -1041,13 +1041,13 @@ export async function registerRoutes(
 
   app.post("/api/superuser/templates", requireAuth, requireVerified, requireSuperuser, async (req, res) => {
     try {
-      const validModelIds = LLM_REGISTRY.map(m => m.id);
+      const validAnalysisIds = LLM_REGISTRY.filter(m => m.supportsAnalysis).map(m => m.id);
       const { name, description, formatPrompt, isDefault, analysisModel, tenantIds } = z.object({
         name: z.string().min(1),
         description: z.string().optional(),
         formatPrompt: z.string().min(1),
         isDefault: z.boolean().optional(),
-        analysisModel: z.string().nullable().optional().refine(v => !v || validModelIds.includes(v), { message: "Invalid analysis model id" }),
+        analysisModel: z.string().nullable().optional().refine(v => !v || validAnalysisIds.includes(v), { message: `Analysis model must be one of: ${validAnalysisIds.join(", ")}` }),
         tenantIds: z.array(z.number()).optional(),
       }).parse(req.body);
       const user = (req as any).user as User;
@@ -1070,13 +1070,13 @@ export async function registerRoutes(
     const existing = await storage.getTemplate(id);
     if (!existing) return res.status(404).json({ message: "Template not found" });
     try {
-      const validModelIds = LLM_REGISTRY.map(m => m.id);
+      const validAnalysisIds = LLM_REGISTRY.filter(m => m.supportsAnalysis).map(m => m.id);
       const { tenantIds, ...data } = z.object({
         name: z.string().min(1).optional(),
         description: z.string().nullable().optional(),
         formatPrompt: z.string().min(1).optional(),
         isDefault: z.boolean().optional(),
-        analysisModel: z.string().nullable().optional().refine(v => !v || validModelIds.includes(v), { message: "Invalid analysis model id" }),
+        analysisModel: z.string().nullable().optional().refine(v => !v || validAnalysisIds.includes(v), { message: `Analysis model must be one of: ${validAnalysisIds.join(", ")}` }),
         tenantIds: z.array(z.number()).optional(),
       }).parse(req.body);
       const updated = await storage.updateTemplate(id, data);
@@ -1256,9 +1256,17 @@ export async function registerRoutes(
     try {
       const { value } = req.body;
       if (typeof value !== "string") return res.status(400).json({ message: "value is required" });
-      const validIds = LLM_REGISTRY.map(m => m.id);
-      if (!validIds.includes(value)) {
-        return res.status(400).json({ message: `Invalid model id "${value}". Must be one of: ${validIds.join(", ")}` });
+      const capabilityKey = SYSTEM_SETTING_CAPABILITIES[req.params.key];
+      if (capabilityKey) {
+        const validIds = LLM_REGISTRY.filter(m => m[capabilityKey]).map(m => m.id);
+        if (!validIds.includes(value)) {
+          return res.status(400).json({ message: `Model "${value}" does not support ${req.params.key}. Valid options: ${validIds.join(", ")}` });
+        }
+      } else {
+        const validIds = LLM_REGISTRY.map(m => m.id);
+        if (!validIds.includes(value)) {
+          return res.status(400).json({ message: `Invalid model id "${value}". Must be one of: ${validIds.join(", ")}` });
+        }
       }
       const updated = await storage.upsertSystemSetting(req.params.key, value);
       res.json(updated);

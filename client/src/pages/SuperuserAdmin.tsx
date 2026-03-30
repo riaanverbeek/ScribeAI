@@ -1444,6 +1444,8 @@ interface LlmModelWithAvailability {
   name: string;
   description: string;
   requiresEnvVar: string | null;
+  supportsTranscription: boolean;
+  supportsAnalysis: boolean;
   available: boolean;
 }
 
@@ -1509,17 +1511,21 @@ function LlmTab() {
                 <SelectValue placeholder="Select model…" />
               </SelectTrigger>
               <SelectContent>
-                {models.map(m => (
-                  <SelectItem key={m.id} value={m.id} disabled={!m.available} data-testid={`option-transcription-${m.id}`}>
-                    <span className="flex items-center gap-2">
-                      {m.available
-                        ? <CheckCircle className="w-3 h-3 text-green-500" />
-                        : <XCircle className="w-3 h-3 text-muted-foreground" />}
-                      {m.name}
-                      {!m.available && <span className="text-xs text-muted-foreground ml-1">(key missing)</span>}
-                    </span>
-                  </SelectItem>
-                ))}
+                {models.map(m => {
+                  const disabled = !m.available || !m.supportsTranscription;
+                  const reason = !m.supportsTranscription ? "analysis only" : !m.available ? "key missing" : null;
+                  return (
+                    <SelectItem key={m.id} value={m.id} disabled={disabled} data-testid={`option-transcription-${m.id}`}>
+                      <span className="flex items-center gap-2">
+                        {!disabled
+                          ? <CheckCircle className="w-3 h-3 text-green-500" />
+                          : <XCircle className="w-3 h-3 text-muted-foreground" />}
+                        {m.name}
+                        {reason && <span className="text-xs text-muted-foreground ml-1">({reason})</span>}
+                      </span>
+                    </SelectItem>
+                  );
+                })}
               </SelectContent>
             </Select>
           </CardContent>
@@ -1543,17 +1549,21 @@ function LlmTab() {
                 <SelectValue placeholder="Select model…" />
               </SelectTrigger>
               <SelectContent>
-                {models.map(m => (
-                  <SelectItem key={m.id} value={m.id} disabled={!m.available} data-testid={`option-analysis-${m.id}`}>
-                    <span className="flex items-center gap-2">
-                      {m.available
-                        ? <CheckCircle className="w-3 h-3 text-green-500" />
-                        : <XCircle className="w-3 h-3 text-muted-foreground" />}
-                      {m.name}
-                      {!m.available && <span className="text-xs text-muted-foreground ml-1">(key missing)</span>}
-                    </span>
-                  </SelectItem>
-                ))}
+                {models.map(m => {
+                  const disabled = !m.available || !m.supportsAnalysis;
+                  const reason = !m.supportsAnalysis ? "transcription only" : !m.available ? "key missing" : null;
+                  return (
+                    <SelectItem key={m.id} value={m.id} disabled={disabled} data-testid={`option-analysis-${m.id}`}>
+                      <span className="flex items-center gap-2">
+                        {!disabled
+                          ? <CheckCircle className="w-3 h-3 text-green-500" />
+                          : <XCircle className="w-3 h-3 text-muted-foreground" />}
+                        {m.name}
+                        {reason && <span className="text-xs text-muted-foreground ml-1">({reason})</span>}
+                      </span>
+                    </SelectItem>
+                  );
+                })}
               </SelectContent>
             </Select>
           </CardContent>

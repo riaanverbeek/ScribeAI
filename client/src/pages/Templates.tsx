@@ -71,7 +71,7 @@ export default function Templates() {
     enabled: isSuperuser,
   });
 
-  const { data: analysisLlmModels = [] } = useQuery<{ id: string; name: string; available: boolean }[]>({
+  const { data: allLlmModels = [] } = useQuery<{ id: string; name: string; available: boolean; supportsAnalysis: boolean }[]>({
     queryKey: ["/api/superuser/llm-registry"],
     enabled: isSuperuser,
   });
@@ -296,7 +296,7 @@ export default function Templates() {
                 <Label htmlFor="tpl-default" className="text-sm">Set as default template</Label>
               </div>
 
-              {analysisLlmModels.length > 0 && (
+              {allLlmModels.length > 0 && (
                 <div className="space-y-2">
                   <Label htmlFor="tpl-model">Analysis Model (optional)</Label>
                   <p className="text-xs text-muted-foreground">Override the global default model for sessions using this template.</p>
@@ -310,11 +310,15 @@ export default function Templates() {
                     </SelectTrigger>
                     <SelectContent>
                       <SelectItem value="default">Use global default</SelectItem>
-                      {analysisLlmModels.map(m => (
-                        <SelectItem key={m.id} value={m.id} disabled={!m.available} data-testid={`option-template-model-${m.id}`}>
-                          {m.name}{!m.available ? " (key missing)" : ""}
-                        </SelectItem>
-                      ))}
+                      {allLlmModels.map(m => {
+                        const disabled = !m.available || !m.supportsAnalysis;
+                        const reason = !m.supportsAnalysis ? "transcription only" : !m.available ? "key missing" : null;
+                        return (
+                          <SelectItem key={m.id} value={m.id} disabled={disabled} data-testid={`option-template-model-${m.id}`}>
+                            {m.name}{reason ? ` (${reason})` : ""}
+                          </SelectItem>
+                        );
+                      })}
                     </SelectContent>
                   </Select>
                 </div>
