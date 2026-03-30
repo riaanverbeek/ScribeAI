@@ -1451,7 +1451,7 @@ function LlmTab() {
   const { toast } = useToast();
 
   const { data: models = [], isLoading: modelsLoading } = useQuery<LlmModelWithAvailability[]>({
-    queryKey: ["/api/superuser/llm-models"],
+    queryKey: ["/api/superuser/llm-registry"],
   });
 
   const { data: settings = [], isLoading: settingsLoading } = useQuery<SystemSetting[]>({
@@ -1473,9 +1473,6 @@ function LlmTab() {
   const isLoading = modelsLoading || settingsLoading;
 
   const getSetting = (key: string) => settings.find(s => s.key === key)?.value ?? "";
-
-  const transcriptionModels = models.filter(m => ["openai-whisper", "soniox"].includes(m.id));
-  const analysisModels = models.filter(m => !["openai-whisper", "soniox"].includes(m.id));
 
   if (isLoading) {
     return (
@@ -1512,7 +1509,7 @@ function LlmTab() {
                 <SelectValue placeholder="Select model…" />
               </SelectTrigger>
               <SelectContent>
-                {transcriptionModels.map(m => (
+                {models.map(m => (
                   <SelectItem key={m.id} value={m.id} disabled={!m.available} data-testid={`option-transcription-${m.id}`}>
                     <span className="flex items-center gap-2">
                       {m.available
@@ -1546,7 +1543,7 @@ function LlmTab() {
                 <SelectValue placeholder="Select model…" />
               </SelectTrigger>
               <SelectContent>
-                {analysisModels.map(m => (
+                {models.map(m => (
                   <SelectItem key={m.id} value={m.id} disabled={!m.available} data-testid={`option-analysis-${m.id}`}>
                     <span className="flex items-center gap-2">
                       {m.available

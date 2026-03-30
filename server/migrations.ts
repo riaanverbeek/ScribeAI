@@ -171,6 +171,17 @@ export async function migratePromptSettings() {
   }
 }
 
+export async function migrateTemplateAnalysisModel() {
+  try {
+    await db.execute(sql`
+      ALTER TABLE templates ADD COLUMN IF NOT EXISTS analysis_model TEXT
+    `);
+    console.log("[migrations] templates.analysis_model column ready");
+  } catch (err) {
+    console.error("[migrations] Error migrating templates.analysis_model:", err);
+  }
+}
+
 export async function migrateSystemSettings() {
   try {
     await db.execute(sql`

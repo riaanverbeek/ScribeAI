@@ -1263,7 +1263,7 @@ export async function registerRoutes(
 
   // ========== LLM REGISTRY ==========
 
-  app.get("/api/superuser/llm-models", requireAuth, requireVerified, requireSuperuser, async (req, res) => {
+  app.get("/api/superuser/llm-registry", requireAuth, requireVerified, requireSuperuser, async (req, res) => {
     try {
       const { getLlmRegistryWithAvailability } = await import("./llmRegistry");
       res.json(getLlmRegistryWithAvailability());

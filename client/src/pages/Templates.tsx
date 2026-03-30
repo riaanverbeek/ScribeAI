@@ -71,12 +71,10 @@ export default function Templates() {
     enabled: isSuperuser,
   });
 
-  const { data: llmModels = [] } = useQuery<{ id: string; name: string; available: boolean }[]>({
-    queryKey: ["/api/superuser/llm-models"],
+  const { data: analysisLlmModels = [] } = useQuery<{ id: string; name: string; available: boolean }[]>({
+    queryKey: ["/api/superuser/llm-registry"],
     enabled: isSuperuser,
   });
-
-  const analysisLlmModels = llmModels.filter(m => !["openai-whisper", "soniox"].includes(m.id));
 
   const resetForm = useCallback(() => {
     setName("");
