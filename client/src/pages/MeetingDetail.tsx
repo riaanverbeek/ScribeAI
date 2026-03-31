@@ -37,6 +37,7 @@ import {
   DialogTrigger,
 } from "@/components/ui/dialog";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { useToast } from "@/hooks/use-toast";
 import { motion } from "framer-motion";
 import {
@@ -451,8 +452,8 @@ export default function MeetingDetail() {
 
       queryClient.invalidateQueries({ queryKey: ["/api/meetings/:id", id] });
       // Set smart default mode and open choice dialog
-      const hasAudio = !!(meeting as any).audioUrl;
-      const hasTranscript = !!(meeting as any).transcript;
+      const hasAudio = !!meeting.audioUrl;
+      const hasTranscript = !!meeting.transcript;
       const defaultMode = hasAudio && hasTranscript ? "summary_only" : hasAudio ? "both" : "summary_only";
       setSelectedReprocessMode(defaultMode);
       setIsEditingContext(false);
@@ -1441,50 +1442,70 @@ export default function MeetingDetail() {
               Choose how to reprocess this session.
             </DialogDescription>
           </DialogHeader>
-          <RadioGroup
-            value={selectedReprocessMode}
-            onValueChange={(v) => setSelectedReprocessMode(v as typeof selectedReprocessMode)}
-            className="gap-3 pt-1"
-          >
-            {/* Summary only */}
-            <label
-              className={`flex items-start gap-3 rounded-lg border p-4 cursor-pointer transition-colors ${!meeting.transcript ? "opacity-40 cursor-not-allowed" : "hover:bg-muted/50"} ${selectedReprocessMode === "summary_only" ? "border-primary bg-primary/5" : ""}`}
-              data-testid="option-summary-only"
+          <TooltipProvider delayDuration={200}>
+            <RadioGroup
+              value={selectedReprocessMode}
+              onValueChange={(v) => setSelectedReprocessMode(v as typeof selectedReprocessMode)}
+              className="gap-3 pt-1"
             >
-              <RadioGroupItem value="summary_only" id="mode-summary" disabled={!meeting.transcript} className="mt-0.5 shrink-0" />
-              <div>
-                <p className="font-medium text-sm">Summary only</p>
-                <p className="text-xs text-muted-foreground mt-0.5">Re-run the AI analysis using the existing transcript. Fastest option.</p>
-                {!meeting.transcript && <p className="text-xs text-destructive mt-1">No transcript available.</p>}
-              </div>
-            </label>
+              {/* Summary only */}
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <label
+                    className={`flex items-start gap-3 rounded-lg border p-4 transition-colors ${!meeting.transcript ? "opacity-40 cursor-not-allowed" : "cursor-pointer hover:bg-muted/50"} ${selectedReprocessMode === "summary_only" ? "border-primary bg-primary/5" : ""}`}
+                    data-testid="option-summary-only"
+                  >
+                    <RadioGroupItem value="summary_only" id="mode-summary" disabled={!meeting.transcript} className="mt-0.5 shrink-0" />
+                    <div>
+                      <p className="font-medium text-sm">Summary only</p>
+                      <p className="text-xs text-muted-foreground mt-0.5">Re-run the AI analysis using the existing transcript. Fastest option.</p>
+                    </div>
+                  </label>
+                </TooltipTrigger>
+                {!meeting.transcript && (
+                  <TooltipContent>No transcript available for this session.</TooltipContent>
+                )}
+              </Tooltip>
 
-            {/* Transcript & Summary */}
-            <label
-              className={`flex items-start gap-3 rounded-lg border p-4 cursor-pointer transition-colors ${!meeting.audioUrl ? "opacity-40 cursor-not-allowed" : "hover:bg-muted/50"} ${selectedReprocessMode === "both" ? "border-primary bg-primary/5" : ""}`}
-              data-testid="option-both"
-            >
-              <RadioGroupItem value="both" id="mode-both" disabled={!meeting.audioUrl} className="mt-0.5 shrink-0" />
-              <div>
-                <p className="font-medium text-sm">Transcript &amp; Summary</p>
-                <p className="text-xs text-muted-foreground mt-0.5">Re-transcribe from audio and regenerate the analysis.</p>
-                {!meeting.audioUrl && <p className="text-xs text-destructive mt-1">No audio file — cannot re-transcribe.</p>}
-              </div>
-            </label>
+              {/* Transcript & Summary */}
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <label
+                    className={`flex items-start gap-3 rounded-lg border p-4 transition-colors ${!meeting.audioUrl ? "opacity-40 cursor-not-allowed" : "cursor-pointer hover:bg-muted/50"} ${selectedReprocessMode === "both" ? "border-primary bg-primary/5" : ""}`}
+                    data-testid="option-both"
+                  >
+                    <RadioGroupItem value="both" id="mode-both" disabled={!meeting.audioUrl} className="mt-0.5 shrink-0" />
+                    <div>
+                      <p className="font-medium text-sm">Transcript &amp; Summary</p>
+                      <p className="text-xs text-muted-foreground mt-0.5">Re-transcribe from audio and regenerate the analysis.</p>
+                    </div>
+                  </label>
+                </TooltipTrigger>
+                {!meeting.audioUrl && (
+                  <TooltipContent>No audio file attached — cannot re-transcribe.</TooltipContent>
+                )}
+              </Tooltip>
 
-            {/* Transcript only */}
-            <label
-              className={`flex items-start gap-3 rounded-lg border p-4 cursor-pointer transition-colors ${!meeting.audioUrl ? "opacity-40 cursor-not-allowed" : "hover:bg-muted/50"} ${selectedReprocessMode === "transcript_only" ? "border-primary bg-primary/5" : ""}`}
-              data-testid="option-transcript-only"
-            >
-              <RadioGroupItem value="transcript_only" id="mode-transcript" disabled={!meeting.audioUrl} className="mt-0.5 shrink-0" />
-              <div>
-                <p className="font-medium text-sm">Transcript only</p>
-                <p className="text-xs text-muted-foreground mt-0.5">Re-transcribe from audio without changing the existing analysis.</p>
-                {!meeting.audioUrl && <p className="text-xs text-destructive mt-1">No audio file — cannot re-transcribe.</p>}
-              </div>
-            </label>
-          </RadioGroup>
+              {/* Transcript only */}
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <label
+                    className={`flex items-start gap-3 rounded-lg border p-4 transition-colors ${!meeting.audioUrl ? "opacity-40 cursor-not-allowed" : "cursor-pointer hover:bg-muted/50"} ${selectedReprocessMode === "transcript_only" ? "border-primary bg-primary/5" : ""}`}
+                    data-testid="option-transcript-only"
+                  >
+                    <RadioGroupItem value="transcript_only" id="mode-transcript" disabled={!meeting.audioUrl} className="mt-0.5 shrink-0" />
+                    <div>
+                      <p className="font-medium text-sm">Transcript only</p>
+                      <p className="text-xs text-muted-foreground mt-0.5">Re-transcribe from audio without changing the existing analysis.</p>
+                    </div>
+                  </label>
+                </TooltipTrigger>
+                {!meeting.audioUrl && (
+                  <TooltipContent>No audio file attached — cannot re-transcribe.</TooltipContent>
+                )}
+              </Tooltip>
+            </RadioGroup>
+          </TooltipProvider>
           <DialogFooter className="pt-2">
             <Button variant="outline" onClick={() => setReprocessDialogOpen(false)} data-testid="button-cancel-reprocess">
               Cancel

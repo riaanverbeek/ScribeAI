@@ -198,7 +198,10 @@ export async function processMeetingCore(meetingId: number, mode?: ReprocessMode
     throw new Error(`Meeting ${meetingId} has no audio — cannot re-transcribe`);
   }
 
-  await storage.clearMeetingAnalysis(meetingId);
+  // transcript_only keeps the existing analysis intact — only the transcript changes
+  if (mode !== "transcript_only") {
+    await storage.clearMeetingAnalysis(meetingId);
+  }
 
   if (forceRetranscribe) {
     // Delete the old transcript so we can create a fresh one
