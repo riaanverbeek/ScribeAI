@@ -194,12 +194,20 @@ export async function sendMeetingCompletedEmail(
 }
 
 function getBaseUrl(): string {
-  if (process.env.APP_BASE_URL) {
-    return process.env.APP_BASE_URL;
+  // APP_EMAIL_BASE_URL: explicit override for email links only (use this to point
+  // to the web app URL when APP_BASE_URL is the iOS/mobile app domain)
+  if (process.env.APP_EMAIL_BASE_URL) {
+    return process.env.APP_EMAIL_BASE_URL;
   }
+  // In a Replit deployment, always prefer the .replit.app domain for email links.
+  // APP_BASE_URL may be set to the iOS app's custom domain (e.g. fant-app.com),
+  // which would cause Universal Links to open the mobile app instead of the browser.
   if (process.env.REPLIT_DEPLOYMENT && process.env.REPLIT_DOMAINS) {
     const domain = process.env.REPLIT_DOMAINS.split(",")[0];
     return `https://${domain}`;
+  }
+  if (process.env.APP_BASE_URL) {
+    return process.env.APP_BASE_URL;
   }
   if (process.env.REPLIT_DEV_DOMAIN) {
     return `https://${process.env.REPLIT_DEV_DOMAIN}`;
