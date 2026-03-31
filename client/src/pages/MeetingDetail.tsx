@@ -575,8 +575,8 @@ export default function MeetingDetail() {
         </div>
       </header>
 
-      <ScrollArea className="flex-1">
-        <div className="p-4 sm:p-6 md:p-8 max-w-5xl mx-auto space-y-6 sm:space-y-8">
+      <ScrollArea className="flex-1 overflow-x-hidden">
+        <div className="w-full p-4 sm:p-6 md:p-8 max-w-5xl mx-auto space-y-6 sm:space-y-8">
 
             {needsAudioUpload && (
               <motion.section {...fadeIn}>
@@ -667,7 +667,7 @@ export default function MeetingDetail() {
                     </div>
 
                     {!isEditingClient ? (
-                      <div className="flex items-center gap-2 shrink-0">
+                      <div className="flex items-center gap-2 flex-wrap">
                         {linkedClient && (
                           <Button
                             variant="ghost"
@@ -788,12 +788,13 @@ export default function MeetingDetail() {
                   <CardContent className="p-5">
                     {!isEditingContext ? (
                       <div className="space-y-3">
-                        <div className="flex items-center justify-between gap-4 flex-wrap">
+                        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 sm:gap-4">
                           <p className="text-sm font-medium text-muted-foreground">AI Settings</p>
                           <Button
                             variant="outline"
                             size="sm"
                             onClick={startEditingContext}
+                            className="w-full sm:w-auto shrink-0"
                             data-testid="button-edit-context"
                           >
                             <Pencil className="w-3.5 h-3.5 mr-1" />

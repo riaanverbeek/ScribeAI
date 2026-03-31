@@ -135,27 +135,29 @@ export function AudioPlayer({ url }: AudioPlayerProps) {
 
   if (wsError) {
     return (
-      <div className="bg-white dark:bg-card rounded-2xl border border-slate-200 dark:border-border p-4 shadow-sm">
-        <div className="flex items-center gap-3 text-amber-600 mb-3">
+      <div className="bg-white dark:bg-card rounded-2xl border border-slate-200 dark:border-border p-4 shadow-sm overflow-hidden">
+        <div className="flex items-center gap-3 text-amber-600 mb-3 min-w-0">
           <AlertCircle className="w-5 h-5 shrink-0" />
-          <p className="text-sm font-medium">Waveform unavailable — use the player below</p>
+          <p className="text-sm font-medium truncate">Waveform unavailable — use the player below</p>
         </div>
-        <audio
-          controls
-          src={audioSrc}
-          preload="metadata"
-          className="w-full"
-          data-testid="audio-fallback-player"
-        >
-          Your browser does not support audio playback.
-        </audio>
+        <div className="max-w-full overflow-hidden">
+          <audio
+            controls
+            src={audioSrc}
+            preload="metadata"
+            className="w-full max-w-full"
+            data-testid="audio-fallback-player"
+          >
+            Your browser does not support audio playback.
+          </audio>
+        </div>
       </div>
     );
   }
 
   return (
-    <div className="bg-white dark:bg-card rounded-2xl border border-slate-200 dark:border-border p-4 shadow-sm">
-      <div ref={containerRef} className="w-full mb-4" />
+    <div className="bg-white dark:bg-card rounded-2xl border border-slate-200 dark:border-border p-4 shadow-sm overflow-hidden">
+      <div ref={containerRef} className="w-full mb-4 min-w-0" />
       
       {isLoading && (
         <div className="flex items-center gap-2 text-sm text-muted-foreground mb-4">
@@ -164,12 +166,12 @@ export function AudioPlayer({ url }: AudioPlayerProps) {
         </div>
       )}
 
-      <div className="flex items-center justify-between">
-        <div className="flex items-center gap-4">
+      <div className="flex items-center justify-between gap-2">
+        <div className="flex items-center gap-3 min-w-0">
           <button
             onClick={togglePlay}
             disabled={isLoading}
-            className="w-10 h-10 rounded-full bg-primary text-white flex items-center justify-center hover:bg-slate-800 transition-colors shadow-lg shadow-slate-900/20 disabled:opacity-50"
+            className="w-10 h-10 rounded-full bg-primary text-white flex items-center justify-center hover:bg-slate-800 transition-colors shadow-lg shadow-slate-900/20 disabled:opacity-50 shrink-0"
             data-testid="button-audio-play"
           >
             {isPlaying ? (
@@ -179,14 +181,14 @@ export function AudioPlayer({ url }: AudioPlayerProps) {
             )}
           </button>
           
-          <div className="font-mono text-sm text-slate-500">
+          <div className="font-mono text-sm text-slate-500 min-w-0 truncate">
             {formatTime(currentTime)} / {formatTime(duration)}
           </div>
         </div>
 
         <button
           onClick={toggleMute}
-          className="p-2 rounded-lg hover:bg-slate-100 dark:hover:bg-muted text-slate-500 transition-colors"
+          className="p-2 rounded-lg hover:bg-slate-100 dark:hover:bg-muted text-slate-500 transition-colors shrink-0"
           data-testid="button-audio-mute"
         >
           {isMuted ? <VolumeX className="w-5 h-5" /> : <Volume2 className="w-5 h-5" />}

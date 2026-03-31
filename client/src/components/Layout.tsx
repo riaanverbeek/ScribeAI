@@ -12,7 +12,7 @@ export function Layout({ children }: LayoutProps) {
       <Navigation />
       
       {/* Main Content */}
-      <main className="flex-1 overflow-y-auto relative custom-scrollbar pb-24 md:pb-0">
+      <main className="flex-1 overflow-y-auto overflow-x-hidden relative custom-scrollbar pb-24 md:pb-0">
         {children}
       </main>
     </div>
