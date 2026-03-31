@@ -32,8 +32,11 @@ import {
   DialogContent,
   DialogHeader,
   DialogTitle,
+  DialogDescription,
+  DialogFooter,
   DialogTrigger,
 } from "@/components/ui/dialog";
+import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { useToast } from "@/hooks/use-toast";
 import { motion } from "framer-motion";
 import {
@@ -185,6 +188,8 @@ export default function MeetingDetail() {
   const [editIsInternal, setEditIsInternal] = useState(false);
   const [editDetailLevel, setEditDetailLevel] = useState<"high" | "medium" | "low">("high");
   const [isSavingContext, setIsSavingContext] = useState(false);
+  const [reprocessDialogOpen, setReprocessDialogOpen] = useState(false);
+  const [selectedReprocessMode, setSelectedReprocessMode] = useState<"summary_only" | "both" | "transcript_only">("summary_only");
   const [showAddTask, setShowAddTask] = useState(false);
   const [newTaskContent, setNewTaskContent] = useState("");
   const [newTaskAssignee, setNewTaskAssignee] = useState("");
@@ -353,14 +358,20 @@ export default function MeetingDetail() {
   };
 
   const reprocessMutation = useMutation({
-    mutationFn: async (meetingId: number) => {
-      const res = await apiRequest("POST", `/api/meetings/${meetingId}/reprocess`);
+    mutationFn: async ({ meetingId, mode }: { meetingId: number; mode?: "summary_only" | "both" | "transcript_only" }) => {
+      const res = await apiRequest("POST", `/api/meetings/${meetingId}/reprocess`, mode ? { mode } : undefined);
       return res.json();
     },
-    onSuccess: () => {
+    onSuccess: (_, variables) => {
       queryClient.invalidateQueries({ queryKey: ["/api/meetings/:id", id] });
       queryClient.invalidateQueries({ queryKey: ["/api/meetings"] });
-      toast({ title: "Analysis is being regenerated", description: "The page will update automatically when complete." });
+      const m = variables.mode;
+      const title = m === "transcript_only"
+        ? "Re-transcribing audio..."
+        : m === "both"
+        ? "Re-transcribing and regenerating analysis..."
+        : "Regenerating analysis...";
+      toast({ title, description: "The page will update automatically when complete." });
     },
     onError: (err: any) => {
       toast({ title: "Regeneration failed", description: err.message, variant: "destructive" });
@@ -438,14 +449,25 @@ export default function MeetingDetail() {
         });
       }
 
-      setIsEditingContext(false);
       queryClient.invalidateQueries({ queryKey: ["/api/meetings/:id", id] });
-      reprocessMutation.mutate(id);
+      // Set smart default mode and open choice dialog
+      const hasAudio = !!(meeting as any).audioUrl;
+      const hasTranscript = !!(meeting as any).transcript;
+      const defaultMode = hasAudio && hasTranscript ? "summary_only" : hasAudio ? "both" : "summary_only";
+      setSelectedReprocessMode(defaultMode);
+      setIsEditingContext(false);
+      setReprocessDialogOpen(true);
     } catch (err: any) {
       toast({ title: "Failed to update", description: err.message, variant: "destructive" });
     } finally {
       setIsSavingContext(false);
     }
+  };
+
+  const handleConfirmReprocess = () => {
+    if (!id) return;
+    setReprocessDialogOpen(false);
+    reprocessMutation.mutate({ meetingId: id, mode: selectedReprocessMode });
   };
 
   const handleLinkClient = async (clientIdStr: string) => {
@@ -1033,11 +1055,11 @@ export default function MeetingDetail() {
                         <div className="flex items-center gap-2 pt-2">
                           <Button
                             onClick={handleSaveContextAndReprocess}
-                            disabled={isSavingContext || reprocessMutation.isPending}
+                            disabled={isSavingContext}
                             data-testid="button-regenerate"
                           >
-                            {isSavingContext || reprocessMutation.isPending ? (
-                              <><RefreshCw className="w-4 h-4 mr-1.5 animate-spin" /> {isSavingContext ? "Saving..." : "Regenerating..."}</>
+                            {isSavingContext ? (
+                              <><RefreshCw className="w-4 h-4 mr-1.5 animate-spin" /> Saving...</>
                             ) : (
                               <><RefreshCw className="w-4 h-4 mr-1.5" /> Save & Regenerate</>
                             )}
@@ -1046,7 +1068,7 @@ export default function MeetingDetail() {
                             variant="ghost"
                             size="sm"
                             onClick={() => setIsEditingContext(false)}
-                            disabled={isSavingContext || reprocessMutation.isPending}
+                            disabled={isSavingContext}
                             data-testid="button-cancel-edit-context"
                           >
                             Cancel
@@ -1409,6 +1431,70 @@ export default function MeetingDetail() {
             </Tabs>
           </div>
         </ScrollArea>
+
+      {/* Reprocess mode choice dialog */}
+      <Dialog open={reprocessDialogOpen} onOpenChange={setReprocessDialogOpen}>
+        <DialogContent className="sm:max-w-md" data-testid="dialog-reprocess-mode">
+          <DialogHeader>
+            <DialogTitle>What would you like to regenerate?</DialogTitle>
+            <DialogDescription>
+              Choose how to reprocess this session.
+            </DialogDescription>
+          </DialogHeader>
+          <RadioGroup
+            value={selectedReprocessMode}
+            onValueChange={(v) => setSelectedReprocessMode(v as typeof selectedReprocessMode)}
+            className="gap-3 pt-1"
+          >
+            {/* Summary only */}
+            <label
+              className={`flex items-start gap-3 rounded-lg border p-4 cursor-pointer transition-colors ${!meeting.transcript ? "opacity-40 cursor-not-allowed" : "hover:bg-muted/50"} ${selectedReprocessMode === "summary_only" ? "border-primary bg-primary/5" : ""}`}
+              data-testid="option-summary-only"
+            >
+              <RadioGroupItem value="summary_only" id="mode-summary" disabled={!meeting.transcript} className="mt-0.5 shrink-0" />
+              <div>
+                <p className="font-medium text-sm">Summary only</p>
+                <p className="text-xs text-muted-foreground mt-0.5">Re-run the AI analysis using the existing transcript. Fastest option.</p>
+                {!meeting.transcript && <p className="text-xs text-destructive mt-1">No transcript available.</p>}
+              </div>
+            </label>
+
+            {/* Transcript & Summary */}
+            <label
+              className={`flex items-start gap-3 rounded-lg border p-4 cursor-pointer transition-colors ${!meeting.audioUrl ? "opacity-40 cursor-not-allowed" : "hover:bg-muted/50"} ${selectedReprocessMode === "both" ? "border-primary bg-primary/5" : ""}`}
+              data-testid="option-both"
+            >
+              <RadioGroupItem value="both" id="mode-both" disabled={!meeting.audioUrl} className="mt-0.5 shrink-0" />
+              <div>
+                <p className="font-medium text-sm">Transcript &amp; Summary</p>
+                <p className="text-xs text-muted-foreground mt-0.5">Re-transcribe from audio and regenerate the analysis.</p>
+                {!meeting.audioUrl && <p className="text-xs text-destructive mt-1">No audio file — cannot re-transcribe.</p>}
+              </div>
+            </label>
+
+            {/* Transcript only */}
+            <label
+              className={`flex items-start gap-3 rounded-lg border p-4 cursor-pointer transition-colors ${!meeting.audioUrl ? "opacity-40 cursor-not-allowed" : "hover:bg-muted/50"} ${selectedReprocessMode === "transcript_only" ? "border-primary bg-primary/5" : ""}`}
+              data-testid="option-transcript-only"
+            >
+              <RadioGroupItem value="transcript_only" id="mode-transcript" disabled={!meeting.audioUrl} className="mt-0.5 shrink-0" />
+              <div>
+                <p className="font-medium text-sm">Transcript only</p>
+                <p className="text-xs text-muted-foreground mt-0.5">Re-transcribe from audio without changing the existing analysis.</p>
+                {!meeting.audioUrl && <p className="text-xs text-destructive mt-1">No audio file — cannot re-transcribe.</p>}
+              </div>
+            </label>
+          </RadioGroup>
+          <DialogFooter className="pt-2">
+            <Button variant="outline" onClick={() => setReprocessDialogOpen(false)} data-testid="button-cancel-reprocess">
+              Cancel
+            </Button>
+            <Button onClick={handleConfirmReprocess} disabled={reprocessMutation.isPending} data-testid="button-confirm-reprocess">
+              {reprocessMutation.isPending ? <><Loader2 className="w-4 h-4 mr-1.5 animate-spin" /> Starting...</> : "Regenerate"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       <AlertDialog open={deleteTaskId !== null} onOpenChange={(open) => { if (!open) setDeleteTaskId(null); }}>
         <AlertDialogContent>

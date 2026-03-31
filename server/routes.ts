@@ -17,7 +17,7 @@ import crypto from "crypto";
 import mammoth from "mammoth";
 import { uploadBufferToObjectStorage, downloadBufferFromObjectStorage, streamObjectToResponse, objectStorageService } from "./objectStorageHelper";
 import { registerObjectStorageRoutes } from "./replit_integrations/object_storage";
-import { processMeetingCore } from "./processMeeting";
+import { processMeetingCore, type ReprocessMode } from "./processMeeting";
 
 function cleanAiOutput(text: string): string {
   const lines = text.split('\n');
@@ -2154,10 +2154,17 @@ export async function registerRoutes(
           return res.status(400).json({ message: "No audio or transcript available. Process the session first." });
       }
 
+      const modeSchema = z.enum(["summary_only", "both", "transcript_only"]).optional();
+      const mode = modeSchema.parse(req.body?.mode) as ReprocessMode | undefined;
+
+      if ((mode === "both" || mode === "transcript_only") && !meeting.audioUrl) {
+          return res.status(400).json({ message: "This session has no audio file — only 'Summary only' regeneration is available." });
+      }
+
       res.json({ message: "Reprocessing started", status: "processing" });
 
-      processMeetingCore(id)
-        .then(() => console.log(`[reprocess] Meeting ${id} reprocessed successfully`))
+      processMeetingCore(id, mode)
+        .then(() => console.log(`[reprocess] Meeting ${id} reprocessed (mode=${mode ?? "auto"}) successfully`))
         .catch(async (error) => {
           console.error("Reprocessing error:", error);
           await storage.updateMeetingStatus(id, "failed");

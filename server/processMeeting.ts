@@ -172,7 +172,9 @@ function formatSummaryToMarkdown(summary: any): string {
   return String(summary);
 }
 
-export async function processMeetingCore(meetingId: number): Promise<void> {
+export type ReprocessMode = "summary_only" | "both" | "transcript_only";
+
+export async function processMeetingCore(meetingId: number, mode?: ReprocessMode): Promise<void> {
   const meeting = await storage.getMeeting(meetingId);
   if (!meeting) {
     throw new Error(`Meeting ${meetingId} not found`);
@@ -186,8 +188,22 @@ export async function processMeetingCore(meetingId: number): Promise<void> {
     throw new Error(`Meeting ${meetingId} has no audio or transcript`);
   }
 
+  // Determine whether we need to (re-)transcribe from audio
+  const forceRetranscribe = mode === "both" || mode === "transcript_only";
+  // For summary_only: keep existing transcript; for auto (undefined): keep if exists
+  const skipTranscription = mode === "summary_only" || (!forceRetranscribe && hasTranscript);
+
+  if (forceRetranscribe && !meeting.audioUrl) {
+    await storage.updateMeetingStatus(meetingId, "failed");
+    throw new Error(`Meeting ${meetingId} has no audio — cannot re-transcribe`);
+  }
+
   await storage.clearMeetingAnalysis(meetingId);
-  if (!hasTranscript) {
+
+  if (forceRetranscribe) {
+    // Delete the old transcript so we can create a fresh one
+    await storage.clearTranscript(meetingId);
+  } else if (!hasTranscript) {
     await storage.clearTranscript(meetingId);
   }
 
@@ -195,7 +211,7 @@ export async function processMeetingCore(meetingId: number): Promise<void> {
 
   let transcriptText: string;
 
-  if (hasTranscript) {
+  if (skipTranscription && hasTranscript) {
     transcriptText = existingTranscript.content;
   } else {
     let audioBuffer: Buffer;
@@ -222,6 +238,12 @@ export async function processMeetingCore(meetingId: number): Promise<void> {
       content: transcriptText,
       language: meeting.audioLanguage && meeting.audioLanguage !== "auto" ? meeting.audioLanguage : "en",
     });
+  }
+
+  // transcript_only mode: stop here — don't run analysis
+  if (mode === "transcript_only") {
+    await storage.updateMeetingStatus(meetingId, "completed");
+    return;
   }
 
   let templateFormatInstructions = "";
