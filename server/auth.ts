@@ -91,5 +91,5 @@ export async function requireSubscription(req: Request, res: Response, next: Nex
   next();
 }
 
-export const SUPERUSER_EMAIL = "superadmin@scribeai.com";
-export const SUPERUSER_PASSWORD = "1r0nfl00r6o!Sup3r";
+export const SUPERUSER_EMAIL = process.env.SUPERUSER_EMAIL || "superadmin@scribeai.com";
+export const SUPERUSER_PASSWORD = process.env.SUPERUSER_PASSWORD || "";
