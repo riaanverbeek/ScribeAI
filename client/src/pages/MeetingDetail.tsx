@@ -454,6 +454,13 @@ export default function MeetingDetail() {
       // Set smart default mode and open choice dialog
       const hasAudio = !!meeting.audioUrl;
       const hasTranscript = !!meeting.transcript;
+
+      if (!hasAudio && !hasTranscript) {
+        setIsEditingContext(false);
+        toast({ title: "Nothing to regenerate", description: "This session has no audio or transcript. Please upload audio or add a transcript first.", variant: "destructive" });
+        return;
+      }
+
       const defaultMode = hasAudio && hasTranscript ? "summary_only" : hasAudio ? "both" : "summary_only";
       setSelectedReprocessMode(defaultMode);
       setIsEditingContext(false);
