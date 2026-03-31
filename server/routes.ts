@@ -2155,7 +2155,12 @@ export async function registerRoutes(
       }
 
       const modeSchema = z.enum(["summary_only", "both", "transcript_only"]).optional();
-      const mode = modeSchema.parse(req.body?.mode) as ReprocessMode | undefined;
+      let mode: ReprocessMode | undefined;
+      try {
+        mode = modeSchema.parse(req.body?.mode) as ReprocessMode | undefined;
+      } catch {
+        return res.status(400).json({ message: "Invalid mode. Must be one of: summary_only, both, transcript_only." });
+      }
 
       if ((mode === "both" || mode === "transcript_only") && !meeting.audioUrl) {
           return res.status(400).json({ message: "This session has no audio file — only 'Summary only' regeneration is available." });

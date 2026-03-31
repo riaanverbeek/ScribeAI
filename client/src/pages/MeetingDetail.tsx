@@ -1510,7 +1510,15 @@ export default function MeetingDetail() {
             <Button variant="outline" onClick={() => setReprocessDialogOpen(false)} data-testid="button-cancel-reprocess">
               Cancel
             </Button>
-            <Button onClick={handleConfirmReprocess} disabled={reprocessMutation.isPending} data-testid="button-confirm-reprocess">
+            <Button
+              onClick={handleConfirmReprocess}
+              disabled={
+                reprocessMutation.isPending ||
+                (selectedReprocessMode === "summary_only" && !meeting.transcript) ||
+                ((selectedReprocessMode === "both" || selectedReprocessMode === "transcript_only") && !meeting.audioUrl)
+              }
+              data-testid="button-confirm-reprocess"
+            >
               {reprocessMutation.isPending ? <><Loader2 className="w-4 h-4 mr-1.5 animate-spin" /> Starting...</> : "Regenerate"}
             </Button>
           </DialogFooter>
