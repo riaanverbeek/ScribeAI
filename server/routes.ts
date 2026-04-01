@@ -946,6 +946,7 @@ export async function registerRoutes(
         lastName: z.string().min(1).optional(),
         email: z.string().email().optional(),
         isAdmin: z.boolean().optional(),
+        isSuperuser: z.boolean().optional(),
         isVerified: z.boolean().optional(),
         subscriptionStatus: z.enum(["none", "trialing", "active", "cancelled", "expired", "lifetime"]).optional(),
       }).parse(req.body);

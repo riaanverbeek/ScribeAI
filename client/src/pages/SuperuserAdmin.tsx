@@ -240,7 +240,7 @@ function UsersTab() {
   const [editUser, setEditUser] = useState<SuperuserUser | null>(null);
   const [deleteUser, setDeleteUser] = useState<SuperuserUser | null>(null);
   const [viewingUser, setViewingUser] = useState<SuperuserUser | null>(null);
-  const [editForm, setEditForm] = useState({ firstName: "", lastName: "", email: "", isAdmin: false, isVerified: false, subscriptionStatus: "none" as string });
+  const [editForm, setEditForm] = useState({ firstName: "", lastName: "", email: "", isAdmin: false, isSuperuser: false, isVerified: false, subscriptionStatus: "none" as string });
   const [usersSortMode, setUsersSortMode] = useState(() => localStorage.getItem("superuser-users-sort") || "name-az");
 
   const sortedUsers = useMemo(() => {
@@ -302,7 +302,7 @@ function UsersTab() {
   });
 
   const openEdit = (u: SuperuserUser) => {
-    setEditForm({ firstName: u.firstName, lastName: u.lastName, email: u.email, isAdmin: u.isAdmin, isVerified: u.isVerified, subscriptionStatus: u.subscriptionStatus });
+    setEditForm({ firstName: u.firstName, lastName: u.lastName, email: u.email, isAdmin: u.isAdmin, isSuperuser: u.isSuperuser, isVerified: u.isVerified, subscriptionStatus: u.subscriptionStatus });
     setEditUser(u);
   };
 
@@ -389,6 +389,16 @@ function UsersTab() {
               <Label>Admin</Label>
               <Select value={editForm.isAdmin ? "yes" : "no"} onValueChange={(v) => setEditForm(f => ({ ...f, isAdmin: v === "yes" }))}>
                 <SelectTrigger className="w-24" data-testid="select-edit-user-admin"><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="yes">Yes</SelectItem>
+                  <SelectItem value="no">No</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="flex items-center gap-3">
+              <Label>Superuser</Label>
+              <Select value={editForm.isSuperuser ? "yes" : "no"} onValueChange={(v) => setEditForm(f => ({ ...f, isSuperuser: v === "yes" }))}>
+                <SelectTrigger className="w-24" data-testid="select-edit-user-superuser"><SelectValue /></SelectTrigger>
                 <SelectContent>
                   <SelectItem value="yes">Yes</SelectItem>
                   <SelectItem value="no">No</SelectItem>
