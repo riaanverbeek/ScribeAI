@@ -575,73 +575,74 @@ export default function MeetingDetail() {
         </div>
       </header>
 
+      {/* Re-upload panel pinned above the scroll area so it is always visible */}
+      {needsAudioUpload && (
+        <div className="shrink-0 px-4 sm:px-6 md:px-8 pt-4 sm:pt-5" data-testid="section-reupload-pinned">
+          <Card className="border-amber-300 dark:border-amber-700 bg-amber-50/50 dark:bg-amber-950/30">
+            <CardContent className="p-4 sm:p-5">
+              <div className="flex items-start gap-3 mb-4">
+                <div className="w-9 h-9 rounded-md bg-amber-100 dark:bg-amber-900 flex items-center justify-center shrink-0">
+                  <AlertTriangle className="w-4 h-4 text-amber-600 dark:text-amber-400" />
+                </div>
+                <div>
+                  <p className="text-sm font-semibold" data-testid="text-stuck-upload-title">
+                    {isStuckUploading ? "Upload Interrupted" : "Upload Failed"}
+                  </p>
+                  <p className="text-sm text-muted-foreground mt-0.5" data-testid="text-stuck-upload-description">
+                    {isStuckUploading
+                      ? "This session's audio upload was interrupted and didn't complete. You can re-upload the audio file to continue."
+                      : "This session has no audio attached. Upload an audio file to process it."}
+                  </p>
+                </div>
+              </div>
+              <div className="space-y-3">
+                <div className="flex items-center gap-3">
+                  <label
+                    htmlFor="reupload-audio"
+                    className="flex-1 flex items-center justify-center gap-2 border-2 border-dashed border-amber-300 dark:border-amber-700 rounded-lg p-4 cursor-pointer hover:bg-amber-100/50 dark:hover:bg-amber-900/30 transition-colors"
+                    data-testid="label-reupload-audio"
+                  >
+                    <UploadCloud className="w-5 h-5 text-amber-600 dark:text-amber-400" />
+                    <span className="text-sm font-medium">
+                      {reuploadFile ? reuploadFile.name : "Choose audio file"}
+                    </span>
+                    <input
+                      id="reupload-audio"
+                      type="file"
+                      accept="audio/*"
+                      className="hidden"
+                      onChange={(e) => setReuploadFile(e.target.files?.[0] || null)}
+                      data-testid="input-reupload-audio"
+                    />
+                  </label>
+                </div>
+                <div className="flex items-center gap-2">
+                  <Button
+                    onClick={() => {
+                      if (reuploadFile && meeting) {
+                        reuploadMutation.mutate({ meetingId: meeting.id, file: reuploadFile });
+                      }
+                    }}
+                    disabled={!reuploadFile || reuploadMutation.isPending}
+                    size="sm"
+                    data-testid="button-reupload-audio"
+                  >
+                    {reuploadMutation.isPending ? (
+                      <Loader2 className="w-4 h-4 mr-1.5 animate-spin" />
+                    ) : (
+                      <UploadCloud className="w-4 h-4 mr-1.5" />
+                    )}
+                    Upload & Process
+                  </Button>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+        </div>
+      )}
+
       <ScrollArea className="flex-1 overflow-x-hidden">
         <div className="w-full p-4 sm:p-6 md:p-8 max-w-5xl mx-auto space-y-6 sm:space-y-8">
-
-            {needsAudioUpload && (
-              <motion.section {...fadeIn}>
-                <Card className="border-amber-300 dark:border-amber-700 bg-amber-50/50 dark:bg-amber-950/30">
-                  <CardContent className="p-4 sm:p-5">
-                    <div className="flex items-start gap-3 mb-4">
-                      <div className="w-9 h-9 rounded-md bg-amber-100 dark:bg-amber-900 flex items-center justify-center shrink-0">
-                        <AlertTriangle className="w-4 h-4 text-amber-600 dark:text-amber-400" />
-                      </div>
-                      <div>
-                        <p className="text-sm font-semibold" data-testid="text-stuck-upload-title">
-                          {isStuckUploading ? "Upload Interrupted" : "Upload Failed"}
-                        </p>
-                        <p className="text-sm text-muted-foreground mt-0.5" data-testid="text-stuck-upload-description">
-                          {isStuckUploading
-                            ? "This session's audio upload was interrupted and didn't complete. You can re-upload the audio file to continue."
-                            : "This session has no audio attached. Upload an audio file to process it."}
-                        </p>
-                      </div>
-                    </div>
-                    <div className="space-y-3">
-                      <div className="flex items-center gap-3">
-                        <label
-                          htmlFor="reupload-audio"
-                          className="flex-1 flex items-center justify-center gap-2 border-2 border-dashed border-amber-300 dark:border-amber-700 rounded-lg p-4 cursor-pointer hover:bg-amber-100/50 dark:hover:bg-amber-900/30 transition-colors"
-                          data-testid="label-reupload-audio"
-                        >
-                          <UploadCloud className="w-5 h-5 text-amber-600 dark:text-amber-400" />
-                          <span className="text-sm font-medium">
-                            {reuploadFile ? reuploadFile.name : "Choose audio file"}
-                          </span>
-                          <input
-                            id="reupload-audio"
-                            type="file"
-                            accept="audio/*"
-                            className="hidden"
-                            onChange={(e) => setReuploadFile(e.target.files?.[0] || null)}
-                            data-testid="input-reupload-audio"
-                          />
-                        </label>
-                      </div>
-                      <div className="flex items-center gap-2">
-                        <Button
-                          onClick={() => {
-                            if (reuploadFile && meeting) {
-                              reuploadMutation.mutate({ meetingId: meeting.id, file: reuploadFile });
-                            }
-                          }}
-                          disabled={!reuploadFile || reuploadMutation.isPending}
-                          size="sm"
-                          data-testid="button-reupload-audio"
-                        >
-                          {reuploadMutation.isPending ? (
-                            <Loader2 className="w-4 h-4 mr-1.5 animate-spin" />
-                          ) : (
-                            <UploadCloud className="w-4 h-4 mr-1.5" />
-                          )}
-                          Upload & Process
-                        </Button>
-                      </div>
-                    </div>
-                  </CardContent>
-                </Card>
-              </motion.section>
-            )}
             
             <motion.section {...fadeIn}>
               <Card>

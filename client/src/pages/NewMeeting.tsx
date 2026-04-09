@@ -34,6 +34,7 @@ import { useToast } from "@/hooks/use-toast";
 import { useVoiceRecorder } from "@/replit_integrations/audio";
 import { motion } from "framer-motion";
 import type { Template, AudioLanguageOption } from "@shared/schema";
+import { Capacitor } from "@capacitor/core";
 
 export default function NewMeeting() {
   const [, setLocation] = useLocation();
@@ -401,9 +402,8 @@ export default function NewMeeting() {
 
   const saveRecordingToDevice = async (blob: Blob, ext: string, sessionTitle: string) => {
     const filename = buildRecordingFilename(ext, sessionTitle);
-    const capacitor = (window as any).Capacitor;
-    const isNative = capacitor?.isNativePlatform?.();
-    const platform: string = capacitor?.getPlatform?.() ?? "web";
+    const isNative = Capacitor.isNativePlatform();
+    const platform = Capacitor.getPlatform(); // 'ios' | 'android' | 'web'
 
     if (isNative) {
       try {
@@ -1249,7 +1249,7 @@ export default function NewMeeting() {
           )}
         </Button>
 
-        {uploadMutation.isPending && uploadMutation.uploadProgress > 0 && (
+        {uploadMutation.isPending && (
           <div className="space-y-1.5" data-testid="div-upload-progress">
             <div className="flex justify-between text-xs text-muted-foreground">
               <span>Uploading audio…</span>
