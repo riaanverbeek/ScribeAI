@@ -1,8 +1,55 @@
+import { useState, useRef } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { api, buildUrl, type CreateMeetingRequest } from "@shared/routes";
 import { useToast } from "@/hooks/use-toast";
 import { reportError } from "@/lib/logError";
 import { z } from "zod";
+
+// ============================================
+// Upload helpers
+// ============================================
+
+/** Upload a file to a signed URL using XHR so we get onprogress events and a hard timeout. */
+function uploadWithXHR(
+  url: string,
+  data: File | Blob,
+  contentType: string,
+  onProgress: (pct: number) => void,
+  timeoutMs = 240_000
+): Promise<void> {
+  return new Promise((resolve, reject) => {
+    const xhr = new XMLHttpRequest();
+    xhr.timeout = timeoutMs;
+    xhr.open("PUT", url);
+    xhr.setRequestHeader("Content-Type", contentType);
+    xhr.upload.onprogress = (e) => {
+      if (e.lengthComputable) {
+        onProgress(Math.round((e.loaded / e.total) * 100));
+      }
+    };
+    xhr.onload = () => {
+      if (xhr.status >= 200 && xhr.status < 300) {
+        onProgress(100);
+        resolve();
+      } else {
+        reject(
+          new Error(
+            `GCS PUT failed: ${xhr.status} ${xhr.responseText.slice(0, 200)}`
+          )
+        );
+      }
+    };
+    xhr.onerror = () =>
+      reject(new Error("Upload network error — please check your connection."));
+    xhr.ontimeout = () =>
+      reject(
+        new Error(
+          "Upload timed out — please try again on WiFi or with a shorter recording."
+        )
+      );
+    xhr.send(data);
+  });
+}
 
 // ============================================
 // Types
@@ -85,8 +132,12 @@ export function useCreateMeeting() {
 export function useUploadAudio() {
   const queryClient = useQueryClient();
   const { toast } = useToast();
+  const [uploadProgress, setUploadProgress] = useState(0);
+  // Use a ref so the mutationFn (outside React render) always calls the latest setter
+  const progressRef = useRef(setUploadProgress);
+  progressRef.current = setUploadProgress;
 
-  return useMutation({
+  const mutation = useMutation({
     mutationFn: async ({ id, file }: { id: number; file: File | Blob }) => {
       const fileName = (file as File).name || "audio.wav";
       const contentType = (file as File).type || "application/octet-stream";
@@ -98,6 +149,8 @@ export function useUploadAudio() {
         reportError(msg, "useUploadAudio");
         throw new Error("The recording appears to be empty or corrupted. Please try recording again.");
       }
+
+      progressRef.current(0);
 
       const MAX_RETRIES = 3;
       let lastError: Error | null = null;
@@ -122,26 +175,24 @@ export function useUploadAudio() {
           const urlData = await urlRes.json();
           objectPath = urlData.objectPath;
 
-          const putRes = await fetch(urlData.uploadURL, {
-            method: "PUT",
-            body: file,
-            headers: { "Content-Type": contentType },
-          });
-          if (!putRes.ok) {
-            const errText = await putRes.text().catch(() => "");
-            const msg = `GCS PUT failed: ${putRes.status} ${errText}`;
-            console.error(`[upload] ${msg}`);
-            reportError(msg, "useUploadAudio");
-            throw new Error(`Failed to upload audio to storage (${putRes.status})`);
-          }
+          // Use XHR for progress tracking + hard timeout (4 minutes)
+          await uploadWithXHR(
+            urlData.uploadURL,
+            file,
+            contentType,
+            (pct) => progressRef.current(pct),
+            240_000
+          );
 
           lastError = null;
           break;
         } catch (err: any) {
           lastError = err;
           if (err?.message?.includes("empty or corrupted")) throw err;
+          if (err?.message?.includes("timed out")) throw err;
           console.warn(`[upload] Attempt ${attempt} failed: ${err?.message}`);
           if (attempt < MAX_RETRIES) {
+            progressRef.current(0);
             const delay = Math.min(2000 * Math.pow(2, attempt - 1), 8000);
             console.log(`[upload] Retrying in ${delay}ms...`);
             await new Promise(r => setTimeout(r, delay));
@@ -174,12 +225,14 @@ export function useUploadAudio() {
     onSuccess: (_, { id }) => {
       queryClient.invalidateQueries({ queryKey: [api.meetings.list.path] });
       queryClient.invalidateQueries({ queryKey: [api.meetings.get.path, id] });
+      progressRef.current(100);
       toast({
         title: "Upload Complete",
         description: "Audio uploaded successfully. Processing can now begin.",
       });
     },
     onError: (error) => {
+      progressRef.current(0);
       toast({
         title: "Upload Failed",
         description: error.message,
@@ -187,6 +240,8 @@ export function useUploadAudio() {
       });
     },
   });
+
+  return { ...mutation, uploadProgress };
 }
 
 export function useProcessMeeting() {

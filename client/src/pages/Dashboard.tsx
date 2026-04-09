@@ -9,7 +9,7 @@ import { useHasRecoverableRecording } from "@/hooks/use-recovery";
 import { StatusBadge } from "@/components/StatusBadge";
 import { MergeDialog } from "@/components/MergeDialog";
 import { format } from "date-fns";
-import { Plus, ChevronRight, MoreVertical, Trash2, Calendar, Clock, Mic, Users, X, WifiOff, RefreshCw, Loader2, CloudUpload, Phone, ArrowUpDown, RotateCcw, Merge, CheckSquare } from "lucide-react";
+import { Plus, ChevronRight, MoreVertical, Trash2, Calendar, Clock, Mic, Users, X, WifiOff, RefreshCw, Loader2, CloudUpload, Phone, ArrowUpDown, RotateCcw, Merge, CheckSquare, AlertTriangle } from "lucide-react";
 import { useViewMode } from "@/hooks/use-view-mode";
 import { ViewToggle } from "@/components/ViewToggle";
 import { motion } from "framer-motion";
@@ -542,6 +542,18 @@ export default function Dashboard() {
                     )}
                   </div>
 
+                  {!mergeMode && meeting.status === "uploading" && !meeting.audioUrl && (
+                    <Link href={`/meeting/${meeting.id}`}>
+                      <div
+                        className="mb-3 flex items-center gap-2 rounded-lg bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-700 px-3 py-2 text-xs font-medium text-amber-700 dark:text-amber-400 cursor-pointer"
+                        data-testid={`banner-stuck-upload-${meeting.id}`}
+                      >
+                        <AlertTriangle className="w-3.5 h-3.5 shrink-0" />
+                        Upload incomplete — tap to re-upload
+                      </div>
+                    </Link>
+                  )}
+
                   {!mergeMode ? (
                     <Link href={`/meeting/${meeting.id}`}>
                       <div className="block cursor-pointer">
@@ -620,27 +632,35 @@ export default function Dashboard() {
                     )}
                     {!mergeMode ? (
                       <Link href={`/meeting/${meeting.id}`} className="flex-1 min-w-0" data-testid={`link-meeting-${meeting.id}`}>
-                        <div className="flex flex-col sm:flex-row sm:items-center gap-1 sm:gap-3 cursor-pointer">
-                          <div className="min-w-0 flex-1">
-                            <h3 className="font-semibold text-slate-900 dark:text-foreground truncate group-hover:text-primary transition-colors text-sm sm:text-base" data-testid={`text-meeting-title-${meeting.id}`}>
-                              {meeting.title}
-                            </h3>
-                          </div>
-                          <div className="flex items-center gap-2 text-xs sm:text-sm text-slate-500 shrink-0 flex-wrap">
-                            <span className="flex items-center gap-1">
-                              <Calendar className="w-3 h-3 sm:w-3.5 sm:h-3.5 text-slate-400 shrink-0" />
-                              {format(new Date(meeting.date), "MMM d")}
-                            </span>
-                            <span className="flex items-center gap-1">
-                              <Clock className="w-3 h-3 sm:w-3.5 sm:h-3.5 text-slate-400 shrink-0" />
-                              {format(new Date(meeting.date), "h:mm a")}
-                            </span>
-                            <StatusBadge status={meeting.status as any} />
-                            {clientName && (
-                              <Badge variant="outline" className="rounded-lg text-xs">
-                                {clientName}
-                              </Badge>
-                            )}
+                        <div className="flex flex-col gap-1 cursor-pointer">
+                          {meeting.status === "uploading" && !meeting.audioUrl && (
+                            <div className="flex items-center gap-1.5 text-xs font-medium text-amber-600 dark:text-amber-400" data-testid={`text-stuck-list-${meeting.id}`}>
+                              <AlertTriangle className="w-3 h-3 shrink-0" />
+                              Upload incomplete — tap to re-upload
+                            </div>
+                          )}
+                          <div className="flex flex-col sm:flex-row sm:items-center gap-1 sm:gap-3">
+                            <div className="min-w-0 flex-1">
+                              <h3 className="font-semibold text-slate-900 dark:text-foreground truncate group-hover:text-primary transition-colors text-sm sm:text-base" data-testid={`text-meeting-title-${meeting.id}`}>
+                                {meeting.title}
+                              </h3>
+                            </div>
+                            <div className="flex items-center gap-2 text-xs sm:text-sm text-slate-500 shrink-0 flex-wrap">
+                              <span className="flex items-center gap-1">
+                                <Calendar className="w-3 h-3 sm:w-3.5 sm:h-3.5 text-slate-400 shrink-0" />
+                                {format(new Date(meeting.date), "MMM d")}
+                              </span>
+                              <span className="flex items-center gap-1">
+                                <Clock className="w-3 h-3 sm:w-3.5 sm:h-3.5 text-slate-400 shrink-0" />
+                                {format(new Date(meeting.date), "h:mm a")}
+                              </span>
+                              <StatusBadge status={meeting.status as any} />
+                              {clientName && (
+                                <Badge variant="outline" className="rounded-lg text-xs">
+                                  {clientName}
+                                </Badge>
+                              )}
+                            </div>
                           </div>
                         </div>
                       </Link>

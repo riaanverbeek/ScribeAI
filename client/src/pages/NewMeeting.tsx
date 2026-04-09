@@ -64,6 +64,7 @@ export default function NewMeeting() {
   const [consentDialogOpen, setConsentDialogOpen] = useState(false);
   const [failedMeetingId, setFailedMeetingId] = useState<number | null>(null);
   const [nativeCaptureAutoSubmit, setNativeCaptureAutoSubmit] = useState(false);
+  const [recordingBlob, setRecordingBlob] = useState<{ blob: Blob; ext: string } | null>(null);
   
   const createMutation = useCreateMeeting();
   const uploadMutation = useUploadAudio();
@@ -340,6 +341,24 @@ export default function NewMeeting() {
         }
 
         if (audioFile) {
+          // File size validation
+          const fileMB = (audioFile.size || 0) / 1024 / 1024;
+          if (fileMB > 300) {
+            toast({
+              title: "File Too Large",
+              description: `This recording is ${fileMB.toFixed(0)} MB — the limit is 300 MB. Please record a shorter session.`,
+              variant: "destructive",
+            });
+            return;
+          }
+          if (fileMB > 100) {
+            toast({
+              title: "Large Recording",
+              description: `This recording is ${fileMB.toFixed(0)} MB. Uploading may take a few minutes — please stay on WiFi.`,
+              duration: 6000,
+            });
+          }
+
           try {
             await uploadMutation.mutateAsync({ id: meeting.id, file: audioFile });
             await recorder.clearRecoveryData();
@@ -370,6 +389,28 @@ export default function NewMeeting() {
     }
   };
 
+  const saveRecordingToDevice = (blob: Blob, ext: string, sessionTitle: string) => {
+    try {
+      const safe = (sessionTitle || "recording")
+        .replace(/[^a-z0-9\s]/gi, "")
+        .trim()
+        .replace(/\s+/g, "_")
+        .slice(0, 40) || "recording";
+      const ts = new Date().toISOString().slice(0, 16).replace(/[T:]/g, "-");
+      const filename = `ScribeAI_${safe}_${ts}${ext}`;
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = filename;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      setTimeout(() => URL.revokeObjectURL(url), 5000);
+    } catch (err) {
+      console.warn("[saveRecordingToDevice] failed:", err);
+    }
+  };
+
   const handleStopRecording = async () => {
     if (timerRef.current) {
       clearInterval(timerRef.current);
@@ -379,6 +420,7 @@ export default function NewMeeting() {
     const ext = recorder.recordingExtension || ".webm";
     const mime = recorder.recordingMimeType || "audio/webm";
     const recordedFile = new File([blob], `recording${ext}`, { type: mime });
+    setRecordingBlob({ blob, ext });
     setFile(recordedFile);
     toast({ title: "Recording Saved", description: "Ready to process." });
   };
@@ -985,8 +1027,22 @@ export default function NewMeeting() {
                   )}
 
                   {file && recorder.state === "stopped" && (
-                    <div className="mt-6 px-4 py-2 bg-green-50 text-green-700 dark:bg-green-900/30 dark:text-green-400 rounded-lg text-sm font-medium flex items-center animate-in fade-in slide-in-from-bottom-2">
-                      Recording saved ready for processing
+                    <div className="mt-6 flex flex-col items-center gap-3 animate-in fade-in slide-in-from-bottom-2">
+                      <div className="px-4 py-2 bg-green-50 text-green-700 dark:bg-green-900/30 dark:text-green-400 rounded-lg text-sm font-medium flex items-center gap-2" data-testid="banner-recording-ready">
+                        <Check className="w-4 h-4" />
+                        Recording saved — ready to process
+                      </div>
+                      {recordingBlob && (
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => saveRecordingToDevice(recordingBlob.blob, recordingBlob.ext, title)}
+                          data-testid="button-save-recording-device"
+                        >
+                          <UploadCloud className="w-4 h-4 mr-1.5" />
+                          Save Recording to Device
+                        </Button>
+                      )}
                     </div>
                   )}
 
@@ -1127,6 +1183,22 @@ export default function NewMeeting() {
             "Process Session"
           )}
         </Button>
+
+        {uploadMutation.isPending && uploadMutation.uploadProgress > 0 && (
+          <div className="space-y-1.5" data-testid="div-upload-progress">
+            <div className="flex justify-between text-xs text-muted-foreground">
+              <span>Uploading audio…</span>
+              <span>{uploadMutation.uploadProgress}%</span>
+            </div>
+            <div className="w-full bg-muted rounded-full h-2 overflow-hidden">
+              <div
+                className="bg-primary h-2 rounded-full transition-all duration-300 ease-out"
+                style={{ width: `${uploadMutation.uploadProgress}%` }}
+                data-testid="div-upload-progress-bar"
+              />
+            </div>
+          </div>
+        )}
       </div>
 
       <Dialog open={consentDialogOpen} onOpenChange={setConsentDialogOpen}>
