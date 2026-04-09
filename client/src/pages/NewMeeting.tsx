@@ -364,12 +364,8 @@ export default function NewMeeting() {
             await uploadMutation.mutateAsync({ id: meeting.id, file: audioFile });
             await recorder.clearRecoveryData();
           } catch {
+            // useUploadAudio.onError already shows the user-facing toast (including timeout message)
             setFailedMeetingId(meeting.id);
-            toast({
-              title: "Upload Failed",
-              description: "The audio upload failed. Your recording is safe — tap \"Process Session\" to retry.",
-              variant: "destructive",
-            });
             return;
           }
         }
@@ -1160,7 +1156,7 @@ export default function NewMeeting() {
                       <UploadCloud className="w-8 h-8" />
                     </div>
                     <span className="font-semibold text-slate-900 hover:underline">Choose a file</span>
-                    <p className="text-sm text-slate-500 mt-1">MP3, WAV, M4A, MP4 up to 200MB</p>
+                    <p className="text-sm text-slate-500 mt-1">MP3, WAV, M4A, MP4 up to 300MB</p>
                   </label>
                   
                   {file && recorder.state !== "stopped" && (
