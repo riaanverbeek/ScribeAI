@@ -389,15 +389,44 @@ export default function NewMeeting() {
     }
   };
 
-  const saveRecordingToDevice = (blob: Blob, ext: string, sessionTitle: string) => {
+  const buildRecordingFilename = (ext: string, sessionTitle: string) => {
+    const safe = (sessionTitle || "recording")
+      .replace(/[^a-z0-9\s]/gi, "")
+      .trim()
+      .replace(/\s+/g, "_")
+      .slice(0, 40) || "recording";
+    const ts = new Date().toISOString().slice(0, 16).replace(/[T:]/g, "-");
+    return `ScribeAI_${safe}_${ts}${ext}`;
+  };
+
+  const saveRecordingToDevice = async (blob: Blob, ext: string, sessionTitle: string) => {
+    const filename = buildRecordingFilename(ext, sessionTitle);
+    const isNative = (window as any).Capacitor?.isNativePlatform?.();
+
+    if (isNative) {
+      try {
+        const { Filesystem, Directory } = await import("@capacitor/filesystem");
+        const base64 = await new Promise<string>((resolve, reject) => {
+          const reader = new FileReader();
+          reader.onloadend = () => resolve((reader.result as string).split(",")[1]);
+          reader.onerror = reject;
+          reader.readAsDataURL(blob);
+        });
+        await Filesystem.writeFile({
+          path: filename,
+          data: base64,
+          directory: Directory.Documents,
+          recursive: true,
+        });
+        toast({ title: "Recording Saved", description: "Your recording has been saved to your device." });
+        return;
+      } catch (err) {
+        console.warn("[saveRecordingToDevice] Capacitor save failed, falling back to download:", err);
+      }
+    }
+
+    // Web / browser fallback: trigger download
     try {
-      const safe = (sessionTitle || "recording")
-        .replace(/[^a-z0-9\s]/gi, "")
-        .trim()
-        .replace(/\s+/g, "_")
-        .slice(0, 40) || "recording";
-      const ts = new Date().toISOString().slice(0, 16).replace(/[T:]/g, "-");
-      const filename = `ScribeAI_${safe}_${ts}${ext}`;
       const url = URL.createObjectURL(blob);
       const a = document.createElement("a");
       a.href = url;
@@ -406,8 +435,9 @@ export default function NewMeeting() {
       a.click();
       document.body.removeChild(a);
       setTimeout(() => URL.revokeObjectURL(url), 5000);
+      toast({ title: "Recording Saved", description: "Your recording has been saved to your device." });
     } catch (err) {
-      console.warn("[saveRecordingToDevice] failed:", err);
+      console.warn("[saveRecordingToDevice] Browser download failed:", err);
     }
   };
 
@@ -422,7 +452,8 @@ export default function NewMeeting() {
     const recordedFile = new File([blob], `recording${ext}`, { type: mime });
     setRecordingBlob({ blob, ext });
     setFile(recordedFile);
-    toast({ title: "Recording Saved", description: "Ready to process." });
+    // Auto-save to device immediately (before upload begins)
+    saveRecordingToDevice(blob, ext, title);
   };
 
   const isPending = createMutation.isPending || uploadMutation.isPending || isSavingOffline;
