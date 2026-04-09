@@ -51,5 +51,9 @@
         <false/>
         <key>NSMicrophoneUsageDescription</key>
         <string>ScribeAI needs microphone access to record your sessions for transcription.</string>
+        <key>UIFileSharingEnabled</key>
+        <true/>
+        <key>LSSupportsOpeningDocumentsInPlace</key>
+        <true/>
 </dict>
 </plist>

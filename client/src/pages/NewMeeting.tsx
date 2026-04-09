@@ -401,31 +401,65 @@ export default function NewMeeting() {
 
   const saveRecordingToDevice = async (blob: Blob, ext: string, sessionTitle: string) => {
     const filename = buildRecordingFilename(ext, sessionTitle);
-    const isNative = (window as any).Capacitor?.isNativePlatform?.();
+    const capacitor = (window as any).Capacitor;
+    const isNative = capacitor?.isNativePlatform?.();
+    const platform: string = capacitor?.getPlatform?.() ?? "web";
 
     if (isNative) {
       try {
         const { Filesystem, Directory } = await import("@capacitor/filesystem");
+        // Convert blob to base64 string (strip data-URL prefix)
         const base64 = await new Promise<string>((resolve, reject) => {
           const reader = new FileReader();
           reader.onloadend = () => resolve((reader.result as string).split(",")[1]);
           reader.onerror = reject;
           reader.readAsDataURL(blob);
         });
-        await Filesystem.writeFile({
-          path: filename,
-          data: base64,
-          directory: Directory.Documents,
-          recursive: true,
+
+        if (platform === "android") {
+          // Android: attempt user-accessible ExternalStorage (Downloads/)
+          // Falls back to app Documents if external storage write is unavailable
+          try {
+            await Filesystem.writeFile({
+              path: `Downloads/${filename}`,
+              data: base64,
+              directory: Directory.ExternalStorage,
+              recursive: true,
+            });
+          } catch {
+            // Fallback: app-private Documents (still accessible in Files app)
+            await Filesystem.writeFile({
+              path: filename,
+              data: base64,
+              directory: Directory.Documents,
+              recursive: true,
+            });
+          }
+        } else {
+          // iOS: Documents directory — visible in Files.app under ScribeAI
+          // (requires UIFileSharingEnabled + LSSupportsOpeningDocumentsInPlace in Info.plist)
+          await Filesystem.writeFile({
+            path: filename,
+            data: base64,
+            directory: Directory.Documents,
+            recursive: true,
+          });
+        }
+
+        toast({
+          title: "Recording Saved to Device",
+          description:
+            platform === "ios"
+              ? "Find it in the Files app under ScribeAI."
+              : "Find it in your Downloads or Documents folder.",
         });
-        toast({ title: "Recording Saved", description: "Your recording has been saved to your device." });
         return;
       } catch (err) {
-        console.warn("[saveRecordingToDevice] Capacitor save failed, falling back to download:", err);
+        console.warn("[saveRecordingToDevice] Capacitor save failed, falling back to browser download:", err);
       }
     }
 
-    // Web / browser fallback: trigger download
+    // Web / desktop fallback: trigger browser file download
     try {
       const url = URL.createObjectURL(blob);
       const a = document.createElement("a");
@@ -435,7 +469,7 @@ export default function NewMeeting() {
       a.click();
       document.body.removeChild(a);
       setTimeout(() => URL.revokeObjectURL(url), 5000);
-      toast({ title: "Recording Saved", description: "Your recording has been saved to your device." });
+      toast({ title: "Recording Saved", description: "Your recording has been downloaded to your device." });
     } catch (err) {
       console.warn("[saveRecordingToDevice] Browser download failed:", err);
     }
