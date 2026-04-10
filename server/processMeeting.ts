@@ -228,7 +228,12 @@ export async function processMeetingCore(meetingId: number, mode?: ReprocessMode
     const langHint = meeting.audioLanguage && meeting.audioLanguage !== "auto" ? meeting.audioLanguage : undefined;
     const transcriptionModel = await getSystemSettingValue("transcription_model", "openai-whisper");
     if (transcriptionModel === "soniox") {
-      transcriptText = await transcribeWithSoniox(audioBuffer, rawFormat, langHint);
+      try {
+        transcriptText = await transcribeWithSoniox(audioBuffer, rawFormat, langHint);
+      } catch (sonioxErr: any) {
+        console.warn(`[processMeeting] Soniox failed for meeting ${meetingId}, falling back to OpenAI Whisper. Reason: ${sonioxErr?.message}`);
+        transcriptText = await transcribeLongAudio(audioBuffer, rawFormat, langHint);
+      }
     } else if (transcriptionModel === "openai-whisper") {
       transcriptText = await transcribeLongAudio(audioBuffer, rawFormat, langHint);
     } else {
