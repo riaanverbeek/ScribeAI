@@ -117,7 +117,7 @@ export async function transcribeWithSoniox(
       await new Promise((r) => setTimeout(r, backoffMs(attempt)));
       attempt++;
 
-      const status = await sonioxFetch<{ id: string; status: string }>(
+      const status = await sonioxFetch<{ id: string; status: string; error?: string; error_message?: string }>(
         apiKey,
         "GET",
         `/transcriptions/${transcriptionId}`
@@ -137,7 +137,9 @@ export async function transcribeWithSoniox(
       }
 
       if (status.status === "error") {
-        throw new Error("Soniox transcription job failed with status: error");
+        const detail = status.error_message ?? status.error ?? "no additional detail";
+        console.error(`[soniox] Transcription job ${transcriptionId} failed: ${detail}`);
+        throw new Error(`Soniox transcription failed: ${detail}`);
       }
     }
 

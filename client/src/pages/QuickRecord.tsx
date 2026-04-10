@@ -341,12 +341,26 @@ export default function QuickRecord() {
 
       setFailedMeetingId(null);
       await recorder.clearRecoveryData();
-      await processMutation.mutateAsync(meeting.id);
+
+      try {
+        await processMutation.mutateAsync(meeting.id);
+      } catch {
+        // Audio is saved — only transcription failed. Redirect to the session so user can retry.
+        toast({
+          title: "Recording saved — processing failed",
+          description: "Your audio was saved. Open the session to retry transcription.",
+          variant: "destructive",
+          duration: 8000,
+        });
+        setLocation(`/meeting/${meeting.id}`);
+        return;
+      }
+
       setLocation(`/meeting/${meeting.id}`);
     } catch {
       toast({
         title: "Save Failed",
-        description: "Something went wrong. Please try again.",
+        description: "Something went wrong creating or uploading the session. Please try again.",
         variant: "destructive",
       });
     } finally {
