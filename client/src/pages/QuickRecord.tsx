@@ -21,10 +21,11 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import { Mic, Square, ChevronLeft, Loader2, Phone, WifiOff, Check, Pause, Play, ShieldCheck, AlertTriangle, RotateCcw, Trash2 } from "lucide-react";
+import { Mic, Square, ChevronLeft, Loader2, Phone, WifiOff, Check, Pause, Play, ShieldCheck, AlertTriangle, RotateCcw, Trash2, UploadCloud } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { motion, AnimatePresence } from "framer-motion";
 import { format } from "date-fns";
+import { Capacitor } from "@capacitor/core";
 
 type Phase = "ready" | "continue" | "recording" | "paused" | "saving";
 
@@ -33,6 +34,82 @@ function getFileExtensionFromMime(mimeType: string): string {
   if (mimeType.includes("mp4")) return ".mp4";
   if (mimeType.includes("ogg")) return ".ogg";
   return ".webm";
+}
+
+function buildRecordingFilename(ext: string, sessionTitle: string): string {
+  const safe = sessionTitle.replace(/[^a-zA-Z0-9_\- ]/g, "").trim().replace(/\s+/g, "_") || "QuickRecord";
+  const ts = format(new Date(), "yyyyMMdd_HHmmss");
+  return `ScribeAI_${safe}_${ts}${ext}`;
+}
+
+async function saveRecordingToDevice(blob: Blob, ext: string, sessionTitle: string, toast: ReturnType<typeof useToast>["toast"]) {
+  const filename = buildRecordingFilename(ext, sessionTitle);
+  const isNative = Capacitor.isNativePlatform();
+  const platform = Capacitor.getPlatform();
+
+  if (isNative) {
+    try {
+      const { Filesystem, Directory } = await import("@capacitor/filesystem");
+      const base64 = await new Promise<string>((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onloadend = () => resolve((reader.result as string).split(",")[1]);
+        reader.onerror = reject;
+        reader.readAsDataURL(blob);
+      });
+
+      if (platform === "android") {
+        try {
+          await Filesystem.writeFile({
+            path: `Downloads/${filename}`,
+            data: base64,
+            directory: Directory.ExternalStorage,
+            recursive: true,
+          });
+        } catch {
+          await Filesystem.writeFile({
+            path: filename,
+            data: base64,
+            directory: Directory.Documents,
+            recursive: true,
+          });
+        }
+      } else {
+        // iOS: Documents directory — visible in Files.app under ScribeAI
+        await Filesystem.writeFile({
+          path: filename,
+          data: base64,
+          directory: Directory.Documents,
+          recursive: true,
+        });
+      }
+
+      toast({
+        title: "Recording Saved to Device",
+        description:
+          platform === "ios"
+            ? "Find it in the Files app under ScribeAI."
+            : "Find it in your Downloads or Documents folder.",
+      });
+      return;
+    } catch (err) {
+      console.warn("[saveRecordingToDevice] Capacitor save failed, falling back to browser download:", err);
+    }
+  }
+
+  // Web / desktop fallback: trigger browser file download
+  try {
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = filename;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    setTimeout(() => URL.revokeObjectURL(url), 5000);
+    toast({ title: "Recording Saved", description: "Your recording has been downloaded to your device." });
+  } catch (err) {
+    console.warn("[saveRecordingToDevice] Browser download failed:", err);
+  }
 }
 
 export default function QuickRecord() {
@@ -201,8 +278,12 @@ export default function QuickRecord() {
     setAudioFile(file);
 
     const now = new Date();
-    setTitle(`Quick Record - ${format(now, "MMM d, yyyy h:mm a")}`);
+    const autoTitle = `Quick Record - ${format(now, "MMM d, yyyy h:mm a")}`;
+    setTitle(autoTitle);
     setPhase("saving");
+
+    // Auto-save to device immediately (same behaviour as New Session)
+    saveRecordingToDevice(blob, ext, autoTitle, toast);
   };
 
   const handleContinueRecording = async () => {
@@ -246,8 +327,12 @@ export default function QuickRecord() {
       setAudioFile(file);
       setElapsed(recovered.elapsed);
       const now = new Date();
-      setTitle(`Quick Record - ${format(now, "MMM d, yyyy h:mm a")}`);
+      const recoveredTitle = `Quick Record - ${format(now, "MMM d, yyyy h:mm a")}`;
+      setTitle(recoveredTitle);
       setPhase("saving");
+
+      // Auto-save recovered recording to device immediately
+      saveRecordingToDevice(recovered.blob, ext, recoveredTitle, toast);
     } else {
       toast({
         title: "Recovery Failed",
@@ -715,6 +800,21 @@ export default function QuickRecord() {
                       ))}
                     </SelectContent>
                   </Select>
+                </div>
+              )}
+
+              {audioFile && (
+                <div className="flex justify-center">
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => saveRecordingToDevice(audioFile, recorder.recordingExtension || ".webm", title, toast)}
+                    disabled={isPending}
+                    data-testid="button-save-recording-device"
+                  >
+                    <UploadCloud className="w-4 h-4 mr-1.5" />
+                    Save Recording to Device
+                  </Button>
                 </div>
               )}
 

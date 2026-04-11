@@ -81,6 +81,7 @@ Responsiveness: Every screen — whether newly developed or modified — must be
 - **Status State Machine**: For tracking meeting processing status (`uploading`, `processing`, `completed`/`failed`).
 - **Polling**: Frontend polls for meeting status updates.
 - **Ownership Checks**: Enforced on all routes for data isolation. Combined with tenant scoping for multi-tenant security.
+- **⚠️ Recording parity rule — ALWAYS enforce**: `client/src/pages/QuickRecord.tsx` and `client/src/pages/NewMeeting.tsx` share the same physical recording logic. Whenever ANY recording-related code changes in one file, the other MUST be updated to match. This includes: `saveRecordingToDevice()`, `buildRecordingFilename()`, auto-save on stop, auto-save on recovery, manual "Save Recording to Device" button, Capacitor imports, blob size validation, file size warnings, upload progress, retry logic, and any new recording feature. The two pages MUST remain in sync at all times.
 
 ### Build Configuration
 - **Development**: `tsx` and Vite for HMR.
