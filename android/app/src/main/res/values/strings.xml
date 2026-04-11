@@ -1,0 +1,7 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+    <string name="app_name">ScribeAI</string>
+    <string name="title_activity_main">ScribeAI</string>
+    <string name="package_name">com.fant.app</string>
+    <string name="custom_url_scheme">com.fant.app</string>
+</resources>
