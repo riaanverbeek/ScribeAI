@@ -58,39 +58,67 @@ async function saveRecordingToDevice(blob: Blob, ext: string, sessionTitle: stri
       });
 
       if (platform === "android") {
-        try {
-          await Filesystem.writeFile({
-            path: `Downloads/${filename}`,
-            data: base64,
-            directory: Directory.ExternalStorage,
-            recursive: true,
-          });
-        } catch {
-          await Filesystem.writeFile({
-            path: filename,
-            data: base64,
-            directory: Directory.Documents,
-            recursive: true,
-          });
+        // Detect Android version from user agent (e.g. "Android 13")
+        const androidVersionMatch = navigator.userAgent.match(/Android (\d+)/);
+        const androidVersion = androidVersionMatch ? parseInt(androidVersionMatch[1], 10) : 0;
+
+        if (androidVersion > 0 && androidVersion <= 9) {
+          // Android 8/9: request legacy storage permission, then write to Downloads
+          const perm = await Filesystem.requestPermissions();
+          if (perm.publicStorage === "granted") {
+            try {
+              await Filesystem.writeFile({
+                path: `Downloads/${filename}`,
+                data: base64,
+                directory: Directory.ExternalStorage,
+                recursive: true,
+              });
+              toast({
+                title: "Recording Saved to Device",
+                description: "Find it in your Downloads folder.",
+              });
+              return;
+            } catch (writeErr) {
+              console.warn("[saveRecordingToDevice] ExternalStorage write failed:", writeErr);
+            }
+          } else {
+            // Permission denied — fall through to Documents
+            toast({
+              title: "Storage permission denied",
+              description: "Saving to Documents instead. Find it in Files > ScribeAI.",
+              variant: "destructive",
+            });
+          }
         }
-      } else {
-        // iOS: Documents directory — visible in Files.app under ScribeAI
+
+        // Android 10+: public Documents (Environment.getExternalStoragePublicDirectory(DIRECTORY_DOCUMENTS))
+        // No special permission required; visible in Files app
         await Filesystem.writeFile({
           path: filename,
           data: base64,
           directory: Directory.Documents,
           recursive: true,
         });
+        toast({
+          title: "Recording Saved to Device",
+          description: "Find it in Files > Documents.",
+        });
+        return;
+      } else {
+        // iOS: Documents directory — visible in Files.app under ScribeAI
+        // (requires UIFileSharingEnabled + LSSupportsOpeningDocumentsInPlace in Info.plist)
+        await Filesystem.writeFile({
+          path: filename,
+          data: base64,
+          directory: Directory.Documents,
+          recursive: true,
+        });
+        toast({
+          title: "Recording Saved to Device",
+          description: "Find it in the Files app under ScribeAI.",
+        });
+        return;
       }
-
-      toast({
-        title: "Recording Saved to Device",
-        description:
-          platform === "ios"
-            ? "Find it in the Files app under ScribeAI."
-            : "Find it in your Downloads or Documents folder.",
-      });
-      return;
     } catch (err) {
       console.warn("[saveRecordingToDevice] Capacitor save failed, falling back to browser download:", err);
     }
