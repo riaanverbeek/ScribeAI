@@ -93,13 +93,17 @@ async function saveRecordingToDevice(blob: Blob, ext: string, sessionTitle: stri
               return;
             }
           } else {
-            // Permission denied — save to app Documents as fallback and return
+            // Permission denied — attempt Documents fallback and report truthfully
+            let fallbackSaved = false;
             try {
               await Filesystem.writeFile({ path: filename, data: base64, directory: Directory.Documents, recursive: true });
+              fallbackSaved = true;
             } catch (_) {}
             toast({
               title: "Storage Permission Denied",
-              description: "Could not access Downloads. The recording was saved to Files > ScribeAI instead.",
+              description: fallbackSaved
+                ? "Could not access Downloads. The recording was saved to Files > ScribeAI instead."
+                : "Could not access Downloads and the fallback save also failed. Tap 'Save to Device' to try again.",
               variant: "destructive",
             });
             return;
