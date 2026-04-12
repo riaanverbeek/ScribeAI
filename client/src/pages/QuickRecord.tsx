@@ -80,6 +80,12 @@ async function saveRecordingToDevice(blob: Blob, ext: string, sessionTitle: stri
               return;
             } catch (writeErr) {
               console.warn("[saveRecordingToDevice] ExternalStorage write failed:", writeErr);
+              toast({
+                title: "Save Failed",
+                description: "Could not save to Downloads. Tap 'Save to Device' to try again.",
+                variant: "destructive",
+              });
+              return;
             }
           } else {
             // Permission denied — fall through to Documents
@@ -120,7 +126,13 @@ async function saveRecordingToDevice(blob: Blob, ext: string, sessionTitle: stri
         return;
       }
     } catch (err) {
-      console.warn("[saveRecordingToDevice] Capacitor save failed, falling back to browser download:", err);
+      console.warn("[saveRecordingToDevice] Capacitor save failed:", err);
+      toast({
+        title: "Save Failed",
+        description: "Could not save the recording. Tap 'Save to Device' to try again.",
+        variant: "destructive",
+      });
+      return;
     }
   }
 
@@ -137,6 +149,11 @@ async function saveRecordingToDevice(blob: Blob, ext: string, sessionTitle: stri
     toast({ title: "Recording Saved", description: "Your recording has been downloaded to your device." });
   } catch (err) {
     console.warn("[saveRecordingToDevice] Browser download failed:", err);
+    toast({
+      title: "Download Failed",
+      description: "Could not download the recording. Please try again.",
+      variant: "destructive",
+    });
   }
 }
 
@@ -831,20 +848,18 @@ export default function QuickRecord() {
                 </div>
               )}
 
-              {audioFile && (
-                <div className="flex justify-center">
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={() => saveRecordingToDevice(audioFile, recorder.recordingExtension || ".webm", title, toast)}
-                    disabled={isPending}
-                    data-testid="button-save-recording-device"
-                  >
-                    <UploadCloud className="w-4 h-4 mr-1.5" />
-                    Save Recording to Device
-                  </Button>
-                </div>
-              )}
+              <div className="flex justify-center">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => audioFile && saveRecordingToDevice(audioFile, recorder.recordingExtension || ".webm", title, toast)}
+                  disabled={isPending || !audioFile}
+                  data-testid="button-save-recording-device"
+                >
+                  <UploadCloud className="w-4 h-4 mr-1.5" />
+                  Save Recording to Device
+                </Button>
+              </div>
 
               <div className="flex gap-3 pt-2">
                 <Button
