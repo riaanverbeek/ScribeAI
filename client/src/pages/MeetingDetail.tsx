@@ -16,7 +16,6 @@ import { Textarea } from "@/components/ui/textarea";
 import { format } from "date-fns";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
-import { ScrollArea } from "@/components/ui/scroll-area";
 import ReactMarkdown from "react-markdown";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -525,7 +524,7 @@ export default function MeetingDetail() {
   };
 
   return (
-    <div className="flex flex-col h-full overflow-hidden">
+    <div className="flex flex-col h-full w-full min-w-0 overflow-hidden">
         
       <header className="bg-white dark:bg-background border-b px-4 sm:px-6 py-3 sm:py-4 flex items-center gap-3 shrink-0">
         <Link href="/">
@@ -641,7 +640,7 @@ export default function MeetingDetail() {
         </div>
       )}
 
-      <ScrollArea className="flex-1 overflow-x-hidden">
+      <div className="flex-1 min-w-0 overflow-y-auto overflow-x-hidden custom-scrollbar">
         <div className="w-full p-4 sm:p-6 md:p-8 max-w-5xl mx-auto space-y-6 sm:space-y-8">
             
             <motion.section {...fadeIn}>
@@ -1440,7 +1439,7 @@ export default function MeetingDetail() {
               </div>
             </Tabs>
           </div>
-        </ScrollArea>
+        </div>
 
       {/* Reprocess mode choice dialog */}
       <Dialog open={reprocessDialogOpen} onOpenChange={setReprocessDialogOpen}>
