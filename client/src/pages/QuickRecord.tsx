@@ -74,7 +74,7 @@ async function saveRecordingToDevice(blob: Blob, ext: string, sessionTitle: stri
                 recursive: true,
               });
               toast({
-                title: "Recording Saved to Device",
+                title: "Saved to Downloads",
                 description: "Find it in your Downloads folder.",
               });
               return;
@@ -90,26 +90,39 @@ async function saveRecordingToDevice(blob: Blob, ext: string, sessionTitle: stri
           } else {
             // Permission denied — fall through to Documents
             toast({
-              title: "Storage permission denied",
-              description: "Saving to Documents instead. Find it in Files > ScribeAI.",
+              title: "Storage Permission Denied",
+              description: "Could not access Downloads. The file was saved to app Documents instead (Files > ScribeAI).",
               variant: "destructive",
             });
           }
         }
 
-        // Android 10+: public Documents (Environment.getExternalStoragePublicDirectory(DIRECTORY_DOCUMENTS))
-        // No special permission required; visible in Files app
-        await Filesystem.writeFile({
-          path: filename,
-          data: base64,
-          directory: Directory.Documents,
-          recursive: true,
-        });
-        toast({
-          title: "Recording Saved to Device",
-          description: "Find it in Files > Documents.",
-        });
-        return;
+        // Android 10+: use MediaStore API to save to public Downloads (no legacy permission needed)
+        try {
+          const mimeType = blob.type || "audio/webm";
+          const mediaStorePlugin = (window as any).Capacitor?.Plugins?.MediaStoreDownload;
+          if (!mediaStorePlugin) throw new Error("MediaStoreDownload plugin not available");
+          await mediaStorePlugin.saveToDownloads({ data: base64, filename, mimeType });
+          toast({
+            title: "Saved to Downloads",
+            description: "Find it in Files > Downloads.",
+          });
+          return;
+        } catch (msErr) {
+          console.warn("[saveRecordingToDevice] MediaStore save failed, falling back to Documents:", msErr);
+          // Fall through to Documents as a last resort
+          await Filesystem.writeFile({
+            path: filename,
+            data: base64,
+            directory: Directory.Documents,
+            recursive: true,
+          });
+          toast({
+            title: "Saved to Documents",
+            description: "Could not reach Downloads. File saved to Files > ScribeAI instead.",
+          });
+          return;
+        }
       } else {
         // iOS: Documents directory — visible in Files.app under ScribeAI
         // (requires UIFileSharingEnabled + LSSupportsOpeningDocumentsInPlace in Info.plist)
