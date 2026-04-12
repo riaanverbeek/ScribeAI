@@ -34,7 +34,12 @@ import { useToast } from "@/hooks/use-toast";
 import { useVoiceRecorder } from "@/replit_integrations/audio";
 import { motion } from "framer-motion";
 import type { Template, AudioLanguageOption } from "@shared/schema";
-import { Capacitor } from "@capacitor/core";
+import { Capacitor, registerPlugin } from "@capacitor/core";
+
+interface MediaStoreDownloadPlugin {
+  saveToDownloads(options: { data: string; filename: string; mimeType: string }): Promise<{ uri: string }>;
+}
+const MediaStoreDownload = registerPlugin<MediaStoreDownloadPlugin>("MediaStoreDownload");
 
 export default function NewMeeting() {
   const [, setLocation] = useLocation();
@@ -443,35 +448,31 @@ export default function NewMeeting() {
                 return;
               }
             } else {
-              // Permission denied — fall through to Documents
+              // Permission denied — save to app Documents as fallback and return
+              try {
+                await Filesystem.writeFile({ path: filename, data: base64, directory: Directory.Documents, recursive: true });
+              } catch (_) {}
               toast({
                 title: "Storage Permission Denied",
-                description: "Could not access Downloads. The file was saved to app Documents instead (Files > ScribeAI).",
+                description: "Could not access Downloads. The recording was saved to Files > ScribeAI instead.",
                 variant: "destructive",
               });
+              return;
             }
           }
 
-          // Android 10+: use MediaStore API to save to public Downloads (no legacy permission needed)
+          // Android 10+: use MediaStore API to save directly to public Downloads (no legacy permission needed)
           try {
             const mimeType = blob.type || "audio/webm";
-            const mediaStorePlugin = (window as any).Capacitor?.Plugins?.MediaStoreDownload;
-            if (!mediaStorePlugin) throw new Error("MediaStoreDownload plugin not available");
-            await mediaStorePlugin.saveToDownloads({ data: base64, filename, mimeType });
+            await MediaStoreDownload.saveToDownloads({ data: base64, filename, mimeType });
             toast({
-              title: "Saved to Downloads",
-              description: "Find it in Files > Downloads.",
+              title: "Saved to Downloads via Files",
+              description: "Find it in the Files app under Downloads.",
             });
             return;
           } catch (msErr) {
             console.warn("[saveRecordingToDevice] MediaStore save failed, falling back to Documents:", msErr);
-            // Fall through to Documents as a last resort
-            await Filesystem.writeFile({
-              path: filename,
-              data: base64,
-              directory: Directory.Documents,
-              recursive: true,
-            });
+            await Filesystem.writeFile({ path: filename, data: base64, directory: Directory.Documents, recursive: true });
             toast({
               title: "Saved to Documents",
               description: "Could not reach Downloads. File saved to Files > ScribeAI instead.",
