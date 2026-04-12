@@ -14,7 +14,7 @@ Preferred communication style: Simple, everyday language.
 
 Auto-push to GitHub: After every code change or session, all changes should be automatically pushed to GitHub without prompting the user.
 
-Responsiveness: Every screen — whether newly developed or modified — must be fully responsive across all device sizes: desktop, tablet, and mobile. Use Tailwind responsive prefixes (sm:, md:, lg:, xl:) throughout. Never ship a screen that only works at one viewport size.
+Responsiveness: Every screen — whether newly developed or modified — must be fully responsive across all device sizes: desktop, tablet, and mobile. Use Tailwind responsive prefixes (sm:, md:, lg:, xl:) throughout. Never ship a screen that only works at one viewport size. No horizontal overflow is ever acceptable on any screen or device size. Always apply `min-w-0` to flex children that may contain long content, `overflow-x-hidden` to scroll containers, and test on narrow viewports before considering a layout complete.
 
 ## System Architecture
 
