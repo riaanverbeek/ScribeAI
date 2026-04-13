@@ -819,7 +819,7 @@ export default function MeetingDetail() {
                             </div>
                             <div className="flex-1 min-w-0">
                               <p className="text-xs text-muted-foreground">Context</p>
-                              <p className="text-sm text-foreground whitespace-pre-wrap" data-testid="text-meeting-context">{meeting.contextText}</p>
+                              <p className="text-sm text-foreground line-clamp-3 overflow-hidden" data-testid="text-meeting-context">{meeting.contextText}</p>
                             </div>
                           </div>
                         )}
