@@ -1,0 +1,67 @@
+Please replace the entire contents of codemagic.yaml with this and commit and push with message "Add Android workflow to Codemagic":
+yamlworkflows:
+  ios-workflow:
+    name: ScribeAI iOS
+    max_build_duration: 120
+    instance_type: mac_mini_m2
+    integrations:
+      app_store_connect: Apple Dev Account
+    environment:
+      ios_signing:
+        distribution_type: app_store
+        bundle_identifier: com.fant.app
+      vars:
+        APP_STORE_APPLE_ID: "6761292458"
+        XCODE_PROJECT: "ios/App/App.xcodeproj"
+        XCODE_SCHEME: "App"
+    scripts:
+      - name: Install npm dependencies
+        script: npm install
+      - name: Sync Capacitor
+        script: npx cap sync ios
+      - name: Set up code signing
+        script: xcode-project use-profiles
+      - name: Increment build number
+        script: |
+          cd $CM_BUILD_DIR/ios/App
+          LATEST_BUILD_NUMBER=$(app-store-connect get-latest-testflight-build-number "$APP_STORE_APPLE_ID")
+          agvtool new-version -all $(($LATEST_BUILD_NUMBER + 1))
+      - name: Build IPA
+        script: |
+          xcode-project build-ipa \
+            --project "$CM_BUILD_DIR/$XCODE_PROJECT" \
+            --scheme "$XCODE_SCHEME" \
+            --config Release
+    artifacts:
+      - build/ios/ipa/*.ipa
+      - /tmp/xcodebuild_logs/*.log
+    publishing:
+      app_store_connect:
+        auth: integration
+        submit_to_testflight: true
+
+  android-workflow:
+    name: ScribeAI Android
+    max_build_duration: 120
+    instance_type: linux_x2
+    environment:
+      android_signing:
+        - ScribeAI
+      vars:
+        PACKAGE_NAME: "com.fant.app"
+    scripts:
+      - name: Install npm dependencies
+        script: npm install
+      - name: Sync Capacitor
+        script: npx cap sync android
+      - name: Build Android release
+        script: |
+          cd android
+          ./gradlew bundleRelease
+    artifacts:
+      - android/app/build/outputs/bundle/release/*.aab
+    publishing:
+      google_play:
+        credentials: $GCLOUD_SERVICE_ACCOUNT_CREDENTIALS
+        track: internal
+        submit_as_draft: true
