@@ -46,6 +46,8 @@ workflows:
     environment:
       android_signing:
         - ScribeAI
+      groups:
+        - google_play
       vars:
         PACKAGE_NAME: "com.fant.app"
     scripts:
