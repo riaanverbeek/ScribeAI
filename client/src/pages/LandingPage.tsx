@@ -5,6 +5,7 @@ import { Mic, FileText, Brain, ListChecks, BarChart3, Users, Shield, Clock, Chev
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { useTenant } from "@/contexts/TenantContext";
+import heroPhoneImage from "@assets/Landing_Page_Phone_on_velvet_1777299418458.png";
 
 function FadeInSection({ children, className = "", delay = 0 }: { children: React.ReactNode; className?: string; delay?: number }) {
   const ref = useRef(null);
@@ -411,7 +412,7 @@ export default function LandingPage() {
             >
               <div className="relative rounded-2xl overflow-hidden shadow-2xl shadow-black/40 border border-white/10">
                 <img
-                  src="https://cdn.prod.website-files.com/670a67727905d0e6bd612d79/684837080b4af31dff6e8a2a_express-shopify-setup.avif"
+                  src={heroPhoneImage}
                   alt={`${brandName} Dashboard`}
                   className="w-full h-auto"
                   data-testid="hero-image"
