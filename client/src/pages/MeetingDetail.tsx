@@ -861,7 +861,7 @@ export default function MeetingDetail() {
                             <Mic className="w-4 h-4 text-muted-foreground" />
                           </div>
                           <div>
-                            <p className="text-xs text-muted-foreground">Audio Language</p>
+                            <p className="text-xs text-muted-foreground">Input Language</p>
                             <p className="text-sm font-semibold" data-testid="text-audio-language">
                               {audioLanguageOptions?.find(o => o.code === (meeting as any).audioLanguage)?.label ?? (meeting as any).audioLanguage ?? "Auto-detect"}
                             </p>
@@ -1006,7 +1006,7 @@ export default function MeetingDetail() {
                         )}
 
                         <div className="space-y-2">
-                          <Label className="text-sm">Audio Language</Label>
+                          <Label className="text-sm">Input Language</Label>
                           {audioLangLoading ? (
                             <Skeleton className="h-10 w-full rounded-md" data-testid="skeleton-edit-audio-language" />
                           ) : (
@@ -1014,7 +1014,7 @@ export default function MeetingDetail() {
                               <SelectTrigger data-testid="select-edit-audio-language">
                                 <div className="flex items-center gap-2">
                                   <Mic className="w-4 h-4 text-muted-foreground" />
-                                  <SelectValue placeholder="Select audio language" />
+                                  <SelectValue placeholder="Select input language" />
                                 </div>
                               </SelectTrigger>
                               <SelectContent>

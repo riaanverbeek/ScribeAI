@@ -751,7 +751,7 @@ export default function NewMeeting() {
 
         {isOnline && (
           <div className="space-y-3">
-            <Label className="text-base font-semibold text-slate-900">Audio Language</Label>
+            <Label className="text-base font-semibold text-slate-900">Input Language</Label>
             {audioLangLoading ? (
               <Skeleton className="h-12 w-full rounded-xl" data-testid="skeleton-audio-language" />
             ) : (
@@ -771,7 +771,7 @@ export default function NewMeeting() {
                 </SelectContent>
               </Select>
             )}
-            <p className="text-xs text-muted-foreground">The spoken language in your audio. Use "Afrikaans / English" for South African code-switching to prevent Dutch mis-transcription.</p>
+            <p className="text-xs text-muted-foreground">Select the main input language of the audio recording to ensure a more accurate transcription</p>
           </div>
         )}
 
