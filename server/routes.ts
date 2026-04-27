@@ -446,6 +446,26 @@ export async function registerRoutes(
     }
   }, 60_000);
 
+  app.post("/api/auth/change-password", requireAuth, requireVerified, async (req, res) => {
+    const user = (req as any).user as User;
+    try {
+      const { currentPassword, newPassword } = z.object({
+        currentPassword: z.string().min(1, "Current password is required"),
+        newPassword: z.string().min(8, "New password must be at least 8 characters"),
+      }).parse(req.body);
+      const fullUser = await storage.getUserById(user.id);
+      if (!fullUser) return res.status(404).json({ message: "User not found" });
+      const valid = await bcrypt.compare(currentPassword, fullUser.passwordHash);
+      if (!valid) return res.status(400).json({ message: "Current password is incorrect" });
+      const passwordHash = await bcrypt.hash(newPassword, 12);
+      await storage.updatePassword(user.id, passwordHash);
+      res.json({ message: "Password updated successfully" });
+    } catch (err) {
+      if (err instanceof z.ZodError) return res.status(400).json({ message: err.errors[0].message });
+      throw err;
+    }
+  });
+
   app.patch("/api/auth/profile", requireAuth, requireVerified, async (req, res) => {
     const user = (req as any).user as User;
     try {
