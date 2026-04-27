@@ -193,6 +193,78 @@ export async function sendMeetingCompletedEmail(
   }
 }
 
+export async function sendLlmFailureAlert(
+  superuserEmails: string[],
+  details: {
+    action: string;
+    meetingId: number;
+    meetingTitle: string;
+    ownerEmail: string;
+    errorMessage: string;
+  }
+) {
+  if (superuserEmails.length === 0) return;
+  try {
+    const { client } = await getUncachableResendClient();
+    const baseUrl = getBaseUrl();
+    const meetingUrl = `${baseUrl}/meeting/${details.meetingId}`;
+    const sender = 'ScribeAI <noreply@email.fant-app.com>';
+    const timestamp = new Date().toLocaleString("en-ZA", { timeZone: "Africa/Johannesburg" });
+
+    const html = `
+      <div style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; max-width: 600px; margin: 0 auto; padding: 40px 20px;">
+        <div style="background: #fef2f2; border: 1px solid #fecaca; border-radius: 8px; padding: 16px 20px; margin-bottom: 24px;">
+          <h1 style="font-size: 18px; color: #b91c1c; margin: 0 0 4px;">⚠️ AI Processing Failure</h1>
+          <p style="font-size: 13px; color: #7f1d1d; margin: 0;">${timestamp}</p>
+        </div>
+
+        <table style="width: 100%; border-collapse: collapse; font-size: 14px; margin-bottom: 24px;">
+          <tr style="border-bottom: 1px solid #eee;">
+            <td style="padding: 10px 8px; color: #6b7280; width: 140px; font-weight: 600;">Action</td>
+            <td style="padding: 10px 8px; color: #111;">${details.action}</td>
+          </tr>
+          <tr style="border-bottom: 1px solid #eee;">
+            <td style="padding: 10px 8px; color: #6b7280; font-weight: 600;">Session ID</td>
+            <td style="padding: 10px 8px; color: #111;">#${details.meetingId}</td>
+          </tr>
+          <tr style="border-bottom: 1px solid #eee;">
+            <td style="padding: 10px 8px; color: #6b7280; font-weight: 600;">Session Title</td>
+            <td style="padding: 10px 8px; color: #111;">${details.meetingTitle}</td>
+          </tr>
+          <tr style="border-bottom: 1px solid #eee;">
+            <td style="padding: 10px 8px; color: #6b7280; font-weight: 600;">Session Owner</td>
+            <td style="padding: 10px 8px; color: #111;">${details.ownerEmail}</td>
+          </tr>
+          <tr>
+            <td style="padding: 10px 8px; color: #6b7280; font-weight: 600; vertical-align: top;">Error</td>
+            <td style="padding: 10px 8px;">
+              <code style="display: block; background: #f4f4f5; border-radius: 4px; padding: 10px 12px; font-size: 13px; color: #b91c1c; white-space: pre-wrap; word-break: break-word;">${details.errorMessage}</code>
+            </td>
+          </tr>
+        </table>
+
+        <a href="${meetingUrl}" style="display: inline-block; background: #18181b; color: #ffffff; padding: 10px 28px; border-radius: 8px; text-decoration: none; font-size: 14px; font-weight: 600;">
+          View Session
+        </a>
+
+        <p style="font-size: 12px; color: #aaa; margin-top: 40px; border-top: 1px solid #eee; padding-top: 20px;">
+          ScribeAI — Superuser Alert · This email was sent because you are a superuser.
+        </p>
+      </div>
+    `;
+
+    await client.emails.send({
+      from: sender,
+      to: superuserEmails,
+      subject: `⚠️ AI Failure: ${details.action} — Session #${details.meetingId}`,
+      html,
+    });
+    console.log(`[email] LLM failure alert sent to ${superuserEmails.length} superuser(s) for meeting ${details.meetingId}`);
+  } catch (err) {
+    console.error("[email] Failed to send LLM failure alert:", err);
+  }
+}
+
 function getBaseUrl(): string {
   // APP_EMAIL_BASE_URL: explicit override for email links only (use this to point
   // to the web app URL when APP_BASE_URL is the iOS/mobile app domain)

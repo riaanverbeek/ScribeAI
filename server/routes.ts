@@ -107,7 +107,7 @@ function parseMarkdownBold(text: string, TextRun: any): any[] {
 }
 import { generatePayfastSubscriptionUrl, validatePayfastSignature, cancelPayfastSubscription } from "./payfast";
 import { getUncachableStripeClient } from "./stripeClient";
-import { sendPasswordResetEmail, sendVerificationEmail, sendMeetingCompletedEmail } from "./email";
+import { sendPasswordResetEmail, sendVerificationEmail, sendMeetingCompletedEmail, sendLlmFailureAlert } from "./email";
 import { requireAuth, requireAdmin, requireVerified, requireSubscription, requireSuperuser, sanitizeUser, getEffectiveSubscriptionStatus, hasFullAccess, SUPERUSER_EMAIL, SUPERUSER_PASSWORD } from "./auth";
 import { passwordSchema } from "@shared/passwordValidation";
 import type { User, Tenant } from "@shared/schema";
@@ -128,6 +128,27 @@ export async function registerRoutes(
 ): Promise<Server> {
 
   await seedDatabase();
+
+  async function alertSuperusersOfLlmFailure(meetingId: number, action: string, error: unknown) {
+    try {
+      const superusers = await storage.getSuperusers();
+      if (superusers.length === 0) return;
+      const meeting = await storage.getMeeting(meetingId);
+      const owner = meeting ? await storage.getUserById(meeting.userId) : null;
+      await sendLlmFailureAlert(
+        superusers.map(u => u.email),
+        {
+          action,
+          meetingId,
+          meetingTitle: meeting?.title ?? `Session #${meetingId}`,
+          ownerEmail: owner?.email ?? "unknown",
+          errorMessage: error instanceof Error ? error.message : String(error),
+        }
+      );
+    } catch (alertErr) {
+      console.error("[alert] Failed to send LLM failure alert:", alertErr);
+    }
+  }
 
   if (process.env.NODE_ENV === "production") {
     app.set("trust proxy", 1);
@@ -469,10 +490,20 @@ export async function registerRoutes(
   app.patch("/api/auth/profile", requireAuth, requireVerified, async (req, res) => {
     const user = (req as any).user as User;
     try {
-      const data = z.object({
+      const baseSchema = z.object({
         firstName: z.string().min(1, "First name is required").max(100),
         lastName: z.string().min(1, "Last name is required").max(100),
-      }).parse(req.body);
+      });
+      const superuserSchema = baseSchema.extend({
+        email: z.string().email("Invalid email address").optional(),
+      });
+      const data = (user.isSuperuser ? superuserSchema : baseSchema).parse(req.body);
+      if ((data as any).email && (data as any).email !== user.email) {
+        const existing = await storage.getUserByEmail((data as any).email);
+        if (existing && existing.id !== user.id) {
+          return res.status(400).json({ message: "That email address is already in use" });
+        }
+      }
       const updated = await storage.updateUser(user.id, data);
       const { passwordHash, resetToken, resetTokenExpiry, ...safe } = updated as any;
       res.json(safe);
@@ -1923,6 +1954,7 @@ export async function registerRoutes(
       } catch (error) {
           console.error("Processing error:", error);
           await storage.updateMeetingStatus(id, "failed");
+          alertSuperusersOfLlmFailure(id, "Initial processing", error).catch(() => {});
           res.status(500).json({ message: "Processing failed" });
       }
   });
@@ -2177,6 +2209,7 @@ export async function registerRoutes(
         .catch(async (error) => {
           console.error("Reprocessing error:", error);
           await storage.updateMeetingStatus(id, "failed");
+          alertSuperusersOfLlmFailure(id, `Reprocessing (mode: ${mode ?? "auto"})`, error).catch(() => {});
         });
   });
 
@@ -2290,6 +2323,7 @@ export async function registerRoutes(
         .catch(async (error) => {
           console.error("[merge] Reprocessing error after merge:", error);
           await storage.updateMeetingStatus(targetId, "failed");
+          alertSuperusersOfLlmFailure(targetId, "Post-merge reprocessing", error).catch(() => {});
         });
     } catch (err) {
       console.error("[merge] Error merging sessions:", err);

@@ -29,6 +29,7 @@ export interface IStorage {
     updateUserSubscription(id: number, data: Partial<Pick<User, "subscriptionStatus" | "payfastToken" | "payfastSubscriptionId" | "stripeCustomerId" | "stripeSubscriptionId" | "subscriptionCurrentPeriodEnd" | "cancelledAt" | "trialEndsAt">>): Promise<User>;
     makeSuperuser(id: number): Promise<void>;
     getAllUsers(tenantId?: number): Promise<User[]>;
+    getSuperusers(): Promise<User[]>;
     updateUser(id: number, data: Partial<Pick<User, "firstName" | "lastName" | "email" | "isAdmin" | "isSuperuser" | "isVerified" | "subscriptionStatus">>): Promise<User>;
     deleteUser(id: number): Promise<void>;
     getAllClients(tenantId?: number): Promise<Client[]>;
@@ -240,6 +241,10 @@ export class DatabaseStorage implements IStorage {
             return await db.select().from(users).where(or(eq(users.tenantId, tenantId), isNull(users.tenantId))).orderBy(desc(users.createdAt));
         }
         return await db.select().from(users).orderBy(desc(users.createdAt));
+    }
+
+    async getSuperusers(): Promise<User[]> {
+        return await db.select().from(users).where(eq(users.isSuperuser, true));
     }
 
     async updateUser(id: number, data: Partial<Pick<User, "firstName" | "lastName" | "email" | "isAdmin" | "isSuperuser" | "isVerified" | "subscriptionStatus">>): Promise<User> {

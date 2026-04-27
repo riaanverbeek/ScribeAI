@@ -16,6 +16,7 @@ import { Settings as SettingsIcon, Pencil, X, KeyRound, AtSign } from "lucide-re
 const profileSchema = z.object({
   firstName: z.string().min(1, "First name is required").max(100),
   lastName: z.string().min(1, "Last name is required").max(100),
+  email: z.string().email("Invalid email address").optional(),
 });
 
 const passwordSchema = z.object({
@@ -40,6 +41,7 @@ export default function Settings() {
     defaultValues: {
       firstName: user?.firstName ?? "",
       lastName: user?.lastName ?? "",
+      email: user?.email ?? "",
     },
   });
 
@@ -96,6 +98,7 @@ export default function Settings() {
     profileForm.reset({
       firstName: user?.firstName ?? "",
       lastName: user?.lastName ?? "",
+      email: user?.email ?? "",
     });
     setEditingProfile(true);
   }
@@ -172,15 +175,31 @@ export default function Settings() {
                     />
                   </div>
 
-                  <div>
-                    <Label className="text-xs text-muted-foreground">Username</Label>
-                    <p className="text-sm font-medium mt-0.5" data-testid="text-profile-email">
-                      {user?.email}
-                    </p>
-                    <p className="text-xs text-muted-foreground mt-0.5">
-                      This is your login email. Contact support to change it.
-                    </p>
-                  </div>
+                  {user?.isSuperuser ? (
+                    <FormField
+                      control={profileForm.control}
+                      name="email"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>Username (Email)</FormLabel>
+                          <FormControl>
+                            <Input {...field} type="email" autoComplete="email" data-testid="input-email" />
+                          </FormControl>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+                  ) : (
+                    <div>
+                      <Label className="text-xs text-muted-foreground">Username</Label>
+                      <p className="text-sm font-medium mt-0.5" data-testid="text-profile-email">
+                        {user?.email}
+                      </p>
+                      <p className="text-xs text-muted-foreground mt-0.5">
+                        This is your login email. Contact support to change it.
+                      </p>
+                    </div>
+                  )}
 
                   <div className="flex gap-2 pt-1">
                     <Button
