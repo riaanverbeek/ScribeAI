@@ -57,8 +57,8 @@ const features = [
   {
     icon: Mic,
     title: "Record Anywhere",
-    description: "Record sessions directly in your browser with real-time audio visualization and auto-save protection.",
-    image: "https://cdn.prod.website-files.com/670a67727905d0e6bd612d79/6846aa51ac976418dd0056de_23de25c37fcbbd175c2971f8d64d6563_shopify-checkout.svg",
+    description: "Record sessions directly on your mobile phone or browser with auto-save protection.",
+    image: "",
   },
   {
     icon: Upload,
@@ -447,7 +447,15 @@ export default function LandingPage() {
                   <h3 className="text-lg font-semibold text-gray-900 mb-2">{feat.title}</h3>
                   <p className="text-sm text-gray-500 leading-relaxed">{feat.description}</p>
                   <div className="mt-4 rounded-xl overflow-hidden">
-                    <img src={feat.image} alt={feat.title} className="w-full h-32 object-cover rounded-xl" />
+                    {feat.image ? (
+                      <img src={feat.image} alt={feat.title} className="w-full h-32 object-cover rounded-xl" />
+                    ) : (
+                      <div className="w-full h-32 flex items-center justify-center rounded-xl" style={{ backgroundColor: c.lightBg }}>
+                        <div className="w-16 h-16 rounded-full flex items-center justify-center shadow-md" style={{ backgroundColor: c.primary }}>
+                          <feat.icon className="w-8 h-8 text-white" />
+                        </div>
+                      </div>
+                    )}
                   </div>
                 </div>
               </FadeInSection>
