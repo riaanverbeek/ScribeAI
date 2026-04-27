@@ -193,6 +193,48 @@ export async function sendMeetingCompletedEmail(
   }
 }
 
+export async function sendPaymentFailedEmail(toEmail: string, firstName: string, tenantName?: string) {
+  try {
+    const { client, fromEmail } = await getUncachableResendClient();
+    const appName = tenantName || 'ScribeAI';
+    const baseUrl = getBaseUrl();
+    const subscriptionUrl = `${baseUrl}/subscription`;
+    const sender = `${appName} <noreply@email.fant-app.com>`;
+
+    console.log(`[email] Sending payment failed email to=${toEmail}`);
+
+    const result = await client.emails.send({
+      from: sender,
+      to: toEmail,
+      subject: `Action required: Your ${appName} payment failed`,
+      html: `
+        <div style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; max-width: 560px; margin: 0 auto; padding: 40px 20px;">
+          <div style="background: #fef2f2; border: 1px solid #fecaca; border-radius: 8px; padding: 16px 20px; margin-bottom: 24px;">
+            <h1 style="font-size: 20px; color: #b91c1c; margin: 0 0 4px;">Payment failed</h1>
+            <p style="font-size: 14px; color: #7f1d1d; margin: 0;">Your subscription renewal could not be processed.</p>
+          </div>
+          <p style="font-size: 16px; color: #4a4a4a; line-height: 1.6; margin-bottom: 24px;">
+            Hi ${firstName}, we were unable to process your recurring payment for your ${appName} subscription. Please update your payment method to avoid losing access to your account.
+          </p>
+          <a href="${subscriptionUrl}" style="display: inline-block; background: #18181b; color: #ffffff; padding: 12px 32px; border-radius: 8px; text-decoration: none; font-size: 16px; font-weight: 600;">
+            Update Payment Method
+          </a>
+          <p style="font-size: 14px; color: #888; margin-top: 32px; line-height: 1.5;">
+            If you have recently updated your payment details, please disregard this email. If you need assistance, please contact our support team.
+          </p>
+          <p style="font-size: 12px; color: #aaa; margin-top: 40px; border-top: 1px solid #eee; padding-top: 20px;">
+            ${appName} - Session Transcription & Analysis
+          </p>
+        </div>
+      `,
+    });
+
+    console.log(`[email] Payment failed email result:`, JSON.stringify(result));
+  } catch (err) {
+    console.error("[email] Failed to send payment failed email:", err);
+  }
+}
+
 export async function sendLlmFailureAlert(
   superuserEmails: string[],
   details: {

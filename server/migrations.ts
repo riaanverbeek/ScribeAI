@@ -206,6 +206,17 @@ export async function migratePayfastItnEvents() {
   }
 }
 
+export async function migrateSubscriptionPaymentFailedAt() {
+  try {
+    await db.execute(sql`
+      ALTER TABLE users ADD COLUMN IF NOT EXISTS subscription_payment_failed_at TIMESTAMP
+    `);
+    console.log("[migrations] users.subscription_payment_failed_at column ready");
+  } catch (err) {
+    console.error("[migrations] Error migrating users.subscription_payment_failed_at:", err);
+  }
+}
+
 export async function migrateSystemSettings() {
   try {
     await db.execute(sql`

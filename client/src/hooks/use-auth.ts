@@ -74,6 +74,7 @@ export function useSubscriptionStatus() {
     trialEndsAt: data?.trialEndsAt ?? user?.trialEndsAt,
     currentPeriodEnd: data?.currentPeriodEnd,
     cancelledAt: data?.cancelledAt,
+    paymentFailedAt: data?.paymentFailedAt ?? null,
     hasFullAccess: data?.hasFullAccess ?? false,
     provider: data?.provider ?? "none" as "payfast" | "stripe" | "none",
     isLoading,

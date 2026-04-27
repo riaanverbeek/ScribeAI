@@ -43,6 +43,7 @@ export const users = pgTable("users", {
   roleId: integer("role_id").references(() => roles.id, { onDelete: "set null" }),
   customRole: text("custom_role"),
   cancelledAt: timestamp("cancelled_at"),
+  subscriptionPaymentFailedAt: timestamp("subscription_payment_failed_at"),
   tenantId: integer("tenant_id").references(() => tenants.id, { onDelete: "cascade" }),
   createdAt: timestamp("created_at").defaultNow(),
 });
@@ -328,7 +329,7 @@ export const insertUserSchema = createInsertSchema(users).omit({
   id: true, createdAt: true, isVerified: true, verificationToken: true,
   verificationTokenExpiry: true, trialEndsAt: true, subscriptionStatus: true,
   payfastToken: true, payfastSubscriptionId: true, subscriptionCurrentPeriodEnd: true,
-  cancelledAt: true, roleId: true, customRole: true,
+  cancelledAt: true, subscriptionPaymentFailedAt: true, roleId: true, customRole: true,
 }).extend({
   email: z.string().email("Please enter a valid email address"),
   firstName: z.string().min(1, "First name is required"),

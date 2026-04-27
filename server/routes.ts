@@ -107,7 +107,7 @@ function parseMarkdownBold(text: string, TextRun: any): any[] {
 }
 import { generatePayfastSubscriptionUrl, validatePayfastSignature, cancelPayfastSubscription } from "./payfast";
 import { getUncachableStripeClient } from "./stripeClient";
-import { sendPasswordResetEmail, sendVerificationEmail, sendMeetingCompletedEmail, sendLlmFailureAlert } from "./email";
+import { sendPasswordResetEmail, sendVerificationEmail, sendMeetingCompletedEmail, sendLlmFailureAlert, sendPaymentFailedEmail } from "./email";
 import { requireAuth, requireAdmin, requireVerified, requireSubscription, requireSuperuser, sanitizeUser, getEffectiveSubscriptionStatus, hasFullAccess, SUPERUSER_EMAIL, SUPERUSER_PASSWORD } from "./auth";
 import { passwordSchema } from "@shared/passwordValidation";
 import type { User, Tenant } from "@shared/schema";
@@ -633,6 +633,7 @@ export async function registerRoutes(
           payfastSubscriptionId: data.pf_payment_id || null,
           subscriptionCurrentPeriodEnd: periodEnd,
           cancelledAt: null,
+          subscriptionPaymentFailedAt: null,
         });
         console.log(`PayFast: User ${userId} subscription activated`);
       } else if (paymentStatus === "CANCELLED") {
@@ -641,6 +642,19 @@ export async function registerRoutes(
           cancelledAt: new Date(),
         });
         console.log(`PayFast: User ${userId} subscription cancelled`);
+      } else if (paymentStatus === "FAILED" || paymentStatus === "CHARGEBACK") {
+        const failedUser = await storage.getUser(userId);
+        const isFirstFailure = !failedUser?.subscriptionPaymentFailedAt;
+        await storage.updateUserSubscription(userId, {
+          subscriptionPaymentFailedAt: new Date(),
+        });
+        console.log(`PayFast: User ${userId} payment ${paymentStatus} (first=${isFirstFailure})`);
+        if (failedUser && isFirstFailure) {
+          const tenant = failedUser.tenantId ? await storage.getTenant(failedUser.tenantId) : undefined;
+          sendPaymentFailedEmail(failedUser.email, failedUser.firstName, tenant?.name).catch(err =>
+            console.error("[payfast] Failed to send payment failure email:", err)
+          );
+        }
       }
 
       res.status(200).send("OK");
@@ -843,6 +857,7 @@ export async function registerRoutes(
       trialEndsAt: user.trialEndsAt,
       currentPeriodEnd: user.subscriptionCurrentPeriodEnd,
       cancelledAt: user.cancelledAt,
+      paymentFailedAt: user.subscriptionPaymentFailedAt,
       hasFullAccess: hasFullAccess(user),
       provider,
     });
