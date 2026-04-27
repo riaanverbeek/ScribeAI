@@ -446,6 +446,22 @@ export async function registerRoutes(
     }
   }, 60_000);
 
+  app.patch("/api/auth/profile", requireAuth, requireVerified, async (req, res) => {
+    const user = (req as any).user as User;
+    try {
+      const data = z.object({
+        firstName: z.string().min(1, "First name is required").max(100),
+        lastName: z.string().min(1, "Last name is required").max(100),
+      }).parse(req.body);
+      const updated = await storage.updateUser(user.id, data);
+      const { passwordHash, resetToken, resetTokenExpiry, ...safe } = updated as any;
+      res.json(safe);
+    } catch (err) {
+      if (err instanceof z.ZodError) return res.status(400).json({ message: err.errors[0].message });
+      throw err;
+    }
+  });
+
   app.post("/api/auth/forgot-password", async (req, res) => {
     try {
       const { email } = z.object({ email: z.string().email() }).parse(req.body);
