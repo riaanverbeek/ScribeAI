@@ -596,7 +596,7 @@ export default function NewMeeting() {
                   </div>
                 </SelectTrigger>
                 <SelectContent>
-                  {clients?.map((client) => (
+                  {[...(clients ?? [])].sort((a, b) => a.name.localeCompare(b.name)).map((client) => (
                     <SelectItem key={client.id} value={String(client.id)} data-testid={`select-client-option-${client.id}`}>
                       <div className="flex flex-col">
                         <span>{client.name}</span>
@@ -697,7 +697,7 @@ export default function NewMeeting() {
                   <CommandList>
                     <CommandEmpty>No templates found.</CommandEmpty>
                     <CommandGroup>
-                      {templates.map((tpl) => (
+                      {[...templates].sort((a, b) => a.name.localeCompare(b.name)).map((tpl) => (
                         <CommandItem
                           key={tpl.id}
                           value={tpl.name}
@@ -741,8 +741,8 @@ export default function NewMeeting() {
                 </div>
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="en" data-testid="select-output-language-en">English</SelectItem>
                 <SelectItem value="af" data-testid="select-output-language-af">Afrikaans</SelectItem>
+                <SelectItem value="en" data-testid="select-output-language-en">English</SelectItem>
               </SelectContent>
             </Select>
             <p className="text-xs text-muted-foreground">The language for AI-generated summaries, action items, and topics. The transcript stays in the original spoken language.</p>
@@ -763,7 +763,7 @@ export default function NewMeeting() {
                   </div>
                 </SelectTrigger>
                 <SelectContent>
-                  {(audioLanguageOptions ?? []).map((opt) => (
+                  {[...(audioLanguageOptions ?? [])].sort((a, b) => a.label.localeCompare(b.label)).map((opt) => (
                     <SelectItem key={opt.code} value={opt.code} data-testid={`select-audio-language-${opt.code}`}>
                       {opt.label}
                     </SelectItem>
