@@ -580,78 +580,24 @@ export async function registerRoutes(
       return res.status(400).json({ message: "No active subscription to cancel" });
     }
 
-    const success = await cancelPayfastSubscription(user.payfastToken);
-    if (success) {
-      await storage.updateUserSubscription(user.id, {
-        subscriptionStatus: "cancelled",
-        cancelledAt: new Date(),
+    const result = await cancelPayfastSubscription(user.payfastToken);
+    if (!result.ok) {
+      return res.status(502).json({
+        message: "Couldn't cancel your subscription with PayFast. Your subscription is still active — please try again, or contact support if the problem persists.",
+        detail: result.error,
       });
-      res.json({ message: "Subscription cancelled. You'll retain access until the end of your billing period." });
-    } else {
-      await storage.updateUserSubscription(user.id, {
-        subscriptionStatus: "cancelled",
-        cancelledAt: new Date(),
-      });
-      res.json({ message: "Subscription cancellation processed." });
     }
+
+    await storage.updateUserSubscription(user.id, {
+      subscriptionStatus: "cancelled",
+      cancelledAt: new Date(),
+    });
+    res.json({ message: "Subscription cancelled. You'll retain access until the end of your billing period." });
   });
 
   // ========== STRIPE ROUTES ==========
-
-  app.post("/api/stripe/checkout", requireAuth, requireVerified, async (req, res) => {
-    try {
-      const user = (req as any).user as User;
-      
-      if (user.subscriptionStatus === "active" && (user.stripeSubscriptionId || user.payfastToken)) {
-        return res.status(400).json({ message: "You already have an active subscription" });
-      }
-
-      const stripe = await getUncachableStripeClient();
-
-      let customerId = user.stripeCustomerId;
-      if (!customerId) {
-        const customer = await stripe.customers.create({
-          email: user.email,
-          name: `${user.firstName} ${user.lastName}`,
-          metadata: { userId: String(user.id) },
-        });
-        customerId = customer.id;
-        await storage.updateUserSubscription(user.id, { stripeCustomerId: customerId });
-      }
-
-      const baseUrl = process.env.REPLIT_DEV_DOMAIN
-        ? `https://${process.env.REPLIT_DEV_DOMAIN}`
-        : process.env.REPLIT_DOMAINS
-          ? `https://${process.env.REPLIT_DOMAINS.split(',')[0]}`
-          : 'http://localhost:5000';
-
-      const session = await stripe.checkout.sessions.create({
-        customer: customerId,
-        payment_method_types: ['card'],
-        line_items: [{
-          price_data: {
-            currency: 'zar',
-            product_data: {
-              name: 'ScribeAI Monthly Subscription',
-              description: 'Full access to AI transcription, summaries, action items, and more',
-            },
-            unit_amount: 19900,
-            recurring: { interval: 'month' },
-          },
-          quantity: 1,
-        }],
-        mode: 'subscription',
-        success_url: `${baseUrl}/subscription/success`,
-        cancel_url: `${baseUrl}/subscription/cancel`,
-        metadata: { userId: String(user.id) },
-      });
-
-      res.json({ url: session.url });
-    } catch (error: any) {
-      console.error("Stripe checkout error:", error);
-      res.status(500).json({ message: "Failed to create checkout session" });
-    }
-  });
+  // New Stripe subscriptions are no longer offered (PayFast only). The webhook
+  // and cancel routes remain so existing Stripe subscribers keep working.
 
   app.post("/api/stripe/webhook", async (req, res) => {
     try {

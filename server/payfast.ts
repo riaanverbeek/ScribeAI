@@ -95,7 +95,11 @@ export function validatePayfastSignature(data: Record<string, string>): boolean 
   return receivedSignature === calculatedSignature;
 }
 
-export async function cancelPayfastSubscription(token: string): Promise<boolean> {
+export type PayfastCancelResult =
+  | { ok: true }
+  | { ok: false; error: string };
+
+export async function cancelPayfastSubscription(token: string): Promise<PayfastCancelResult> {
   const merchantId = (process.env.PAYFAST_MERCHANT_ID || "").trim();
   const passphrase = (process.env.PAYFAST_PASSPHRASE || "").trim();
 
@@ -123,9 +127,26 @@ export async function cancelPayfastSubscription(token: string): Promise<boolean>
         "signature": signature,
       },
     });
-    return response.ok;
+
+    if (response.ok) {
+      return { ok: true };
+    }
+
+    const body = await response.text().catch(() => "");
+    const detail = body ? body.slice(0, 500) : response.statusText;
+    console.error(
+      `[payfast] Subscription cancel failed for token ${token}: HTTP ${response.status} ${response.statusText} — body: ${detail}`,
+    );
+    return {
+      ok: false,
+      error: `PayFast rejected the cancellation (HTTP ${response.status}): ${detail || response.statusText}`,
+    };
   } catch (error) {
-    console.error("PayFast cancel error:", error);
-    return false;
+    const msg = error instanceof Error ? error.message : String(error);
+    console.error(`[payfast] Subscription cancel network error for token ${token}: ${msg}`);
+    return {
+      ok: false,
+      error: `Could not reach PayFast: ${msg}`,
+    };
   }
 }
