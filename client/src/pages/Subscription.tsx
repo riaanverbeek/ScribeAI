@@ -26,19 +26,6 @@ export default function Subscription() {
     },
   });
 
-  const stripeCheckoutMutation = useMutation({
-    mutationFn: async () => {
-      const res = await apiRequest("POST", "/api/stripe/checkout");
-      return res.json();
-    },
-    onSuccess: (data) => {
-      window.location.href = data.url;
-    },
-    onError: () => {
-      toast({ title: "Failed to start Stripe checkout", variant: "destructive" });
-    },
-  });
-
   const cancelMutation = useMutation({
     mutationFn: async () => {
       const endpoint = provider === "stripe" ? "/api/stripe/cancel" : "/api/payfast/cancel";
@@ -76,7 +63,7 @@ export default function Subscription() {
   const StatusIcon = config.icon;
 
   const showSubscribeButtons = status === "expired" || status === "none" || status === "trialing";
-  const isCheckingOut = payfastCheckoutMutation.isPending || stripeCheckoutMutation.isPending;
+  const isCheckingOut = payfastCheckoutMutation.isPending;
 
   return (
     <div className="max-w-2xl mx-auto p-4 sm:p-6 space-y-6">
@@ -169,30 +156,14 @@ export default function Subscription() {
         </CardContent>
         <CardFooter className="flex flex-col gap-3">
           {showSubscribeButtons && (
-            <>
-              <div className="w-full space-y-2">
-                <Button
-                  className="w-full"
-                  onClick={() => payfastCheckoutMutation.mutate()}
-                  disabled={isCheckingOut}
-                  data-testid="button-subscribe-payfast"
-                >
-                  {payfastCheckoutMutation.isPending ? "Redirecting..." : "Pay with PayFast — R199/month"}
-                </Button>
-                <Button
-                  className="w-full"
-                  variant="outline"
-                  onClick={() => stripeCheckoutMutation.mutate()}
-                  disabled={isCheckingOut}
-                  data-testid="button-subscribe-stripe"
-                >
-                  {stripeCheckoutMutation.isPending ? "Redirecting..." : "Pay with Card (Stripe) — R199/month"}
-                </Button>
-              </div>
-              <p className="text-xs text-muted-foreground text-center">
-                Choose your preferred payment method. Both options provide the same full access.
-              </p>
-            </>
+            <Button
+              className="w-full"
+              onClick={() => payfastCheckoutMutation.mutate()}
+              disabled={isCheckingOut}
+              data-testid="button-subscribe-payfast"
+            >
+              {payfastCheckoutMutation.isPending ? "Redirecting..." : "Subscribe with PayFast — R199/month"}
+            </Button>
           )}
           {status === "active" && (
             <Button

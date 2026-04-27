@@ -5,20 +5,46 @@ const PAYFAST_HOST = PAYFAST_SANDBOX ? "sandbox.payfast.co.za" : "www.payfast.co
 const PAYFAST_API_HOST = PAYFAST_SANDBOX ? "api.sandbox.payfast.co.za" : "api.payfast.co.za";
 
 function getBaseUrl(): string {
+  if (process.env.REPLIT_DEPLOYMENT && process.env.REPLIT_DOMAINS) {
+    const domain = process.env.REPLIT_DOMAINS.split(",")[0];
+    return `https://${domain}`;
+  }
+  if (process.env.APP_BASE_URL) {
+    return process.env.APP_BASE_URL;
+  }
   if (process.env.REPLIT_DEV_DOMAIN) {
     return `https://${process.env.REPLIT_DEV_DOMAIN}`;
   }
   if (process.env.REPL_SLUG && process.env.REPL_OWNER) {
     return `https://${process.env.REPL_SLUG}.${process.env.REPL_OWNER}.repl.co`;
   }
-  return 'http://localhost:5000';
+  return "http://localhost:5000";
+}
+
+function phpUrlEncode(str: string): string {
+  return encodeURIComponent(str)
+    .replace(/!/g, "%21")
+    .replace(/\*/g, "%2A")
+    .replace(/'/g, "%27")
+    .replace(/\(/g, "%28")
+    .replace(/\)/g, "%29")
+    .replace(/~/g, "%7E")
+    .replace(/%20/g, "+");
 }
 
 function generateSignature(data: Record<string, string>, passphrase?: string): string {
-  const sortedKeys = Object.keys(data).filter(k => k !== 'signature');
-  let pfOutput = sortedKeys.map(key => `${key}=${encodeURIComponent(data[key]).replace(/%20/g, "+")}`).join("&");
-  if (passphrase) {
-    pfOutput += `&passphrase=${encodeURIComponent(passphrase).replace(/%20/g, "+")}`;
+  const keys = Object.keys(data).filter((k) => k !== "signature");
+  const parts: string[] = [];
+  for (const key of keys) {
+    const raw = data[key];
+    if (raw === undefined || raw === null) continue;
+    const trimmed = String(raw).trim();
+    if (trimmed === "") continue;
+    parts.push(`${key}=${phpUrlEncode(trimmed)}`);
+  }
+  let pfOutput = parts.join("&");
+  if (passphrase && passphrase.trim() !== "") {
+    pfOutput += `&passphrase=${phpUrlEncode(passphrase.trim())}`;
   }
   return crypto.createHash("md5").update(pfOutput).digest("hex");
 }
@@ -29,9 +55,9 @@ export function generatePayfastSubscriptionUrl(params: {
   lastName: string;
   userId: number;
 }): string {
-  const merchantId = process.env.PAYFAST_MERCHANT_ID!;
-  const merchantKey = process.env.PAYFAST_MERCHANT_KEY!;
-  const passphrase = process.env.PAYFAST_PASSPHRASE || "";
+  const merchantId = (process.env.PAYFAST_MERCHANT_ID || "").trim();
+  const merchantKey = (process.env.PAYFAST_MERCHANT_KEY || "").trim();
+  const passphrase = (process.env.PAYFAST_PASSPHRASE || "").trim();
   const baseUrl = getBaseUrl();
 
   const data: Record<string, string> = {
@@ -40,9 +66,9 @@ export function generatePayfastSubscriptionUrl(params: {
     return_url: `${baseUrl}/subscription/success`,
     cancel_url: `${baseUrl}/subscription/cancel`,
     notify_url: `${baseUrl}/api/payfast/notify`,
-    name_first: params.firstName,
-    name_last: params.lastName,
-    email_address: params.email,
+    name_first: (params.firstName || "").trim(),
+    name_last: (params.lastName || "").trim(),
+    email_address: (params.email || "").trim(),
     amount: "199.00",
     item_name: "ScribeAI Monthly Subscription",
     subscription_type: "1",
@@ -51,37 +77,40 @@ export function generatePayfastSubscriptionUrl(params: {
     custom_str1: String(params.userId),
   };
 
-  const signature = generateSignature(data, passphrase);
+  const signature = generateSignature(data, passphrase || undefined);
   data.signature = signature;
 
   const queryString = Object.entries(data)
-    .map(([key, val]) => `${key}=${encodeURIComponent(val)}`)
+    .filter(([, val]) => val !== undefined && val !== null && String(val).trim() !== "")
+    .map(([key, val]) => `${key}=${phpUrlEncode(String(val).trim())}`)
     .join("&");
 
   return `https://${PAYFAST_HOST}/eng/process?${queryString}`;
 }
 
 export function validatePayfastSignature(data: Record<string, string>): boolean {
-  const passphrase = process.env.PAYFAST_PASSPHRASE || "";
+  const passphrase = (process.env.PAYFAST_PASSPHRASE || "").trim();
   const receivedSignature = data.signature;
-  const calculatedSignature = generateSignature(data, passphrase);
+  const calculatedSignature = generateSignature(data, passphrase || undefined);
   return receivedSignature === calculatedSignature;
 }
 
 export async function cancelPayfastSubscription(token: string): Promise<boolean> {
-  const merchantId = process.env.PAYFAST_MERCHANT_ID!;
-  const passphrase = process.env.PAYFAST_PASSPHRASE || "";
+  const merchantId = (process.env.PAYFAST_MERCHANT_ID || "").trim();
+  const passphrase = (process.env.PAYFAST_PASSPHRASE || "").trim();
 
   const timestamp = new Date().toISOString().replace(/\.\d{3}Z$/, "+02:00");
   const signatureData: Record<string, string> = {
-    merchant_id: merchantId,
-    passphrase: passphrase,
-    timestamp: timestamp,
-    version: "v1",
+    "merchant-id": merchantId,
+    "version": "v1",
+    "timestamp": timestamp,
   };
-  const signatureString = Object.entries(signatureData)
-    .map(([key, val]) => `${key}=${encodeURIComponent(val).replace(/%20/g, "+")}`)
-    .join("&");
+  const sortedKeys = Object.keys(signatureData).sort();
+  const parts = sortedKeys.map((key) => `${key}=${phpUrlEncode(signatureData[key])}`);
+  let signatureString = parts.join("&");
+  if (passphrase) {
+    signatureString += `&passphrase=${phpUrlEncode(passphrase)}`;
+  }
   const signature = crypto.createHash("md5").update(signatureString).digest("hex");
 
   try {
