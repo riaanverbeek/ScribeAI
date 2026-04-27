@@ -195,6 +195,19 @@ export const systemSettings = pgTable("system_settings", {
   createdAt: timestamp("created_at").defaultNow(),
 });
 
+export const payfastItnEvents = pgTable("payfast_itn_events", {
+  id: serial("id").primaryKey(),
+  userId: integer("user_id").references(() => users.id, { onDelete: "cascade" }),
+  payfastToken: text("payfast_token"),
+  paymentStatus: text("payment_status").notNull(),
+  rawData: text("raw_data"),
+  receivedAt: timestamp("received_at").defaultNow().notNull(),
+});
+
+export const insertPayfastItnEventSchema = createInsertSchema(payfastItnEvents).omit({ id: true, receivedAt: true });
+export type PayfastItnEvent = typeof payfastItnEvents.$inferSelect;
+export type InsertPayfastItnEvent = z.infer<typeof insertPayfastItnEventSchema>;
+
 // === CHAT TABLES FOR REPLIT INTEGRATIONS ===
 
 export const conversations = pgTable("conversations", {

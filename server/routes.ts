@@ -614,6 +614,15 @@ export async function registerRoutes(
       const paymentStatus = data.payment_status;
       const token = data.token;
 
+      // Persist every ITN event so the billing audit can check whether a CANCELLED
+      // ITN was received after a local cancellation was recorded.
+      await storage.logPayfastItnEvent({
+        userId,
+        payfastToken: token || null,
+        paymentStatus,
+        rawData: JSON.stringify(data),
+      }).catch(err => console.error("[payfast] Failed to log ITN event:", err));
+
       if (paymentStatus === "COMPLETE") {
         const periodEnd = new Date();
         periodEnd.setMonth(periodEnd.getMonth() + 1);
@@ -1306,6 +1315,62 @@ export async function registerRoutes(
     } catch (err) {
       console.error("Error fetching LLM registry:", err);
       res.status(500).json({ message: "Failed to fetch LLM models" });
+    }
+  });
+
+  // ========== PAYFAST BILLING RECONCILIATION AUDIT ==========
+
+  app.get("/api/superuser/payfast-audit", requireAuth, requireVerified, requireSuperuser, async (req, res) => {
+    try {
+      const auditUsers = await storage.getPayfastAuditUsers();
+      res.json(auditUsers.map(sanitizeUser));
+    } catch (err) {
+      console.error("Error fetching PayFast audit users:", err);
+      res.status(500).json({ message: "Failed to fetch audit data" });
+    }
+  });
+
+  app.post("/api/superuser/payfast-audit/:userId/retry-cancel", requireAuth, requireVerified, requireSuperuser, async (req, res) => {
+    try {
+      const userId = parseInt(req.params.userId);
+      if (!userId) return res.status(400).json({ message: "Invalid user ID" });
+
+      const user = await storage.getUserById(userId);
+      if (!user) return res.status(404).json({ message: "User not found" });
+
+      if (!user.payfastToken) {
+        return res.status(400).json({ message: "User has no PayFast token to cancel" });
+      }
+
+      if (user.subscriptionStatus !== "cancelled") {
+        return res.status(400).json({ message: "User is not in cancelled state" });
+      }
+
+      const result = await cancelPayfastSubscription(user.payfastToken);
+      if (!result.ok) {
+        console.warn(
+          `[payfast-audit] Retry cancel for user ${userId} failed: ${result.error}`,
+        );
+        return res.status(502).json({
+          message: "PayFast returned an error for this cancellation retry.",
+          detail: result.error,
+        });
+      }
+
+      // Record a synthetic CANCELLED ITN so the audit query naturally excludes
+      // this user going forward (the NOT EXISTS check will find this record).
+      await storage.logPayfastItnEvent({
+        userId,
+        payfastToken: user.payfastToken,
+        paymentStatus: "CANCELLED",
+        rawData: JSON.stringify({ source: "admin_retry_cancel", timestamp: new Date().toISOString() }),
+      }).catch(err => console.error("[payfast-audit] Failed to log synthetic ITN:", err));
+
+      console.log(`[payfast-audit] Successfully re-cancelled PayFast subscription for user ${userId}`);
+      res.json({ message: "PayFast cancellation confirmed successfully." });
+    } catch (err) {
+      console.error("Error retrying PayFast cancel:", err);
+      res.status(500).json({ message: "Internal error retrying cancellation" });
     }
   });
 

@@ -1,10 +1,10 @@
 import { db } from "./db";
 import { 
-    users, clients, meetings, transcripts, actionItems, topics, meetingSummaries, templates, templateTenants, roles, policies, meetingPolicies, tenants, audioLanguageOptions, promptSettings, systemSettings,
+    users, clients, meetings, transcripts, actionItems, topics, meetingSummaries, templates, templateTenants, roles, policies, meetingPolicies, tenants, audioLanguageOptions, promptSettings, systemSettings, payfastItnEvents,
     type InsertUser, type InsertClient, type InsertMeeting, type InsertTranscript, type InsertActionItem, type InsertTopic, type InsertMeetingSummary, type InsertTemplate, type InsertRole, type InsertPolicy, type InsertMeetingPolicy, type InsertTenant, type InsertAudioLanguageOption, type InsertPromptSetting,
-    type User, type Client, type Meeting, type Transcript, type ActionItem, type Topic, type MeetingSummary, type Template, type TemplateWithTenants, type Role, type Policy, type MeetingPolicy, type Tenant, type AudioLanguageOption, type PromptSetting, type SystemSetting
+    type User, type Client, type Meeting, type Transcript, type ActionItem, type Topic, type MeetingSummary, type Template, type TemplateWithTenants, type Role, type Policy, type MeetingPolicy, type Tenant, type AudioLanguageOption, type PromptSetting, type SystemSetting, type PayfastItnEvent
 } from "@shared/schema";
-import { eq, and, desc, lt, ne, or, isNull, sql, inArray } from "drizzle-orm";
+import { eq, and, desc, lt, ne, or, isNull, isNotNull, sql, inArray } from "drizzle-orm";
 
 export interface IStorage {
     // Tenants
@@ -30,6 +30,8 @@ export interface IStorage {
     makeSuperuser(id: number): Promise<void>;
     getAllUsers(tenantId?: number): Promise<User[]>;
     getSuperusers(): Promise<User[]>;
+    getPayfastAuditUsers(): Promise<User[]>;
+    logPayfastItnEvent(data: { userId?: number | null; payfastToken?: string | null; paymentStatus: string; rawData?: string | null }): Promise<PayfastItnEvent>;
     updateUser(id: number, data: Partial<Pick<User, "firstName" | "lastName" | "email" | "isAdmin" | "isSuperuser" | "isVerified" | "subscriptionStatus">>): Promise<User>;
     deleteUser(id: number): Promise<void>;
     getAllClients(tenantId?: number): Promise<Client[]>;
@@ -245,6 +247,44 @@ export class DatabaseStorage implements IStorage {
 
     async getSuperusers(): Promise<User[]> {
         return await db.select().from(users).where(eq(users.isSuperuser, true));
+    }
+
+    async getPayfastAuditUsers(): Promise<User[]> {
+        // Users potentially still being billed by PayFast despite local "cancelled" status:
+        // 1. subscriptionStatus = 'cancelled' locally
+        // 2. payfastToken IS NOT NULL  — PayFast still knows about this subscription
+        // 3. cancelledAt IS NOT NULL   — cancellation was recorded
+        // 4. subscriptionCurrentPeriodEnd > cancelledAt — billing period extended past cancellation (PayFast would re-bill)
+        // 5. No PayFast CANCELLED ITN received after their cancellation date — PayFast never confirmed the cancellation
+        return await db
+            .select()
+            .from(users)
+            .where(
+                and(
+                    eq(users.subscriptionStatus, "cancelled"),
+                    isNotNull(users.payfastToken),
+                    isNotNull(users.cancelledAt),
+                    isNotNull(users.subscriptionCurrentPeriodEnd),
+                    sql`${users.subscriptionCurrentPeriodEnd} > ${users.cancelledAt}`,
+                    sql`NOT EXISTS (
+                        SELECT 1 FROM payfast_itn_events pie
+                        WHERE pie.user_id = ${users.id}
+                        AND pie.payment_status = 'CANCELLED'
+                        AND pie.received_at > ${users.cancelledAt}
+                    )`,
+                ),
+            )
+            .orderBy(desc(users.cancelledAt));
+    }
+
+    async logPayfastItnEvent(data: { userId?: number | null; payfastToken?: string | null; paymentStatus: string; rawData?: string | null }): Promise<PayfastItnEvent> {
+        const [event] = await db.insert(payfastItnEvents).values({
+            userId: data.userId ?? null,
+            payfastToken: data.payfastToken ?? null,
+            paymentStatus: data.paymentStatus,
+            rawData: data.rawData ?? null,
+        }).returning();
+        return event;
     }
 
     async updateUser(id: number, data: Partial<Pick<User, "firstName" | "lastName" | "email" | "isAdmin" | "isSuperuser" | "isVerified" | "subscriptionStatus">>): Promise<User> {

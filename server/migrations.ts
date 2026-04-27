@@ -182,6 +182,30 @@ export async function migrateTemplateAnalysisModel() {
   }
 }
 
+export async function migratePayfastItnEvents() {
+  try {
+    await db.execute(sql`
+      CREATE TABLE IF NOT EXISTS payfast_itn_events (
+        id SERIAL PRIMARY KEY,
+        user_id INTEGER REFERENCES users(id) ON DELETE CASCADE,
+        payfast_token TEXT,
+        payment_status TEXT NOT NULL,
+        raw_data TEXT,
+        received_at TIMESTAMP NOT NULL DEFAULT NOW()
+      )
+    `);
+    await db.execute(sql`
+      CREATE INDEX IF NOT EXISTS idx_payfast_itn_events_user_id ON payfast_itn_events(user_id)
+    `);
+    await db.execute(sql`
+      CREATE INDEX IF NOT EXISTS idx_payfast_itn_events_status ON payfast_itn_events(payment_status)
+    `);
+    console.log("[migrations] payfast_itn_events table ready");
+  } catch (err) {
+    console.error("[migrations] Error migrating payfast_itn_events:", err);
+  }
+}
+
 export async function migrateSystemSettings() {
   try {
     await db.execute(sql`

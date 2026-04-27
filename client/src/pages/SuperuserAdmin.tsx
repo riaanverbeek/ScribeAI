@@ -13,7 +13,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 import { Switch } from "@/components/ui/switch";
-import { Pencil, Trash2, Plus, Users, Briefcase, Calendar, Shield, ShieldCheck, Tag, ArrowLeft, Eye, ChevronRight, Loader2, Building2, Globe, Palette, ArrowUpDown, Languages, MessageSquare, RotateCcw, Save, ChevronDown, ChevronUp, Cpu, CheckCircle, XCircle } from "lucide-react";
+import { Pencil, Trash2, Plus, Users, Briefcase, Calendar, Shield, ShieldCheck, Tag, ArrowLeft, Eye, ChevronRight, Loader2, Building2, Globe, Palette, ArrowUpDown, Languages, MessageSquare, RotateCcw, Save, ChevronDown, ChevronUp, Cpu, CheckCircle, XCircle, AlertTriangle, RefreshCw } from "lucide-react";
 import { format } from "date-fns";
 import type { SafeUser, Client, Meeting, Role, Transcript, ActionItem, Topic, MeetingSummary, Tenant, AudioLanguageOption, PromptSetting, SystemSetting } from "@shared/schema";
 
@@ -1684,6 +1684,125 @@ function PromptsTab() {
   );
 }
 
+function PayfastAuditTab() {
+  const { toast } = useToast();
+  const [retryingId, setRetryingId] = useState<number | null>(null);
+  const [retryResults, setRetryResults] = useState<Record<number, { ok: boolean; message: string }>>({});
+
+  const { data: auditUsers = [], isLoading, refetch } = useQuery<SuperuserUser[]>({
+    queryKey: ["/api/superuser/payfast-audit"],
+    queryFn: async () => {
+      const res = await fetch("/api/superuser/payfast-audit", { credentials: "include" });
+      if (!res.ok) throw new Error("Failed to load audit data");
+      return res.json();
+    },
+  });
+
+  async function retryCancel(userId: number) {
+    setRetryingId(userId);
+    try {
+      const res = await fetch(`/api/superuser/payfast-audit/${userId}/retry-cancel`, {
+        method: "POST",
+        credentials: "include",
+      });
+      const body = await res.json();
+      if (res.ok) {
+        setRetryResults(prev => ({ ...prev, [userId]: { ok: true, message: body.message } }));
+        toast({ title: "Cancellation confirmed", description: body.message });
+      } else {
+        setRetryResults(prev => ({ ...prev, [userId]: { ok: false, message: body.detail || body.message } }));
+        toast({ title: "Retry failed", description: body.message, variant: "destructive" });
+      }
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : "Unknown error";
+      setRetryResults(prev => ({ ...prev, [userId]: { ok: false, message: msg } }));
+      toast({ title: "Error", description: msg, variant: "destructive" });
+    } finally {
+      setRetryingId(null);
+    }
+  }
+
+  return (
+    <div className="space-y-4">
+      <div className="flex items-start justify-between gap-4">
+        <div>
+          <h2 className="text-lg font-semibold" data-testid="text-payfast-audit-heading">PayFast Billing Reconciliation</h2>
+          <p className="text-sm text-muted-foreground mt-1">
+            Users shown below are marked <strong>cancelled</strong> in our database but still have a PayFast subscription token with no confirming CANCELLED notification from PayFast — meaning PayFast may still be billing them. For each user, retry the PayFast cancellation to confirm it is stopped on PayFast's side. Note: ITN history is only tracked from the time this feature was deployed, so some historically-cancelled users may appear until they are resolved.
+          </p>
+        </div>
+        <Button variant="outline" size="sm" onClick={() => refetch()} data-testid="button-refresh-audit">
+          <RefreshCw className="w-4 h-4 mr-1.5" /> Refresh
+        </Button>
+      </div>
+
+      {isLoading ? (
+        <div className="flex items-center justify-center py-12">
+          <Loader2 className="w-6 h-6 animate-spin text-muted-foreground" />
+        </div>
+      ) : auditUsers.length === 0 ? (
+        <Card>
+          <CardContent className="py-10 text-center">
+            <CheckCircle className="w-10 h-10 text-green-500 mx-auto mb-3" />
+            <p className="font-medium" data-testid="text-audit-clean">No affected users found</p>
+            <p className="text-sm text-muted-foreground mt-1">All cancelled users either have no PayFast token or are accounted for.</p>
+          </CardContent>
+        </Card>
+      ) : (
+        <div className="space-y-3">
+          <div className="flex items-center gap-2 text-amber-600 dark:text-amber-400 text-sm font-medium">
+            <AlertTriangle className="w-4 h-4" />
+            <span data-testid="text-audit-count">{auditUsers.length} user{auditUsers.length !== 1 ? "s" : ""} may still be billed by PayFast</span>
+          </div>
+          {auditUsers.map(user => {
+            const result = retryResults[user.id];
+            return (
+              <Card key={user.id} data-testid={`card-audit-user-${user.id}`}>
+                <CardContent className="py-4">
+                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                    <div className="space-y-1">
+                      <div className="flex items-center gap-2">
+                        <span className="font-medium" data-testid={`text-audit-name-${user.id}`}>{user.firstName} {user.lastName}</span>
+                        <Badge variant="outline" className="text-xs">{user.email}</Badge>
+                      </div>
+                      <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-muted-foreground">
+                        <span>Cancelled: {user.cancelledAt ? format(new Date(user.cancelledAt), "MMM d, yyyy") : "—"}</span>
+                        <span>Period ends: {user.subscriptionCurrentPeriodEnd ? format(new Date(user.subscriptionCurrentPeriodEnd), "MMM d, yyyy") : "—"}</span>
+                        <span className="font-mono truncate max-w-[200px]" data-testid={`text-audit-token-${user.id}`}>Token: {user.payfastToken}</span>
+                      </div>
+                      {result && (
+                        <div className={`flex items-center gap-1.5 text-xs mt-1 ${result.ok ? "text-green-600 dark:text-green-400" : "text-red-600 dark:text-red-400"}`} data-testid={`text-audit-result-${user.id}`}>
+                          {result.ok ? <CheckCircle className="w-3.5 h-3.5" /> : <XCircle className="w-3.5 h-3.5" />}
+                          {result.message}
+                        </div>
+                      )}
+                    </div>
+                    <Button
+                      size="sm"
+                      variant={result?.ok ? "outline" : "default"}
+                      disabled={retryingId === user.id || result?.ok === true}
+                      onClick={() => retryCancel(user.id)}
+                      data-testid={`button-retry-cancel-${user.id}`}
+                    >
+                      {retryingId === user.id ? (
+                        <><Loader2 className="w-3.5 h-3.5 mr-1.5 animate-spin" /> Cancelling…</>
+                      ) : result?.ok ? (
+                        <><CheckCircle className="w-3.5 h-3.5 mr-1.5" /> Confirmed</>
+                      ) : (
+                        <><RefreshCw className="w-3.5 h-3.5 mr-1.5" /> Retry Cancel</>
+                      )}
+                    </Button>
+                  </div>
+                </CardContent>
+              </Card>
+            );
+          })}
+        </div>
+      )}
+    </div>
+  );
+}
+
 export default function SuperuserAdmin() {
   return (
     <div className="p-4 sm:p-6 lg:p-8 max-w-5xl mx-auto">
@@ -1696,7 +1815,7 @@ export default function SuperuserAdmin() {
       </div>
 
       <Tabs defaultValue="users">
-        <TabsList className="w-full grid grid-cols-8 mb-4" data-testid="tabs-superuser">
+        <TabsList className="w-full grid grid-cols-9 mb-4" data-testid="tabs-superuser">
           <TabsTrigger value="users" className="gap-1" data-testid="tab-users">
             <Users className="w-4 h-4 hidden sm:block" /> Users
           </TabsTrigger>
@@ -1721,6 +1840,9 @@ export default function SuperuserAdmin() {
           <TabsTrigger value="llm" className="gap-1" data-testid="tab-llm">
             <Cpu className="w-4 h-4 hidden sm:block" /> LLM
           </TabsTrigger>
+          <TabsTrigger value="payfast-audit" className="gap-1" data-testid="tab-payfast-audit">
+            <AlertTriangle className="w-4 h-4 hidden sm:block" /> PF Audit
+          </TabsTrigger>
         </TabsList>
 
         <TabsContent value="users"><UsersTab /></TabsContent>
@@ -1731,6 +1853,7 @@ export default function SuperuserAdmin() {
         <TabsContent value="languages"><LanguageOptionsTab /></TabsContent>
         <TabsContent value="prompts"><PromptsTab /></TabsContent>
         <TabsContent value="llm"><LlmTab /></TabsContent>
+        <TabsContent value="payfast-audit"><PayfastAuditTab /></TabsContent>
       </Tabs>
     </div>
   );
