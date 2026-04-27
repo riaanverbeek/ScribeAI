@@ -219,7 +219,7 @@ export default function Dashboard() {
               data-testid="button-quick-record"
             >
               <Phone className="mr-1.5 sm:mr-2 w-4 h-4 sm:w-5 sm:h-5 shrink-0" />
-              Quick Record
+              Call Recording
             </Button>
           </Link>
           <Link href="/new" className="flex-1 min-w-0 sm:flex-none">
@@ -252,7 +252,7 @@ export default function Dashboard() {
                 <Link href="/quick-record">
                   <Button size="sm" data-testid="button-recover-quickrecord">
                     <Phone className="w-3.5 h-3.5 mr-1.5" />
-                    Quick Record
+                    Call Recording
                   </Button>
                 </Link>
                 <Link href="/new">

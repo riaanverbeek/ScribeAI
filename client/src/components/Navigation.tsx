@@ -11,7 +11,7 @@ import { useHasRecoverableRecording } from "@/hooks/use-recovery";
 const navItems = [
   { label: "Sessions", icon: LayoutDashboard, href: "/" },
   { label: "New Session", icon: PlusCircle, href: "/new" },
-  { label: "Quick Record", icon: Phone, href: "/quick-record" },
+  { label: "Call Recording", icon: Phone, href: "/quick-record" },
   { label: "Clients", icon: Users, href: "/clients", requiresSubscription: true },
   { label: "Subscription", icon: CreditCard, href: "/subscription" },
   { label: "Settings", icon: Settings, href: "/settings" },

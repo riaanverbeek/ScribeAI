@@ -341,7 +341,7 @@ export default function QuickRecord() {
     setAudioFile(file);
 
     const now = new Date();
-    const autoTitle = `Quick Record - ${format(now, "MMM d, yyyy h:mm a")}`;
+    const autoTitle = `Call Recording - ${format(now, "MMM d, yyyy h:mm a")}`;
     setTitle(autoTitle);
     setPhase("saving");
 
@@ -390,7 +390,7 @@ export default function QuickRecord() {
       setAudioFile(file);
       setElapsed(recovered.elapsed);
       const now = new Date();
-      const recoveredTitle = `Quick Record - ${format(now, "MMM d, yyyy h:mm a")}`;
+      const recoveredTitle = `Call Recording - ${format(now, "MMM d, yyyy h:mm a")}`;
       setTitle(recoveredTitle);
       setPhase("saving");
 
@@ -543,7 +543,7 @@ export default function QuickRecord() {
         <div className="text-center mb-8">
           <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-muted text-muted-foreground text-sm font-medium mb-4">
             <Phone className="w-4 h-4" />
-            Quick Record
+            Call Recording
           </div>
           <p className="text-sm text-muted-foreground">
             {phase === "ready" && "Tap the button to start recording your call"}
