@@ -332,6 +332,7 @@ export const insertClientSchema = createInsertSchema(clients).omit({ id: true, c
 
 export const insertMeetingSchema = createInsertSchema(meetings).extend({
   date: z.string().transform((str) => new Date(str)),
+  title: z.string().optional(),
 }).omit({ id: true, createdAt: true, status: true });
 export const insertTranscriptSchema = createInsertSchema(transcripts).omit({ id: true });
 export const insertActionItemSchema = createInsertSchema(actionItems).omit({ id: true });

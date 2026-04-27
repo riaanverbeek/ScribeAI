@@ -156,11 +156,6 @@ export default function NewMeeting() {
   };
 
   const handleSaveOffline = async () => {
-    if (!title.trim()) {
-      toast({ title: "Title Required", description: "Please give your session a name.", variant: "destructive" });
-      return;
-    }
-
     if (!file) {
       toast({ title: "Audio Required", description: "Please record or upload audio first.", variant: "destructive" });
       return;
@@ -181,9 +176,13 @@ export default function NewMeeting() {
         ctxFileName = contextFile.name;
       }
 
+      const now = new Date();
+      const dateStr = `${now.getFullYear()}/${String(now.getMonth() + 1).padStart(2, "0")}/${String(now.getDate()).padStart(2, "0")}`;
+      const offlineTitle = title.trim() || `${dateStr}_Session`;
+
       await saveOfflineRecording({
         id,
-        title: title.trim(),
+        title: offlineTitle,
         audioBlob: actualBlob,
         audioFileName,
         audioMimeType,
@@ -238,11 +237,6 @@ export default function NewMeeting() {
         return;
       }
       return handleSaveOffline();
-    }
-
-    if (!title.trim()) {
-      toast({ title: "Title Required", description: "Please give your session a name.", variant: "destructive" });
-      return;
     }
 
     const isTranscriptMode = activeInputTab === "transcript";
@@ -576,7 +570,10 @@ export default function NewMeeting() {
 
       <div className="grid gap-8">
         <div className="space-y-3">
-          <Label htmlFor="title" className="text-base font-semibold text-slate-900">Session Title</Label>
+          <div className="flex items-baseline gap-2">
+            <Label htmlFor="title" className="text-base font-semibold text-slate-900">Session Title</Label>
+            <span className="text-xs text-slate-400">(optional — auto-filled if left blank)</span>
+          </div>
           <Input 
             id="title"
             placeholder="e.g. Q4 Marketing Strategy"

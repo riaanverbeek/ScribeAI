@@ -1699,7 +1699,21 @@ export async function registerRoutes(
         const role = await storage.getRole(user.roleId);
         if (role) userRole = role.name;
       }
-      const meeting = await storage.createMeeting({ ...input, userId: user.id, userRole, tenantId: req.tenant?.id ?? null });
+      const providedTitle = input.title?.trim();
+      const meeting = await storage.createMeeting({
+        ...input,
+        title: providedTitle || "__pending__",
+        userId: user.id,
+        userRole,
+        tenantId: req.tenant?.id ?? null,
+      });
+      if (!providedTitle) {
+        const now = new Date();
+        const dateStr = `${now.getFullYear()}/${String(now.getMonth() + 1).padStart(2, "0")}/${String(now.getDate()).padStart(2, "0")}`;
+        const autoTitle = `${dateStr}_Session_${meeting.id}`;
+        const updated = await storage.updateMeetingTitle(meeting.id, autoTitle);
+        return res.status(201).json(updated);
+      }
       res.status(201).json(meeting);
     } catch (err) {
       if (err instanceof z.ZodError) {
