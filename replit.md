@@ -2,11 +2,7 @@
 
 ## Overview
 
-ScribeAI is a full-stack web application designed to process session/meeting audio recordings. It leverages AI to generate transcriptions, summaries, action items, and topic analysis. Users can upload audio files or record directly in the browser. The platform aims to streamline post-session workflows by automating the extraction of key information.
-
-**UI Terminology**: All user-facing text uses "session/sessions" instead of "meeting/meetings". The underlying code (variable names, database columns, API routes) still uses "meeting" internally.
-
-The project uses a monorepo structure, combining a React frontend, an Express backend, and a PostgreSQL database, all optimized for deployment on Replit.
+ScribeAI is a full-stack web application designed to process session/meeting audio recordings. It leverages AI to generate transcriptions, summaries, action items, and topic analysis. Users can upload audio files or record directly in the browser. The platform aims to streamline post-session workflows by automating the extraction of key information. The project uses a monorepo structure, combining a React frontend, an Express backend, and a PostgreSQL database, all optimized for deployment on Replit.
 
 ## User Preferences
 
@@ -19,103 +15,93 @@ Responsiveness: Every screen — whether newly developed or modified — must be
 ## System Architecture
 
 ### Frontend Architecture
-- **Framework**: React 18 with TypeScript
-- **Routing**: Wouter
-- **State Management**: TanStack React Query for server state, local React state for UI
-- **Styling**: Tailwind CSS with shadcn/ui components
-- **Build Tool**: Vite
-- **Animations**: Framer Motion
-- **Audio Recording**: Auto-detects supported MIME types (WebM/Opus preferred, MP4/AAC fallback for iOS Safari). Server converts all non-WAV formats (WebM, MP4, M4A, OGG, AAC, CAF) to WAV via ffmpeg before storage. Includes periodic auto-save of recording chunks to IndexedDB every 5 seconds for resilience against iOS Safari call interruptions, with recovery UI on both QuickRecord and NewMeeting pages. **IndexedDB stores chunks as ArrayBuffer[] (not Blob[])** to avoid iOS Safari's known bug where Blobs become unreadable after page reload — ArrayBuffers survive round-trips reliably. Recording button features audio-reactive animation that pulses based on real-time microphone input volume. Robust iOS PWA error handling: checks `navigator.mediaDevices` availability, classifies `getUserMedia` errors by type (permission denied, not found, not readable, aborted), shows persistent error banners with actionable guidance (upload alternative), and reports client-side errors to server via `POST /api/client-errors` for deployment log visibility. Upload flow validates blob size (>100 bytes) before GCS PUT and reports all upload failures to server via `reportError()`. **Auto-restart on interruption**: When MediaRecorder fires `onerror`, the current chunks are saved as a "segment" to a dedicated `recording-segments` IndexedDB store, and a new MediaRecorder is automatically started. Multiple segments are combined into a single audio blob on stop. UI shows segment count and auto-restart banner. Key files: `client/src/replit_integrations/audio/useVoiceRecorder.ts`, `client/src/lib/logError.ts`, `client/src/lib/offlineDb.ts`.
-- **Session Merge**: Users can merge multiple sessions into one from the Dashboard. Enter merge mode via the "Merge" toolbar button or "Merge with..." in a session's context menu. Select 2+ sessions with checkboxes, then choose a primary session in the merge dialog. Transcripts, action items, and topics from source sessions are combined into the primary session, source sessions are deleted, and the merged session is automatically reprocessed by AI. API: `POST /api/meetings/:id/merge` with `{ sourceIds: number[] }`. Key files: `client/src/components/MergeDialog.tsx`, `client/src/pages/Dashboard.tsx`, `server/routes.ts`.
-- **Upload Retry**: If audio upload fails after meeting creation (e.g. GCS PUT failure), the meeting ID is preserved in state (`failedMeetingId`) and the user can retry without creating a duplicate meeting. On MeetingDetail, meetings stuck in "uploading" or "failed" with no audio show a re-upload card with file picker and "Upload & Process" button. On NewMeeting, a persistent red "Upload failed" inline banner appears when `failedMeetingId` is set, guiding the user to tap "Process Session" to retry. Server-side `cleanupStaleUploads()` auto-marks meetings stuck in "uploading" for >30 minutes as "failed" on startup and periodically.
-- **Recording Recovery Awareness**: Shared `useHasRecoverableRecording()` hook (`client/src/hooks/use-recovery.ts`) provides reactive recovery state across all components via a listener pattern. Dashboard shows a blue "Interrupted recording found" banner with navigation buttons to Quick Record or New Session plus a Discard option. Navigation shows a pulsing blue dot on the Quick Record icon when recoverable data exists. Recovery state syncs instantly when recordings are recovered, discarded, or cleared via `invalidateRecoveryState()`.
-- **Audio Visualization**: WaveSurfer.js for waveform display and playback
-- **Offline Support**: IndexedDB for offline audio recording storage and a Service Worker for PWA capabilities and offline access.
-- **UI/UX**: Support for tile and list views on key pages, with preference persistence.
-- **Landing Page**: Public marketing homepage at `/` for unauthenticated users (Stitch Express-inspired design). Includes hero, features, pricing (R199/month with 1-month free trial), FAQ accordion, security section, and footer with legal page links. Authenticated users at `/` see the Dashboard. Legal pages: `/privacy-policy`, `/terms-of-use`, `/paia-manual`, `/terms-and-conditions` (all public). **Tenant-aware**: All brand names, taglines, logos, and accent colors are dynamically sourced from `TenantContext` via the `useBrandColors()` hook — defaults to "ScribeAI" with amber palette when no tenant branding is set. Custom tenant domains get their own branded landing page with the same layout. Key files: `client/src/pages/LandingPage.tsx`, `client/src/pages/legal/`.
+- **Framework**: React 18 with TypeScript, Wouter for routing, TanStack React Query for server state.
+- **Styling**: Tailwind CSS with shadcn/ui components.
+- **Build Tool**: Vite.
+- **Animations**: Framer Motion.
+- **Audio Recording**: Robust in-browser recording with auto-detection of MIME types, server-side conversion to WAV via ffmpeg, and periodic auto-save to IndexedDB for resilience. Includes auto-restart on recording interruptions and a recovery awareness system.
+- **Session Merge**: Users can merge multiple sessions, combining their data and reprocessing by AI.
+- **Upload Retry**: Mechanism to retry failed audio uploads without creating duplicate sessions.
+- **Audio Visualization**: WaveSurfer.js for waveform display.
+- **Offline Support**: IndexedDB for offline audio storage and a Service Worker for PWA capabilities.
+- **UI/UX**: Support for tile and list views with preference persistence.
+- **Landing Page**: Public marketing homepage with features, pricing, FAQ, and legal pages. It is multi-tenant aware, dynamically sourcing branding via `TenantContext`.
 
 ### Backend Architecture
-- **Framework**: Express 5 on Node.js with TypeScript
-- **API Pattern**: RESTful endpoints with Zod for validation
-- **Authentication**: Session-based authentication with bcrypt hashing, email verification, and password reset flow.
+- **Framework**: Express 5 on Node.js with TypeScript.
+- **API Pattern**: RESTful endpoints with Zod for validation.
+- **Authentication**: Session-based authentication with bcrypt, email verification, and password reset.
 - **Authorization**: Role-based access control (Superuser, Admin, standard users) and subscription-based feature gating.
 - **File Uploads**: Multer for audio file handling.
-- **AI Processing**: Integration with OpenAI API for speech-to-text, summarization, action item extraction, and topic analysis. Core processing logic extracted into `server/processMeeting.ts` (`processMeetingCore()`) — shared by the process route, reprocess route, and auto-retry system. Supports Afrikaans output with translated section headers in default template.
-- **Processing Resilience**: `retryStaleProcessing()` in `server/migrations.ts` auto-detects meetings stuck in "processing" status for >5 minutes (e.g., interrupted by server restart during deployment) and retries them automatically. Runs on server startup and every 5 minutes. Meetings with no audio or transcript are marked as "failed".
+- **AI Processing**: Integration with OpenAI API for speech-to-text, summarization, action items, and topic analysis, with core logic in `server/processMeeting.ts`. Supports Afrikaans output.
+- **Processing Resilience**: Automatic retry for meetings stuck in "processing" status.
 - **Email**: Resend integration for transactional emails.
-- **Subscription Management**: PayFast integration for recurring payments and webhook processing.
-- **User Roles**: System for defining and assigning roles, including custom roles, with role information captured during meeting creation for AI context.
-- **Templates & Context**: System for defining AI summary templates (superuser-only CRUD) with many-to-many tenant assignment via `template_tenants` junction table. Templates page (`/templates`) is superuser-only with sorting, filtering by tenant/name, and tenant assignment checkboxes. Users can provide additional context (text or file) for AI processing.
-- **Internal Meeting Flag**: Meetings can be marked as "Internal Meeting" (internal discussion/dictation without the client present). When checked, the AI is instructed not to look for client responses and frames the summary as internal notes.
-- **Transcript Upload**: Users can paste transcript text directly or upload a text file (.txt, .md, .csv, .json) instead of audio. The transcript is saved via `POST /api/meetings/:id/transcript` and the process route skips audio transcription when a transcript already exists.
-- **Audio Language**: Meetings have an `audioLanguage` field (default: "auto") separate from `outputLanguage`. Set to "af" for South African Afrikaans/English code-switching to prevent Whisper from mis-transcribing Afrikaans as Dutch. The language hint is passed to `transcribeLongAudio()` and then to `speechToText()` as the Whisper `language` parameter. Changing `audioLanguage` via Edit & Regenerate automatically clears the existing transcript so it gets re-transcribed with the new language hint.
+- **Subscription Management**: PayFast integration for recurring payments and webhooks.
+- **User Roles**: System for defining and assigning roles.
+- **Templates & Context**: AI summary templates (superuser-only CRUD) with tenant assignment. Users can provide additional context for AI processing.
+- **Internal Meeting Flag**: Option to mark meetings as "Internal" to guide AI processing.
+- **Transcript Upload**: Users can upload text transcripts instead of audio.
+- **Audio Language**: `audioLanguage` field to specify language for transcription, separate from `outputLanguage`.
 
 ### Multi-Tenancy
-- **Model**: Shared database with `tenantId` foreign key on all data tables (users, clients, meetings, templates, roles)
-- **Tenant Table**: `tenants` table with fields: id, name, slug (unique), domain (unique, nullable), logoUrl, primaryColor, accentColor, tagline, isActive, createdAt
-- **Tenant Resolution**: Middleware in `server/tenant.ts` resolves tenant from `req.hostname` — matches against `domain` field, falls back to default tenant (id=1, slug="default"). In-memory cache with 60s TTL, invalidated on tenant writes via `invalidateTenantCache()`.
-- **Data Isolation**: All storage queries accept optional `tenantId` for scoping. User-facing routes pass `req.tenant.id`. Superuser routes optionally bypass tenant scoping.
-- **Auth Enforcement**: `requireAuth` middleware checks `user.tenantId === req.tenant.id` (superusers exempt). Login scopes `getUserByEmail` by tenant. Registration assigns new users to `req.tenant.id`.
-- **Frontend Branding**: `TenantContext` (`client/src/contexts/TenantContext.tsx`) fetches branding from `GET /api/tenant/branding` (public endpoint). Dynamically updates page title, CSS custom properties (`--primary`, `--accent`), and branding in Login, Register, and Navigation components.
-- **Tenant Management**: Superuser-only CRUD at `/api/tenants`. UI in SuperuserAdmin.tsx "Tenants" tab with create/edit/delete dialogs.
-- **Email**: Verification and password reset emails use tenant name in sender, subject, and body.
-- **Key files**: `server/tenant.ts` (middleware), `client/src/contexts/TenantContext.tsx` (frontend context), SuperuserAdmin.tsx (management UI)
+- **Model**: Shared database with `tenantId` foreign key.
+- **Tenant Table**: Stores tenant details (name, slug, domain, branding).
+- **Tenant Resolution**: Middleware resolves tenant from `req.hostname`.
+- **Data Isolation**: All storage queries are scoped by `tenantId`.
+- **Auth Enforcement**: `requireAuth` middleware enforces tenant-specific user access.
+- **Frontend Branding**: `TenantContext` dynamically updates UI branding based on the tenant.
+- **Tenant Management**: Superuser-only CRUD for tenants.
 
 ### Data Layer
-- **Database**: PostgreSQL with Drizzle ORM
-- **Core Tables**: `tenants`, `users`, `clients`, `meetings`, `templates`, `template_tenants`, `transcripts`, `action_items`, `topics`, `meeting_summaries`, `audio_language_options`, `prompt_settings`, `system_settings`.
+- **Database**: PostgreSQL with Drizzle ORM.
+- **Core Tables**: `tenants`, `users`, `clients`, `meetings`, `templates`, `transcripts`, `action_items`, `topics`, `meeting_summaries`, `audio_language_options`, `prompt_settings`, `system_settings`.
 - **Schema**: Defined in `shared/schema.ts`.
-- **Migrations**: Runtime SQL migrations in `server/migrations.ts` (called from `server/index.ts` on startup). Drizzle Kit for schema tooling.
-- **Prompt Settings**: `prompt_settings` table stores 8 LLM prompts (normalization.af, normalization.generic, analysis.core, analysis.detail.high/medium/low, analysis.summary_format.en/af). Defaults seeded on startup from `server/promptDefaults.ts`. `processMeeting.ts` reads from DB with `{{variable}}` placeholder substitution, falling back to hardcoded defaults if DB is unavailable.
-- **System Settings**: `system_settings` table stores configurable model keys (e.g. `transcription_model`, `default_analysis_model`). Seeded on startup from `server/llmRegistry.ts` SYSTEM_SETTING_DEFAULTS. Used by `processMeeting.ts` to select which model to use at runtime.
-- **Superuser Prompts UI**: "Prompts" tab in SuperuserAdmin — collapsible prompt cards per category (Normalization, Analysis Core, Detail Level, Summary Structure). Each card shows label, description, available `{{variable}}` placeholders, an expandable textarea, Save button, and "Reset to default" button when modified. Changes take effect immediately for all new sessions.
-- **Superuser LLM UI**: "LLM" tab in SuperuserAdmin — shows model availability (green/grey), two dropdowns to set global transcription model and default analysis model. Changes saved immediately to `system_settings` DB table.
-- **PayFast Billing Audit UI**: "PF Audit" tab in SuperuserAdmin — lists users whose `subscriptionStatus` is `cancelled` but still hold a non-null `payfastToken` (potential mis-billing). Per-user "Retry Cancel" button calls `POST /api/superuser/payfast-audit/:userId/retry-cancel` to confirm the cancellation with PayFast. Backed by `storage.getPayfastAuditUsers()` and `GET /api/superuser/payfast-audit` (both superuser-only). The "clean" state shows a green checkmark when no affected users are found.
-- **PayFast Audit Retry Tracking**: `payfast_audit_log` table records every retry attempt: `userId` (target), `attemptedBy` (admin userId), `attemptedAt`, `result` (ok/error), `detail`. The GET audit endpoint joins the latest log per user and returns it as `lastRetry`. The UI shows "Last attempted [date] by [admin email]" under each user row, with color coding for ok (green) vs error (amber).
-- **Per-template Analysis Model**: `templates.analysis_model` text column allows overriding the global default on a per-template basis. Set via dropdown in the template create/edit dialog (Templates page). Falls back to global default when null.
-- **LLM Registry**: `server/llmRegistry.ts` defines 6 models: openai-whisper, soniox, openai-gpt-4o, openai-gpt-4o-mini, anthropic-claude-sonnet-4-6, anthropic-claude-haiku-4-5. Availability is determined at runtime by checking required env vars.
-- **Anthropic Support**: `@anthropic-ai/sdk` installed. Uses `AI_INTEGRATIONS_ANTHROPIC_API_KEY` / `AI_INTEGRATIONS_ANTHROPIC_BASE_URL`. Anthropic models require manual JSON parsing (no `response_format: json_object`).
-- **Soniox Support**: `server/soniox.ts` REST API client. Uses `SONIOX_API_KEY` env var.
+- **Migrations**: Runtime SQL migrations on server startup.
+- **Prompt Settings**: `prompt_settings` table stores LLM prompts, configurable via Superuser UI.
+- **System Settings**: `system_settings` table stores configurable model keys.
+- **Superuser UIs**: Admin interfaces for managing prompts, LLM models, and PayFast billing audits.
+- **Per-template Analysis Model**: Allows overriding the global default analysis model on a per-template basis.
+- **LLM Registry**: `server/llmRegistry.ts` defines available LLM models.
+- **Anthropic Support**: Integration for Anthropic models.
+- **Soniox Support**: Integration for Soniox API.
 
 ### Key Design Patterns
-- **Shared Types**: `shared/` folder for common frontend/backend definitions.
+- **Shared Types**: `shared/` folder for common definitions.
 - **Storage Abstraction**: `server/storage.ts` for database operations.
-- **Status State Machine**: For tracking meeting processing status (`uploading`, `processing`, `completed`/`failed`).
+- **Status State Machine**: For tracking meeting processing status.
 - **Polling**: Frontend polls for meeting status updates.
-- **Ownership Checks**: Enforced on all routes for data isolation. Combined with tenant scoping for multi-tenant security.
-- **⚠️ Recording parity rule — ALWAYS enforce**: `client/src/pages/QuickRecord.tsx` and `client/src/pages/NewMeeting.tsx` share the same physical recording logic. Whenever ANY recording-related code changes in one file, the other MUST be updated to match. This includes: `saveRecordingToDevice()`, `buildRecordingFilename()`, auto-save on stop, auto-save on recovery, manual "Save Recording to Device" button, Capacitor imports, blob size validation, file size warnings, upload progress, retry logic, and any new recording feature. The two pages MUST remain in sync at all times.
+- **Ownership Checks**: Enforced on all routes for data isolation.
+- **Recording parity rule**: Recording logic in `QuickRecord.tsx` and `NewMeeting.tsx` must always be kept in sync.
 
 ### Build Configuration
 - **Development**: `tsx` and Vite for HMR.
-- **Production**: esbuild for server bundling, Vite for frontend build.
+- **Production**: esbuild for server, Vite for frontend.
 
 ## External Dependencies
 
 ### AI Services
-- **OpenAI API** (via Replit AI Integrations): Speech-to-text, text generation (summaries, action items, topics).
+- **OpenAI API** (via Replit AI Integrations)
+- **Anthropic AI**
+- **Soniox API**
 
 ### Payment
-- **PayFast**: Subscription payments, including checkout and ITN webhook processing.
-- **Stripe** (via Replit Integration): Alternative payment option for card payments. Uses Stripe Checkout for subscriptions, with webhook handling for status updates. Both PayFast and Stripe feed into the same `subscriptionStatus` system on the `users` table.
-  - Key files: `server/stripeClient.ts` (client/credentials), `server/webhookHandlers.ts` (webhook processing)
-  - Routes: `POST /api/stripe/checkout`, `POST /api/stripe/webhook`, `POST /api/stripe/cancel`
-  - DB fields: `stripe_customer_id`, `stripe_subscription_id` on users table
-  - Subscription status endpoint (`/api/subscription/status`) returns `provider` field ("payfast", "stripe", or "none")
+- **PayFast**
+- **Stripe** (via Replit Integration)
 
 ### Email
-- **Resend** (via Replit Integrations): Sending verification and other transactional emails.
+- **Resend** (via Replit Integrations)
 
 ### Database
-- **PostgreSQL**: Primary data store and session storage.
+- **PostgreSQL**
 
 ### Audio Processing
-- **ffmpeg**: System dependency for audio format conversion.
+- **ffmpeg**
 
 ### Replit Integrations
-- **Replit AI Integrations**: Modules for audio processing, chat, image generation, and batch processing utilities.
+- **Replit AI Integrations** (audio processing, chat, image generation, batch utilities)
 
 ### Frontend Libraries
-- **wavesurfer.js**: Audio waveform visualization.
-- **framer-motion**: UI animations.
-- **date-fns**: Date manipulation and formatting.
-- **recharts**: Data visualization.
+- **wavesurfer.js**
+- **framer-motion**
+- **date-fns**
+- **recharts**

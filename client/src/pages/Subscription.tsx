@@ -5,12 +5,12 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription, CardFooter } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { useToast } from "@/hooks/use-toast";
-import { CreditCard, CheckCircle, Clock, XCircle, Loader2 } from "lucide-react";
+import { CreditCard, CheckCircle, Clock, XCircle, Loader2, AlertTriangle } from "lucide-react";
 import { format } from "date-fns";
 
 export default function Subscription() {
   const { user } = useAuth();
-  const { status, trialEndsAt, currentPeriodEnd, cancelledAt, hasFullAccess, isLoading, provider } = useSubscriptionStatus();
+  const { status, trialEndsAt, currentPeriodEnd, cancelledAt, paymentFailedAt, hasFullAccess, isLoading, provider } = useSubscriptionStatus();
   const { toast } = useToast();
 
   const payfastCheckoutMutation = useMutation({
@@ -78,6 +78,12 @@ export default function Subscription() {
 
   const showSubscribeButtons = status === "expired" || status === "none" || status === "trialing";
   const isCheckingOut = payfastCheckoutMutation.isPending;
+  const hasPaymentFailure = !!paymentFailedAt;
+  // PayFast doesn't expose a customer-facing "update card" portal, so the
+  // recovery path is to start a new subscription checkout. The ITN handler
+  // clears subscriptionPaymentFailedAt on the next COMPLETE event, which
+  // automatically removes this CTA and the global banner.
+  const canSelfServeRecovery = hasPaymentFailure && (provider === "payfast" || provider === "none");
 
   return (
     <div className="max-w-2xl mx-auto p-4 sm:p-6 space-y-6">
@@ -87,6 +93,35 @@ export default function Subscription() {
         </h1>
         <p className="text-muted-foreground mt-1">Manage your ScribeAI subscription</p>
       </div>
+
+      {hasPaymentFailure && (
+        <Card className="border-destructive/40 bg-destructive/5" data-testid="card-payment-failed">
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2 text-destructive">
+              <AlertTriangle className="h-5 w-5" />
+              Payment failed
+            </CardTitle>
+            <CardDescription data-testid="text-payment-failed-description">
+              We couldn't process your last payment on {format(new Date(paymentFailedAt), "MMMM d, yyyy")}.
+              {canSelfServeRecovery
+                ? " Update your payment method below to keep your access. The warning will disappear automatically once your next payment succeeds."
+                : " Please contact support so we can help you update your payment method."}
+            </CardDescription>
+          </CardHeader>
+          {canSelfServeRecovery && (
+            <CardFooter>
+              <Button
+                className="w-full"
+                onClick={() => payfastCheckoutMutation.mutate()}
+                disabled={isCheckingOut}
+                data-testid="button-update-payment-method"
+              >
+                {isCheckingOut ? "Redirecting to PayFast..." : "Update payment method"}
+              </Button>
+            </CardFooter>
+          )}
+        </Card>
+      )}
 
       <Card>
         <CardHeader>
