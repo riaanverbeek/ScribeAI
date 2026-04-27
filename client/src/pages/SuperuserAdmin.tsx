@@ -19,6 +19,14 @@ import type { SafeUser, Client, Meeting, Role, Transcript, ActionItem, Topic, Me
 
 type SuperuserUser = SafeUser & { isSuperuser: boolean };
 
+type AuditRetry = {
+  attemptedAt: string;
+  attemptedBy: string;
+  result: "ok" | "error";
+  detail: string | null;
+};
+type AuditUser = SuperuserUser & { lastRetry: AuditRetry | null };
+
 type MeetingDetail = Meeting & {
   transcript?: Transcript | null;
   actionItems?: ActionItem[];
@@ -1689,7 +1697,7 @@ function PayfastAuditTab() {
   const [retryingId, setRetryingId] = useState<number | null>(null);
   const [retryResults, setRetryResults] = useState<Record<number, { ok: boolean; message: string }>>({});
 
-  const { data: auditUsers = [], isLoading, refetch } = useQuery<SuperuserUser[]>({
+  const { data: auditUsers = [], isLoading, refetch } = useQuery<AuditUser[]>({
     queryKey: ["/api/superuser/payfast-audit"],
     queryFn: async () => {
       const res = await fetch("/api/superuser/payfast-audit", { credentials: "include" });
@@ -1719,6 +1727,7 @@ function PayfastAuditTab() {
       toast({ title: "Error", description: msg, variant: "destructive" });
     } finally {
       setRetryingId(null);
+      refetch();
     }
   }
 
@@ -1756,6 +1765,7 @@ function PayfastAuditTab() {
           </div>
           {auditUsers.map(user => {
             const result = retryResults[user.id];
+            const lastRetry = user.lastRetry;
             return (
               <Card key={user.id} data-testid={`card-audit-user-${user.id}`}>
                 <CardContent className="py-4">
@@ -1770,6 +1780,18 @@ function PayfastAuditTab() {
                         <span>Period ends: {user.subscriptionCurrentPeriodEnd ? format(new Date(user.subscriptionCurrentPeriodEnd), "MMM d, yyyy") : "—"}</span>
                         <span className="font-mono truncate max-w-[200px]" data-testid={`text-audit-token-${user.id}`}>Token: {user.payfastToken}</span>
                       </div>
+                      {lastRetry && !result && (
+                        <div
+                          className={`flex items-center gap-1.5 text-xs mt-1 ${lastRetry.result === "ok" ? "text-green-600 dark:text-green-400" : "text-amber-600 dark:text-amber-400"}`}
+                          data-testid={`text-audit-last-retry-${user.id}`}
+                        >
+                          {lastRetry.result === "ok" ? <CheckCircle className="w-3.5 h-3.5 shrink-0" /> : <XCircle className="w-3.5 h-3.5 shrink-0" />}
+                          <span>
+                            Last attempted {format(new Date(lastRetry.attemptedAt), "MMM d, yyyy 'at' HH:mm")} by {lastRetry.attemptedBy}
+                            {lastRetry.result === "error" && lastRetry.detail && <> — {lastRetry.detail}</>}
+                          </span>
+                        </div>
+                      )}
                       {result && (
                         <div className={`flex items-center gap-1.5 text-xs mt-1 ${result.ok ? "text-green-600 dark:text-green-400" : "text-red-600 dark:text-red-400"}`} data-testid={`text-audit-result-${user.id}`}>
                           {result.ok ? <CheckCircle className="w-3.5 h-3.5" /> : <XCircle className="w-3.5 h-3.5" />}

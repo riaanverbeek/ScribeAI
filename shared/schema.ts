@@ -209,6 +209,19 @@ export const insertPayfastItnEventSchema = createInsertSchema(payfastItnEvents).
 export type PayfastItnEvent = typeof payfastItnEvents.$inferSelect;
 export type InsertPayfastItnEvent = z.infer<typeof insertPayfastItnEventSchema>;
 
+export const payfastAuditLog = pgTable("payfast_audit_log", {
+  id: serial("id").primaryKey(),
+  userId: integer("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
+  attemptedBy: integer("attempted_by").notNull().references(() => users.id, { onDelete: "cascade" }),
+  attemptedAt: timestamp("attempted_at").defaultNow().notNull(),
+  result: text("result", { enum: ["ok", "error"] }).notNull(),
+  detail: text("detail"),
+});
+
+export const insertPayfastAuditLogSchema = createInsertSchema(payfastAuditLog).omit({ id: true, attemptedAt: true });
+export type PayfastAuditLog = typeof payfastAuditLog.$inferSelect;
+export type InsertPayfastAuditLog = z.infer<typeof insertPayfastAuditLogSchema>;
+
 // === CHAT TABLES FOR REPLIT INTEGRATIONS ===
 
 export const conversations = pgTable("conversations", {

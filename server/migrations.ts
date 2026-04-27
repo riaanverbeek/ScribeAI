@@ -217,6 +217,37 @@ export async function migrateSubscriptionPaymentFailedAt() {
   }
 }
 
+export async function migratePayfastAuditLog() {
+  try {
+    await db.execute(sql`
+      CREATE TABLE IF NOT EXISTS payfast_audit_log (
+        id SERIAL PRIMARY KEY,
+        user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+        attempted_by INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+        attempted_at TIMESTAMP NOT NULL DEFAULT NOW(),
+        result TEXT NOT NULL CHECK (result IN ('ok', 'error')),
+        detail TEXT
+      )
+    `);
+    await db.execute(sql`
+      CREATE INDEX IF NOT EXISTS idx_payfast_audit_log_user_id ON payfast_audit_log(user_id)
+    `);
+    await db.execute(sql`
+      CREATE INDEX IF NOT EXISTS idx_payfast_audit_log_attempted_at ON payfast_audit_log(attempted_at)
+    `);
+    // Add CHECK constraint to existing tables that were created before the constraint was added
+    await db.execute(sql`
+      DO $$ BEGIN
+        ALTER TABLE payfast_audit_log ADD CONSTRAINT check_result_values CHECK (result IN ('ok', 'error'));
+      EXCEPTION WHEN duplicate_object THEN NULL;
+      END $$;
+    `);
+    console.log("[migrations] payfast_audit_log table ready");
+  } catch (err) {
+    console.error("[migrations] Error migrating payfast_audit_log:", err);
+  }
+}
+
 export async function migrateSystemSettings() {
   try {
     await db.execute(sql`

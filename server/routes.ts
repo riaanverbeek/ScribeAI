@@ -1358,7 +1358,21 @@ export async function registerRoutes(
   app.get("/api/superuser/payfast-audit", requireAuth, requireVerified, requireSuperuser, async (req, res) => {
     try {
       const auditUsers = await storage.getPayfastAuditUsers();
-      res.json(auditUsers.map(sanitizeUser));
+      const userIds = auditUsers.map(u => u.id);
+      const latestLogs = await storage.getLatestPayfastAuditLogs(userIds);
+      const sanitized = auditUsers.map(u => {
+        const log = latestLogs.get(u.id);
+        return {
+          ...sanitizeUser(u),
+          lastRetry: log ? {
+            attemptedAt: log.attemptedAt,
+            attemptedBy: log.adminEmail,
+            result: log.result,
+            detail: log.detail,
+          } : null,
+        };
+      });
+      res.json(sanitized);
     } catch (err) {
       console.error("Error fetching PayFast audit users:", err);
       res.status(500).json({ message: "Failed to fetch audit data" });
@@ -1366,10 +1380,11 @@ export async function registerRoutes(
   });
 
   app.post("/api/superuser/payfast-audit/:userId/retry-cancel", requireAuth, requireVerified, requireSuperuser, async (req, res) => {
+    const userId = parseInt(req.params.userId);
+    if (!userId) return res.status(400).json({ message: "Invalid user ID" });
+    const adminUserId = req.session.userId as number;
+    let attemptStarted = false;
     try {
-      const userId = parseInt(req.params.userId);
-      if (!userId) return res.status(400).json({ message: "Invalid user ID" });
-
       const user = await storage.getUserById(userId);
       if (!user) return res.status(404).json({ message: "User not found" });
 
@@ -1381,11 +1396,18 @@ export async function registerRoutes(
         return res.status(400).json({ message: "User is not in cancelled state" });
       }
 
+      attemptStarted = true;
       const result = await cancelPayfastSubscription(user.payfastToken);
       if (!result.ok) {
         console.warn(
           `[payfast-audit] Retry cancel for user ${userId} failed: ${result.error}`,
         );
+        await storage.logPayfastAuditRetry({
+          userId,
+          attemptedBy: adminUserId,
+          result: "error",
+          detail: result.error ?? "PayFast returned an error",
+        }).catch(err => console.error("[payfast-audit] Failed to log audit retry:", err));
         return res.status(502).json({
           message: "PayFast returned an error for this cancellation retry.",
           detail: result.error,
@@ -1401,10 +1423,22 @@ export async function registerRoutes(
         rawData: JSON.stringify({ source: "admin_retry_cancel", timestamp: new Date().toISOString() }),
       }).catch(err => console.error("[payfast-audit] Failed to log synthetic ITN:", err));
 
+      await storage.logPayfastAuditRetry({
+        userId,
+        attemptedBy: adminUserId,
+        result: "ok",
+        detail: "PayFast cancellation confirmed successfully",
+      }).catch(err => console.error("[payfast-audit] Failed to log audit retry:", err));
+
       console.log(`[payfast-audit] Successfully re-cancelled PayFast subscription for user ${userId}`);
       res.json({ message: "PayFast cancellation confirmed successfully." });
     } catch (err) {
       console.error("Error retrying PayFast cancel:", err);
+      if (attemptStarted) {
+        const detail = err instanceof Error ? err.message : "Unexpected error during cancellation";
+        storage.logPayfastAuditRetry({ userId, attemptedBy: adminUserId, result: "error", detail })
+          .catch(logErr => console.error("[payfast-audit] Failed to log exception audit retry:", logErr));
+      }
       res.status(500).json({ message: "Internal error retrying cancellation" });
     }
   });

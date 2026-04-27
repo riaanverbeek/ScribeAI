@@ -1,8 +1,8 @@
 import { db } from "./db";
 import { 
-    users, clients, meetings, transcripts, actionItems, topics, meetingSummaries, templates, templateTenants, roles, policies, meetingPolicies, tenants, audioLanguageOptions, promptSettings, systemSettings, payfastItnEvents,
+    users, clients, meetings, transcripts, actionItems, topics, meetingSummaries, templates, templateTenants, roles, policies, meetingPolicies, tenants, audioLanguageOptions, promptSettings, systemSettings, payfastItnEvents, payfastAuditLog,
     type InsertUser, type InsertClient, type InsertMeeting, type InsertTranscript, type InsertActionItem, type InsertTopic, type InsertMeetingSummary, type InsertTemplate, type InsertRole, type InsertPolicy, type InsertMeetingPolicy, type InsertTenant, type InsertAudioLanguageOption, type InsertPromptSetting,
-    type User, type Client, type Meeting, type Transcript, type ActionItem, type Topic, type MeetingSummary, type Template, type TemplateWithTenants, type Role, type Policy, type MeetingPolicy, type Tenant, type AudioLanguageOption, type PromptSetting, type SystemSetting, type PayfastItnEvent
+    type User, type Client, type Meeting, type Transcript, type ActionItem, type Topic, type MeetingSummary, type Template, type TemplateWithTenants, type Role, type Policy, type MeetingPolicy, type Tenant, type AudioLanguageOption, type PromptSetting, type SystemSetting, type PayfastItnEvent, type PayfastAuditLog
 } from "@shared/schema";
 import { eq, and, desc, lt, ne, or, isNull, isNotNull, sql, inArray } from "drizzle-orm";
 
@@ -32,6 +32,8 @@ export interface IStorage {
     getSuperusers(): Promise<User[]>;
     getPayfastAuditUsers(): Promise<User[]>;
     logPayfastItnEvent(data: { userId?: number | null; payfastToken?: string | null; paymentStatus: string; rawData?: string | null }): Promise<PayfastItnEvent>;
+    logPayfastAuditRetry(data: { userId: number; attemptedBy: number; result: "ok" | "error"; detail?: string | null }): Promise<PayfastAuditLog>;
+    getLatestPayfastAuditLogs(userIds: number[]): Promise<Map<number, PayfastAuditLog & { adminEmail: string }>>;
     updateUser(id: number, data: Partial<Pick<User, "firstName" | "lastName" | "email" | "isAdmin" | "isSuperuser" | "isVerified" | "subscriptionStatus">>): Promise<User>;
     deleteUser(id: number): Promise<void>;
     getAllClients(tenantId?: number): Promise<Client[]>;
@@ -285,6 +287,41 @@ export class DatabaseStorage implements IStorage {
             rawData: data.rawData ?? null,
         }).returning();
         return event;
+    }
+
+    async logPayfastAuditRetry(data: { userId: number; attemptedBy: number; result: "ok" | "error"; detail?: string | null }): Promise<PayfastAuditLog> {
+        const [entry] = await db.insert(payfastAuditLog).values({
+            userId: data.userId,
+            attemptedBy: data.attemptedBy,
+            result: data.result,
+            detail: data.detail ?? null,
+        }).returning();
+        return entry;
+    }
+
+    async getLatestPayfastAuditLogs(userIds: number[]): Promise<Map<number, PayfastAuditLog & { adminEmail: string }>> {
+        if (userIds.length === 0) return new Map();
+        const entries = await db
+            .select({
+                id: payfastAuditLog.id,
+                userId: payfastAuditLog.userId,
+                attemptedBy: payfastAuditLog.attemptedBy,
+                attemptedAt: payfastAuditLog.attemptedAt,
+                result: payfastAuditLog.result,
+                detail: payfastAuditLog.detail,
+                adminEmail: users.email,
+            })
+            .from(payfastAuditLog)
+            .innerJoin(users, eq(payfastAuditLog.attemptedBy, users.id))
+            .where(inArray(payfastAuditLog.userId, userIds))
+            .orderBy(desc(payfastAuditLog.attemptedAt));
+        const result = new Map<number, PayfastAuditLog & { adminEmail: string }>();
+        for (const entry of entries) {
+            if (!result.has(entry.userId)) {
+                result.set(entry.userId, entry);
+            }
+        }
+        return result;
     }
 
     async updateUser(id: number, data: Partial<Pick<User, "firstName" | "lastName" | "email" | "isAdmin" | "isSuperuser" | "isVerified" | "subscriptionStatus">>): Promise<User> {
