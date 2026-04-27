@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { useTenant } from "@/contexts/TenantContext";
 import heroPhoneImage from "@assets/Landing_Page_Phone_on_velvet_1777299418458.png";
+import uploadIconImage from "@assets/image_1777300070649.png";
 
 function FadeInSection({ children, className = "", delay = 0 }: { children: React.ReactNode; className?: string; delay?: number }) {
   const ref = useRef(null);
@@ -64,7 +65,8 @@ const features = [
     icon: Upload,
     title: "Upload Audio",
     description: "Upload pre-recorded audio files in any format. We handle the conversion automatically.",
-    image: "https://cdn.prod.website-files.com/670a67727905d0e6bd612d79/68469d59ac976418ddf8804a_01c2abee2ff03762407ec57d20097d4e_skin_creamery.avif",
+    image: uploadIconImage,
+    imageFit: "contain" as const,
   },
   {
     icon: Brain,
@@ -448,7 +450,11 @@ export default function LandingPage() {
                   <p className="text-sm text-gray-500 leading-relaxed">{feat.description}</p>
                   <div className="mt-4 rounded-xl overflow-hidden">
                     {feat.image ? (
-                      <img src={feat.image} alt={feat.title} className="w-full h-32 object-cover rounded-xl" />
+                      <img
+                        src={feat.image}
+                        alt={feat.title}
+                        className={`w-full h-32 rounded-xl ${'imageFit' in feat && feat.imageFit === 'contain' ? 'object-contain bg-gray-50 p-4' : 'object-cover'}`}
+                      />
                     ) : (
                       <div className="w-full h-32 flex items-center justify-center rounded-xl" style={{ backgroundColor: c.lightBg }}>
                         <div className="w-16 h-16 rounded-full flex items-center justify-center shadow-md" style={{ backgroundColor: c.primary }}>
