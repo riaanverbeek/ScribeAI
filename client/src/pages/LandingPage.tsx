@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef, useMemo } from "react";
 import { Link } from "wouter";
+import { useQuery } from "@tanstack/react-query";
 import { motion, useInView, AnimatePresence } from "framer-motion";
 import { Mic, FileText, Brain, ListChecks, BarChart3, Users, Shield, Clock, ChevronDown, ChevronRight, Menu, X, Globe, Zap, Headphones, Upload, MonitorSmartphone, Wifi, WifiOff, Check } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -54,31 +55,37 @@ function FAQItem({ question, answer }: { question: string; answer: string }) {
   );
 }
 
+const FEATURE_FALLBACKS: Record<string, string | null> = {
+  feature_record_anywhere: null,
+  feature_upload_audio: uploadIconImage as string,
+  feature_ai_transcription: "https://cdn.prod.website-files.com/670a67727905d0e6bd612d79/6847ec356628c2a227d91171_649d1e05c93495e5f993b68c762e2973_sealand.avif",
+  feature_smart_summaries: "https://cdn.prod.website-files.com/670a67727905d0e6bd612d79/6847f81ccf587c065ecf0f99_viro.avif",
+};
+
 const features = [
   {
     icon: Mic,
     title: "Record Anywhere",
     description: "Record sessions directly on your mobile phone or browser with auto-save protection.",
-    image: "",
+    dbKey: "feature_record_anywhere",
   },
   {
     icon: Upload,
     title: "Upload Audio",
     description: "Upload pre-recorded audio files in any format. We handle the conversion automatically.",
-    image: uploadIconImage,
-    imageFit: "contain" as const,
+    dbKey: "feature_upload_audio",
   },
   {
     icon: Brain,
     title: "AI Transcription",
     description: "Accurate speech-to-text powered by OpenAI, supporting English and Afrikaans.",
-    image: "https://cdn.prod.website-files.com/670a67727905d0e6bd612d79/6847ec356628c2a227d91171_649d1e05c93495e5f993b68c762e2973_sealand.avif",
+    dbKey: "feature_ai_transcription",
   },
   {
     icon: FileText,
     title: "Smart Summaries",
     description: "AI-generated summaries with customizable templates tailored to your workflow.",
-    image: "https://cdn.prod.website-files.com/670a67727905d0e6bd612d79/6847f81ccf587c065ecf0f99_viro.avif",
+    dbKey: "feature_smart_summaries",
   },
 ];
 
@@ -110,26 +117,33 @@ const whyCards = [
   },
 ];
 
+const ANALYSIS_FALLBACKS: Record<string, string> = {
+  analysis_transcription: "https://cdn.prod.website-files.com/670a67727905d0e6bd612d79/67b6a54863fef312ee10a657_07d1f6af50b652880869efea31757511_Apple_Pay-mockup.avif",
+  analysis_summaries: "https://cdn.prod.website-files.com/670a67727905d0e6bd612d79/67acb7a335d39e9be1abb2e0_361c6e22b14d270e7f01a39591c74511_express-card.avif",
+  analysis_action_items: "https://cdn.prod.website-files.com/670a67727905d0e6bd612d79/697cb2897c7218d5bea66cec_express-stitch_bnpl.avif",
+  analysis_topics: "https://cdn.prod.website-files.com/670a67727905d0e6bd612d79/67b6a88e59792c71771123cc_d23ab24d70c0df2739760b4a37afae34_Capitec_pay.avif",
+};
+
 const analysisFeatures = [
   {
     title: "AI Transcription",
     description: "Full speech-to-text transcription supporting English and Afrikaans, with speaker detection and timestamps.",
-    image: "https://cdn.prod.website-files.com/670a67727905d0e6bd612d79/67b6a54863fef312ee10a657_07d1f6af50b652880869efea31757511_Apple_Pay-mockup.avif",
+    dbKey: "analysis_transcription",
   },
   {
     title: "Intelligent Summaries",
     description: "Customizable AI summaries using templates. Get formal minutes, casual recaps, or clinical notes — whatever fits your workflow.",
-    image: "https://cdn.prod.website-files.com/670a67727905d0e6bd612d79/67acb7a335d39e9be1abb2e0_361c6e22b14d270e7f01a39591c74511_express-card.avif",
+    dbKey: "analysis_summaries",
   },
   {
     title: "Action Items",
     description: "Automatically extracted to-do items with assignees and deadlines, ready to share with your team.",
-    image: "https://cdn.prod.website-files.com/670a67727905d0e6bd612d79/697cb2897c7218d5bea66cec_express-stitch_bnpl.avif",
+    dbKey: "analysis_action_items",
   },
   {
     title: "Topic Analysis",
     description: "Visual breakdown of key topics discussed, with sentiment indicators and time spent per topic.",
-    image: "https://cdn.prod.website-files.com/670a67727905d0e6bd612d79/67b6a88e59792c71771123cc_d23ab24d70c0df2739760b4a37afae34_Capitec_pay.avif",
+    dbKey: "analysis_topics",
   },
 ];
 
@@ -247,6 +261,14 @@ export default function LandingPage() {
   const brandLogo = branding.logoUrl;
   const c = useBrandColors(branding.primaryColor);
   const faqs = useMemo(() => buildFaqs(brandName), [brandName]);
+
+  const { data: landingImages } = useQuery<Record<string, string | null>>({
+    queryKey: ["/api/landing/images"],
+    staleTime: 5 * 60 * 1000,
+  });
+
+  const img = (key: string, fallback: string | null = null): string | null =>
+    landingImages?.[key] ?? fallback;
 
   useEffect(() => {
     const handleScroll = () => setScrolled(window.scrollY > 40);
@@ -366,11 +388,13 @@ export default function LandingPage() {
       {/* Hero Section */}
       <section className="relative min-h-[90vh] flex items-center overflow-hidden bg-[#0f1724]" data-testid="hero-section">
         <div className="absolute inset-0">
-          <img
-            src="https://cdn.prod.website-files.com/670a67727905d0e6bd612d79/6966282312b5b12ce0e89f07_fd0594781ebf9b9b5ea63a330706ec38_the_north_face-image.avif"
-            alt=""
-            className="w-full h-full object-cover opacity-20"
-          />
+          {img("hero_background", "https://cdn.prod.website-files.com/670a67727905d0e6bd612d79/6966282312b5b12ce0e89f07_fd0594781ebf9b9b5ea63a330706ec38_the_north_face-image.avif") && (
+            <img
+              src={img("hero_background", "https://cdn.prod.website-files.com/670a67727905d0e6bd612d79/6966282312b5b12ce0e89f07_fd0594781ebf9b9b5ea63a330706ec38_the_north_face-image.avif")!}
+              alt=""
+              className="w-full h-full object-cover opacity-20"
+            />
+          )}
           <div className="absolute inset-0 bg-gradient-to-br from-[#0f1724] via-[#0f1724]/95 to-[#0f1724]/80" />
         </div>
 
@@ -414,7 +438,7 @@ export default function LandingPage() {
             >
               <div className="relative rounded-2xl overflow-hidden shadow-2xl shadow-black/40 border border-white/10">
                 <img
-                  src={heroPhoneImage}
+                  src={img("hero_main", heroPhoneImage as string)!}
                   alt={`${brandName} Dashboard`}
                   className="w-full h-auto"
                   data-testid="hero-image"
@@ -449,19 +473,18 @@ export default function LandingPage() {
                   <h3 className="text-lg font-semibold text-gray-900 mb-2">{feat.title}</h3>
                   <p className="text-sm text-gray-500 leading-relaxed">{feat.description}</p>
                   <div className="mt-4 rounded-xl overflow-hidden">
-                    {feat.image ? (
-                      <img
-                        src={feat.image}
-                        alt={feat.title}
-                        className={`w-full h-32 rounded-xl ${'imageFit' in feat && feat.imageFit === 'contain' ? 'object-contain bg-gray-50 p-4' : 'object-cover'}`}
-                      />
-                    ) : (
-                      <div className="w-full h-32 flex items-center justify-center rounded-xl" style={{ backgroundColor: c.lightBg }}>
-                        <div className="w-16 h-16 rounded-full flex items-center justify-center shadow-md" style={{ backgroundColor: c.primary }}>
-                          <feat.icon className="w-8 h-8 text-white" />
-                        </div>
-                      </div>
-                    )}
+                    {(() => {
+                      const featImg = img(feat.dbKey, FEATURE_FALLBACKS[feat.dbKey] ?? null);
+                      return featImg ? (
+                        <img
+                          src={featImg}
+                          alt={feat.title}
+                          className="w-full h-32 rounded-xl object-cover"
+                        />
+                      ) : (
+                        <div className="w-full h-32 rounded-xl bg-gray-100 border border-gray-200" />
+                      );
+                    })()}
                   </div>
                 </div>
               </FadeInSection>
@@ -542,7 +565,7 @@ export default function LandingPage() {
                     className="rounded-2xl overflow-hidden shadow-2xl border border-gray-200"
                   >
                     <img
-                      src={analysisFeatures[activeFeature].image}
+                      src={img(analysisFeatures[activeFeature].dbKey, ANALYSIS_FALLBACKS[analysisFeatures[activeFeature].dbKey])!}
                       alt={analysisFeatures[activeFeature].title}
                       className="w-full h-auto"
                     />
@@ -601,27 +624,30 @@ export default function LandingPage() {
                 icon: Mic,
                 title: "Record or Upload",
                 description: "Record directly in your browser or upload an existing audio file. Supports all major formats.",
-                image: "https://cdn.prod.website-files.com/670a67727905d0e6bd612d79/69663b84fc504f0df1534ed6_branded-checkout.avif",
+                dbKey: "how_it_works_1",
+                fallback: "https://cdn.prod.website-files.com/670a67727905d0e6bd612d79/69663b84fc504f0df1534ed6_branded-checkout.avif",
               },
               {
                 step: "2",
                 icon: Brain,
                 title: "AI Processes",
                 description: "Our AI transcribes the audio, generates a summary, extracts action items, and analyzes topics.",
-                image: "https://cdn.prod.website-files.com/670a67727905d0e6bd612d79/696e302cb8add1529a839450_express-checkout.avif",
+                dbKey: "how_it_works_2",
+                fallback: "https://cdn.prod.website-files.com/670a67727905d0e6bd612d79/696e302cb8add1529a839450_express-checkout.avif",
               },
               {
                 step: "3",
                 icon: BarChart3,
                 title: "Review & Act",
                 description: "Access your complete session breakdown with transcripts, summaries, tasks, and topic insights.",
-                image: "https://cdn.prod.website-files.com/670a67727905d0e6bd612d79/69a05952570b7e2e468fe3c1_rest-mockup.avif",
+                dbKey: "how_it_works_3",
+                fallback: "https://cdn.prod.website-files.com/670a67727905d0e6bd612d79/69a05952570b7e2e468fe3c1_rest-mockup.avif",
               },
             ].map((item, idx) => (
               <FadeInSection key={item.step} delay={idx * 0.15}>
                 <div className="text-center" data-testid={`step-card-${idx}`}>
                   <div className="relative rounded-2xl overflow-hidden shadow-lg border border-gray-200 mb-6">
-                    <img src={item.image} alt={item.title} className="w-full h-48 object-cover" />
+                    <img src={img(item.dbKey, item.fallback)!} alt={item.title} className="w-full h-48 object-cover" />
                     <div className="absolute top-3 left-3 w-8 h-8 rounded-full text-white flex items-center justify-center text-sm font-bold shadow-lg" style={{ backgroundColor: c.solid }}>
                       {item.step}
                     </div>
@@ -646,7 +672,7 @@ export default function LandingPage() {
               <div className="order-2 lg:order-1">
                 <div className="rounded-2xl overflow-hidden shadow-2xl border border-gray-200">
                   <img
-                    src="https://cdn.prod.website-files.com/670a67727905d0e6bd612d79/69a032b28b63023b38615aad_subscriptions-mockup.avif"
+                    src={img("mobile_section", "https://cdn.prod.website-files.com/670a67727905d0e6bd612d79/69a032b28b63023b38615aad_subscriptions-mockup.avif")!}
                     alt="Mobile recording"
                     className="w-full h-auto"
                   />
@@ -721,7 +747,7 @@ export default function LandingPage() {
               </div>
               <div className="rounded-2xl overflow-hidden shadow-2xl border border-gray-200">
                 <img
-                  src="https://cdn.prod.website-files.com/670a67727905d0e6bd612d79/68484eb295961514ce7dd0d8_express-security-and-privacy-2.avif"
+                  src={img("security_section", "https://cdn.prod.website-files.com/670a67727905d0e6bd612d79/68484eb295961514ce7dd0d8_express-security-and-privacy-2.avif")!}
                   alt="Security"
                   className="w-full h-auto"
                 />

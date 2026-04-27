@@ -1,8 +1,8 @@
 import { db } from "./db";
 import { 
-    users, clients, meetings, transcripts, actionItems, topics, meetingSummaries, templates, templateTenants, roles, policies, meetingPolicies, tenants, audioLanguageOptions, promptSettings, systemSettings, payfastItnEvents, payfastAuditLog,
+    users, clients, meetings, transcripts, actionItems, topics, meetingSummaries, templates, templateTenants, roles, policies, meetingPolicies, tenants, audioLanguageOptions, promptSettings, systemSettings, payfastItnEvents, payfastAuditLog, siteImages,
     type InsertUser, type InsertClient, type InsertMeeting, type InsertTranscript, type InsertActionItem, type InsertTopic, type InsertMeetingSummary, type InsertTemplate, type InsertRole, type InsertPolicy, type InsertMeetingPolicy, type InsertTenant, type InsertAudioLanguageOption, type InsertPromptSetting,
-    type User, type Client, type Meeting, type Transcript, type ActionItem, type Topic, type MeetingSummary, type Template, type TemplateWithTenants, type Role, type Policy, type MeetingPolicy, type Tenant, type AudioLanguageOption, type PromptSetting, type SystemSetting, type PayfastItnEvent, type PayfastAuditLog
+    type User, type Client, type Meeting, type Transcript, type ActionItem, type Topic, type MeetingSummary, type Template, type TemplateWithTenants, type Role, type Policy, type MeetingPolicy, type Tenant, type AudioLanguageOption, type PromptSetting, type SystemSetting, type PayfastItnEvent, type PayfastAuditLog, type SiteImage
 } from "@shared/schema";
 import { eq, and, desc, lt, ne, or, isNull, isNotNull, sql, inArray } from "drizzle-orm";
 
@@ -136,6 +136,11 @@ export interface IStorage {
     getSystemSettings(): Promise<SystemSetting[]>;
     getSystemSettingByKey(key: string): Promise<SystemSetting | undefined>;
     upsertSystemSetting(key: string, value: string): Promise<SystemSetting>;
+
+    // Site Images
+    getAllSiteImages(): Promise<SiteImage[]>;
+    getSiteImageByKey(key: string): Promise<SiteImage | undefined>;
+    setSiteImageUrl(key: string, url: string): Promise<SiteImage>;
 }
 
 export class DatabaseStorage implements IStorage {
@@ -792,6 +797,25 @@ export class DatabaseStorage implements IStorage {
             throw new Error(`System setting key "${key}" not found`);
         }
         const [row] = await db.update(systemSettings).set({ value }).where(eq(systemSettings.key, key)).returning();
+        return row;
+    }
+
+    // Site Images
+    async getAllSiteImages(): Promise<SiteImage[]> {
+        return await db.select().from(siteImages).orderBy(siteImages.id);
+    }
+
+    async getSiteImageByKey(key: string): Promise<SiteImage | undefined> {
+        const [row] = await db.select().from(siteImages).where(eq(siteImages.key, key));
+        return row;
+    }
+
+    async setSiteImageUrl(key: string, url: string): Promise<SiteImage> {
+        const [row] = await db.update(siteImages)
+            .set({ url, updatedAt: new Date() })
+            .where(eq(siteImages.key, key))
+            .returning();
+        if (!row) throw new Error(`Site image key "${key}" not found`);
         return row;
     }
 }

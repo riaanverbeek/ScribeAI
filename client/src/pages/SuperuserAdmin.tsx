@@ -1,4 +1,4 @@
-import { useState, useMemo, useEffect } from "react";
+import { useState, useMemo, useEffect, useRef } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { queryClient, apiRequest } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
@@ -13,9 +13,9 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 import { Switch } from "@/components/ui/switch";
-import { Pencil, Trash2, Plus, Users, Briefcase, Calendar, Shield, ShieldCheck, Tag, ArrowLeft, Eye, ChevronRight, Loader2, Building2, Globe, Palette, ArrowUpDown, Languages, MessageSquare, RotateCcw, Save, ChevronDown, ChevronUp, Cpu, CheckCircle, XCircle, AlertTriangle, RefreshCw } from "lucide-react";
+import { Pencil, Trash2, Plus, Users, Briefcase, Calendar, Shield, ShieldCheck, Tag, ArrowLeft, Eye, ChevronRight, Loader2, Building2, Globe, Palette, ArrowUpDown, Languages, MessageSquare, RotateCcw, Save, ChevronDown, ChevronUp, Cpu, CheckCircle, XCircle, AlertTriangle, RefreshCw, Images, Upload } from "lucide-react";
 import { format } from "date-fns";
-import type { SafeUser, Client, Meeting, Role, Transcript, ActionItem, Topic, MeetingSummary, Tenant, AudioLanguageOption, PromptSetting, SystemSetting } from "@shared/schema";
+import type { SafeUser, Client, Meeting, Role, Transcript, ActionItem, Topic, MeetingSummary, Tenant, AudioLanguageOption, PromptSetting, SystemSetting, SiteImage } from "@shared/schema";
 
 type SuperuserUser = SafeUser & { isSuperuser: boolean };
 
@@ -1825,6 +1825,153 @@ function PayfastAuditTab() {
   );
 }
 
+const SECTION_COLORS: Record<string, string> = {
+  "Hero": "bg-blue-100 text-blue-700",
+  "Features": "bg-purple-100 text-purple-700",
+  "Analysis": "bg-amber-100 text-amber-700",
+  "How It Works": "bg-green-100 text-green-700",
+  "Mobile": "bg-teal-100 text-teal-700",
+  "Security": "bg-red-100 text-red-700",
+};
+
+function SiteImageCard({ slot, onUploaded }: { slot: SiteImage; onUploaded: () => void }) {
+  const { toast } = useToast();
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const [uploading, setUploading] = useState(false);
+
+  const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setUploading(true);
+    try {
+      const formData = new FormData();
+      formData.append("file", file);
+      const res = await fetch(`/api/superuser/site-images/${slot.key}/upload`, {
+        method: "POST",
+        credentials: "include",
+        body: formData,
+      });
+      if (!res.ok) {
+        const err = await res.json();
+        throw new Error(err.message || "Upload failed");
+      }
+      toast({ title: "Image updated", description: `${slot.label} has been replaced.` });
+      onUploaded();
+    } catch (err: any) {
+      toast({ title: "Upload failed", description: err.message || "Something went wrong", variant: "destructive" });
+    } finally {
+      setUploading(false);
+      if (fileInputRef.current) fileInputRef.current.value = "";
+    }
+  };
+
+  const sectionClass = SECTION_COLORS[slot.section] ?? "bg-gray-100 text-gray-700";
+  const currentUrl = slot.url;
+
+  return (
+    <Card className="overflow-hidden" data-testid={`site-image-card-${slot.key}`}>
+      <div className="relative h-40 bg-gray-100 border-b">
+        {currentUrl ? (
+          <img
+            src={currentUrl}
+            alt={slot.label}
+            className="w-full h-full object-cover"
+          />
+        ) : (
+          <div className="w-full h-full flex flex-col items-center justify-center gap-2 text-gray-400">
+            <Images className="w-8 h-8" />
+            <span className="text-xs">No image yet</span>
+          </div>
+        )}
+        <div className="absolute top-2 left-2">
+          <span className={`text-xs font-medium px-2 py-0.5 rounded-full ${sectionClass}`}>
+            {slot.section}
+          </span>
+        </div>
+      </div>
+      <CardContent className="p-4 space-y-3">
+        <div>
+          <p className="font-semibold text-sm leading-tight">{slot.label}</p>
+          <p className="text-xs text-muted-foreground mt-0.5 leading-relaxed">{slot.description}</p>
+        </div>
+        <div className="flex items-center justify-between">
+          <span className="inline-flex items-center gap-1 text-xs bg-gray-100 text-gray-600 rounded-md px-2 py-1 font-mono">
+            {slot.requiredWidth} × {slot.requiredHeight} px
+          </span>
+          <Button
+            size="sm"
+            variant="outline"
+            className="gap-1.5 text-xs"
+            onClick={() => fileInputRef.current?.click()}
+            disabled={uploading}
+            data-testid={`button-upload-image-${slot.key}`}
+          >
+            {uploading ? (
+              <><Loader2 className="w-3.5 h-3.5 animate-spin" /> Uploading…</>
+            ) : (
+              <><Upload className="w-3.5 h-3.5" /> Upload</>
+            )}
+          </Button>
+        </div>
+      </CardContent>
+      <input
+        ref={fileInputRef}
+        type="file"
+        accept="image/*"
+        className="hidden"
+        onChange={handleFileChange}
+        data-testid={`input-file-${slot.key}`}
+      />
+    </Card>
+  );
+}
+
+function SiteImagesTab() {
+  const { data: slots = [], isLoading, refetch } = useQuery<SiteImage[]>({
+    queryKey: ["/api/superuser/site-images"],
+  });
+
+  const grouped = useMemo(() => {
+    const map: Record<string, SiteImage[]> = {};
+    for (const slot of slots) {
+      if (!map[slot.section]) map[slot.section] = [];
+      map[slot.section].push(slot);
+    }
+    return map;
+  }, [slots]);
+
+  const handleUploaded = () => {
+    refetch();
+    queryClient.invalidateQueries({ queryKey: ["/api/landing/images"] });
+  };
+
+  if (isLoading) {
+    return (
+      <div className="flex items-center justify-center py-16">
+        <Loader2 className="w-6 h-6 animate-spin text-muted-foreground" />
+      </div>
+    );
+  }
+
+  return (
+    <div className="space-y-8">
+      <p className="text-sm text-muted-foreground">
+        Upload images for each section of the public landing page. The required pixel dimensions are shown on each card — upload at exactly that size (or larger with the same aspect ratio) for best results.
+      </p>
+      {Object.entries(grouped).map(([section, sectionSlots]) => (
+        <div key={section}>
+          <h3 className="text-base font-semibold mb-3">{section}</h3>
+          <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-4">
+            {sectionSlots.map(slot => (
+              <SiteImageCard key={slot.key} slot={slot} onUploaded={handleUploaded} />
+            ))}
+          </div>
+        </div>
+      ))}
+    </div>
+  );
+}
+
 export default function SuperuserAdmin() {
   return (
     <div className="p-4 sm:p-6 lg:p-8 max-w-5xl mx-auto">
@@ -1837,7 +1984,7 @@ export default function SuperuserAdmin() {
       </div>
 
       <Tabs defaultValue="users">
-        <TabsList className="w-full grid grid-cols-9 mb-4" data-testid="tabs-superuser">
+        <TabsList className="w-full grid grid-cols-10 mb-4" data-testid="tabs-superuser">
           <TabsTrigger value="users" className="gap-1" data-testid="tab-users">
             <Users className="w-4 h-4 hidden sm:block" /> Users
           </TabsTrigger>
@@ -1865,6 +2012,9 @@ export default function SuperuserAdmin() {
           <TabsTrigger value="payfast-audit" className="gap-1" data-testid="tab-payfast-audit">
             <AlertTriangle className="w-4 h-4 hidden sm:block" /> PF Audit
           </TabsTrigger>
+          <TabsTrigger value="site-images" className="gap-1" data-testid="tab-site-images">
+            <Images className="w-4 h-4 hidden sm:block" /> Images
+          </TabsTrigger>
         </TabsList>
 
         <TabsContent value="users"><UsersTab /></TabsContent>
@@ -1876,6 +2026,7 @@ export default function SuperuserAdmin() {
         <TabsContent value="prompts"><PromptsTab /></TabsContent>
         <TabsContent value="llm"><LlmTab /></TabsContent>
         <TabsContent value="payfast-audit"><PayfastAuditTab /></TabsContent>
+        <TabsContent value="site-images"><SiteImagesTab /></TabsContent>
       </Tabs>
     </div>
   );

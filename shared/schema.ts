@@ -222,6 +222,24 @@ export const insertPayfastAuditLogSchema = createInsertSchema(payfastAuditLog).o
 export type PayfastAuditLog = typeof payfastAuditLog.$inferSelect;
 export type InsertPayfastAuditLog = z.infer<typeof insertPayfastAuditLogSchema>;
 
+// === SITE IMAGES ===
+
+export const siteImages = pgTable("site_images", {
+  id: serial("id").primaryKey(),
+  key: text("key").notNull().unique(),
+  label: text("label").notNull(),
+  section: text("section").notNull(),
+  description: text("description").notNull(),
+  requiredWidth: integer("required_width").notNull(),
+  requiredHeight: integer("required_height").notNull(),
+  url: text("url"),
+  updatedAt: timestamp("updated_at").defaultNow(),
+});
+
+export const insertSiteImageSchema = createInsertSchema(siteImages).omit({ id: true, updatedAt: true });
+export type SiteImage = typeof siteImages.$inferSelect;
+export type InsertSiteImage = z.infer<typeof insertSiteImageSchema>;
+
 // === CHAT TABLES FOR REPLIT INTEGRATIONS ===
 
 export const conversations = pgTable("conversations", {
@@ -438,6 +456,8 @@ export type Conversation = typeof conversations.$inferSelect;
 export type InsertConversation = z.infer<typeof insertConversationSchema>;
 export type Message = typeof messages.$inferSelect;
 export type InsertMessage = z.infer<typeof insertMessageSchema>;
+
+// SiteImage types are defined inline above near the table definition
 
 export type SafeUser = Omit<User, "passwordHash" | "verificationToken" | "verificationTokenExpiry" | "resetToken" | "resetTokenExpiry">;
 export type SuperuserSafeUser = Omit<User, "passwordHash" | "resetToken" | "resetTokenExpiry">;

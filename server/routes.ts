@@ -1341,6 +1341,69 @@ export async function registerRoutes(
     }
   });
 
+  // ========== SITE IMAGES ==========
+
+  app.get("/api/landing/images", async (_req, res) => {
+    try {
+      const images = await storage.getAllSiteImages();
+      const map: Record<string, string | null> = {};
+      for (const img of images) {
+        map[img.key] = img.url ?? null;
+      }
+      res.json(map);
+    } catch (err) {
+      console.error("Error fetching landing images:", err);
+      res.status(500).json({ message: "Failed to fetch images" });
+    }
+  });
+
+  app.get("/api/superuser/site-images", requireAuth, requireVerified, requireSuperuser, async (_req, res) => {
+    try {
+      const images = await storage.getAllSiteImages();
+      res.json(images);
+    } catch (err) {
+      console.error("Error fetching site images:", err);
+      res.status(500).json({ message: "Failed to fetch site images" });
+    }
+  });
+
+  app.put("/api/superuser/site-images/:key", requireAuth, requireVerified, requireSuperuser, async (req, res) => {
+    try {
+      const { key } = req.params;
+      const { url } = z.object({ url: z.string().url("Must be a valid URL") }).parse(req.body);
+      const updated = await storage.setSiteImageUrl(key, url);
+      res.json(updated);
+    } catch (err) {
+      if (err instanceof z.ZodError) return res.status(400).json({ message: err.errors[0].message });
+      console.error("Error updating site image:", err);
+      res.status(500).json({ message: "Failed to update image" });
+    }
+  });
+
+  app.post("/api/superuser/site-images/:key/upload", requireAuth, requireVerified, requireSuperuser, upload.single("file"), async (req, res) => {
+    try {
+      const { key } = req.params;
+      if (!req.file) return res.status(400).json({ message: "No file uploaded" });
+
+      const existing = await storage.getSiteImageByKey(key);
+      if (!existing) return res.status(404).json({ message: "Image slot not found" });
+
+      const ext = path.extname(req.file.originalname) || ".jpg";
+      const buffer = fs.readFileSync(req.file.path);
+      const objectPath = await uploadBufferToObjectStorage(buffer, ext, req.file.mimetype);
+      fs.unlinkSync(req.file.path);
+
+      const updated = await storage.setSiteImageUrl(key, objectPath);
+      res.json(updated);
+    } catch (err) {
+      console.error("Error uploading site image:", err);
+      if (req.file?.path) {
+        try { fs.unlinkSync(req.file.path); } catch {}
+      }
+      res.status(500).json({ message: "Failed to upload image" });
+    }
+  });
+
   // ========== LLM REGISTRY ==========
 
   app.get("/api/superuser/llm-registry", requireAuth, requireVerified, requireSuperuser, async (req, res) => {

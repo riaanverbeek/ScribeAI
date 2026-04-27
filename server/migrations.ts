@@ -311,6 +311,56 @@ export async function migratePayfastAuditLog() {
   }
 }
 
+export async function migrateSiteImages() {
+  try {
+    await db.execute(sql`
+      CREATE TABLE IF NOT EXISTS site_images (
+        id SERIAL PRIMARY KEY,
+        key TEXT NOT NULL UNIQUE,
+        label TEXT NOT NULL,
+        section TEXT NOT NULL,
+        description TEXT NOT NULL,
+        required_width INTEGER NOT NULL,
+        required_height INTEGER NOT NULL,
+        url TEXT,
+        updated_at TIMESTAMP DEFAULT NOW()
+      )
+    `);
+
+    type SlotDef = { key: string; label: string; section: string; description: string; w: number; h: number; url: string | null };
+    const slots: SlotDef[] = [
+      { key: "hero_background", label: "Hero Background", section: "Hero", description: "Faint texture shown at 20% opacity across the full hero banner", w: 1920, h: 1080, url: "https://cdn.prod.website-files.com/670a67727905d0e6bd612d79/6966282312b5b12ce0e89f07_fd0594781ebf9b9b5ea63a330706ec38_the_north_face-image.avif" },
+      { key: "hero_main", label: "Hero Main Image", section: "Hero", description: "Primary product screenshot shown on the right side of the hero section", w: 1200, h: 800, url: null },
+      { key: "feature_record_anywhere", label: "Feature: Record Anywhere", section: "Features", description: "Image strip inside the 'Record Anywhere' feature card", w: 600, h: 260, url: null },
+      { key: "feature_upload_audio", label: "Feature: Upload Audio", section: "Features", description: "Image strip inside the 'Upload Audio' feature card", w: 600, h: 260, url: null },
+      { key: "feature_ai_transcription", label: "Feature: AI Transcription", section: "Features", description: "Image strip inside the 'AI Transcription' feature card", w: 600, h: 260, url: "https://cdn.prod.website-files.com/670a67727905d0e6bd612d79/6847ec356628c2a227d91171_649d1e05c93495e5f993b68c762e2973_sealand.avif" },
+      { key: "feature_smart_summaries", label: "Feature: Smart Summaries", section: "Features", description: "Image strip inside the 'Smart Summaries' feature card", w: 600, h: 260, url: "https://cdn.prod.website-files.com/670a67727905d0e6bd612d79/6847f81ccf587c065ecf0f99_viro.avif" },
+      { key: "analysis_transcription", label: "Analysis: AI Transcription", section: "Analysis", description: "Screenshot shown in the AI Transcription analysis tab", w: 1200, h: 800, url: "https://cdn.prod.website-files.com/670a67727905d0e6bd612d79/67b6a54863fef312ee10a657_07d1f6af50b652880869efea31757511_Apple_Pay-mockup.avif" },
+      { key: "analysis_summaries", label: "Analysis: Intelligent Summaries", section: "Analysis", description: "Screenshot shown in the Intelligent Summaries analysis tab", w: 1200, h: 800, url: "https://cdn.prod.website-files.com/670a67727905d0e6bd612d79/67acb7a335d39e9be1abb2e0_361c6e22b14d270e7f01a39591c74511_express-card.avif" },
+      { key: "analysis_action_items", label: "Analysis: Action Items", section: "Analysis", description: "Screenshot shown in the Action Items analysis tab", w: 1200, h: 800, url: "https://cdn.prod.website-files.com/670a67727905d0e6bd612d79/697cb2897c7218d5bea66cec_express-stitch_bnpl.avif" },
+      { key: "analysis_topics", label: "Analysis: Topic Analysis", section: "Analysis", description: "Screenshot shown in the Topic Analysis analysis tab", w: 1200, h: 800, url: "https://cdn.prod.website-files.com/670a67727905d0e6bd612d79/67b6a88e59792c71771123cc_d23ab24d70c0df2739760b4a37afae34_Capitec_pay.avif" },
+      { key: "how_it_works_1", label: "How It Works: Step 1", section: "How It Works", description: "Card image for Step 1 — Record or Upload", w: 800, h: 390, url: "https://cdn.prod.website-files.com/670a67727905d0e6bd612d79/69663b84fc504f0df1534ed6_branded-checkout.avif" },
+      { key: "how_it_works_2", label: "How It Works: Step 2", section: "How It Works", description: "Card image for Step 2 — AI Processes", w: 800, h: 390, url: "https://cdn.prod.website-files.com/670a67727905d0e6bd612d79/696e302cb8add1529a839450_express-checkout.avif" },
+      { key: "how_it_works_3", label: "How It Works: Step 3", section: "How It Works", description: "Card image for Step 3 — Review & Act", w: 800, h: 390, url: "https://cdn.prod.website-files.com/670a67727905d0e6bd612d79/69a05952570b7e2e468fe3c1_rest-mockup.avif" },
+      { key: "mobile_section", label: "Mobile & Offline Illustration", section: "Mobile", description: "Illustration on the left side of the Mobile & Offline section", w: 1200, h: 800, url: "https://cdn.prod.website-files.com/670a67727905d0e6bd612d79/69a032b28b63023b38615aad_subscriptions-mockup.avif" },
+      { key: "security_section", label: "Security & Privacy Illustration", section: "Security", description: "Illustration on the right side of the Security & Privacy section", w: 1200, h: 800, url: "https://cdn.prod.website-files.com/670a67727905d0e6bd612d79/68484eb295961514ce7dd0d8_express-security-and-privacy-2.avif" },
+    ];
+
+    for (const s of slots) {
+      const urlVal = s.url ? `'${s.url.replace(/'/g, "''")}'` : "NULL";
+      await db.execute(sql.raw(
+        `INSERT INTO site_images (key, label, section, description, required_width, required_height, url)
+         VALUES ('${s.key}', '${s.label.replace(/'/g, "''")}', '${s.section.replace(/'/g, "''")}', '${s.description.replace(/'/g, "''")}', ${s.w}, ${s.h}, ${urlVal})
+         ON CONFLICT (key) DO NOTHING`
+      ));
+    }
+
+    console.log("[migrations] site_images table ready");
+  } catch (err) {
+    console.error("[migrations] Error migrating site_images:", err);
+  }
+}
+
 export async function migrateSystemSettings() {
   try {
     await db.execute(sql`
