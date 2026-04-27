@@ -1838,6 +1838,9 @@ function SiteImageCard({ slot, onUploaded }: { slot: SiteImage; onUploaded: () =
   const { toast } = useToast();
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [uploading, setUploading] = useState(false);
+  const [showUrlInput, setShowUrlInput] = useState(false);
+  const [urlValue, setUrlValue] = useState("");
+  const [urlSaving, setUrlSaving] = useState(false);
 
   const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -1863,6 +1866,27 @@ function SiteImageCard({ slot, onUploaded }: { slot: SiteImage; onUploaded: () =
     } finally {
       setUploading(false);
       if (fileInputRef.current) fileInputRef.current.value = "";
+    }
+  };
+
+  const handleUrlSubmit = async () => {
+    const trimmed = urlValue.trim();
+    if (!trimmed.startsWith("http://") && !trimmed.startsWith("https://")) {
+      toast({ title: "Invalid URL", description: "URL must start with http:// or https://", variant: "destructive" });
+      return;
+    }
+    setUrlSaving(true);
+    try {
+      await apiRequest("PUT", `/api/superuser/site-images/${slot.key}`, { url: trimmed });
+      toast({ title: "Image updated", description: `${slot.label} has been replaced.` });
+      setShowUrlInput(false);
+      setUrlValue("");
+      onUploaded();
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : "Something went wrong";
+      toast({ title: "Failed to save URL", description: message, variant: "destructive" });
+    } finally {
+      setUrlSaving(false);
     }
   };
 
@@ -1899,21 +1923,54 @@ function SiteImageCard({ slot, onUploaded }: { slot: SiteImage; onUploaded: () =
           <span className="inline-flex items-center gap-1 text-xs bg-gray-100 text-gray-600 rounded-md px-2 py-1 font-mono">
             {slot.requiredWidth} × {slot.requiredHeight} px
           </span>
-          <Button
-            size="sm"
-            variant="outline"
-            className="gap-1.5 text-xs"
-            onClick={() => fileInputRef.current?.click()}
-            disabled={uploading}
-            data-testid={`button-upload-image-${slot.key}`}
-          >
-            {uploading ? (
-              <><Loader2 className="w-3.5 h-3.5 animate-spin" /> Uploading…</>
-            ) : (
-              <><Upload className="w-3.5 h-3.5" /> Upload</>
-            )}
-          </Button>
+          <div className="flex items-center gap-2">
+            <button
+              className="text-xs text-blue-600 hover:underline"
+              onClick={() => { setShowUrlInput((v) => !v); setUrlValue(""); }}
+              data-testid={`button-use-url-${slot.key}`}
+            >
+              Use URL
+            </button>
+            <Button
+              size="sm"
+              variant="outline"
+              className="gap-1.5 text-xs"
+              onClick={() => fileInputRef.current?.click()}
+              disabled={uploading}
+              data-testid={`button-upload-image-${slot.key}`}
+            >
+              {uploading ? (
+                <><Loader2 className="w-3.5 h-3.5 animate-spin" /> Uploading…</>
+              ) : (
+                <><Upload className="w-3.5 h-3.5" /> Upload</>
+              )}
+            </Button>
+          </div>
         </div>
+        {showUrlInput && (
+          <div className="flex items-center gap-2" data-testid={`url-input-row-${slot.key}`}>
+            <Input
+              className="text-xs h-8"
+              placeholder="https://example.com/image.jpg"
+              value={urlValue}
+              onChange={(e) => setUrlValue(e.target.value)}
+              onKeyDown={(e) => { if (e.key === "Enter") handleUrlSubmit(); if (e.key === "Escape") { setShowUrlInput(false); setUrlValue(""); } }}
+              disabled={urlSaving}
+              data-testid={`input-url-${slot.key}`}
+            />
+            <Button
+              size="sm"
+              variant="default"
+              className="text-xs h-8 shrink-0 gap-1"
+              onClick={handleUrlSubmit}
+              disabled={urlSaving || !urlValue.trim()}
+              data-testid={`button-save-url-${slot.key}`}
+            >
+              {urlSaving ? <Loader2 className="w-3 h-3 animate-spin" /> : <Save className="w-3 h-3" />}
+              Save
+            </Button>
+          </div>
+        )}
       </CardContent>
       <input
         ref={fileInputRef}
