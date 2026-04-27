@@ -307,6 +307,73 @@ export async function sendLlmFailureAlert(
   }
 }
 
+export async function sendMisBilledUserAlert(
+  superuserEmails: string[],
+  details: {
+    userName: string;
+    userEmail: string;
+    payfastToken: string;
+  }
+) {
+  if (superuserEmails.length === 0) return;
+  try {
+    const { client } = await getUncachableResendClient();
+    const baseUrl = getBaseUrl();
+    const adminUrl = `${baseUrl}/superuser-admin`;
+    const sender = 'ScribeAI <noreply@email.fant-app.com>';
+    const timestamp = new Date().toLocaleString("en-ZA", { timeZone: "Africa/Johannesburg" });
+
+    const html = `
+      <div style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; max-width: 600px; margin: 0 auto; padding: 40px 20px;">
+        <div style="background: #fef2f2; border: 1px solid #fecaca; border-radius: 8px; padding: 16px 20px; margin-bottom: 24px;">
+          <h1 style="font-size: 18px; color: #b91c1c; margin: 0 0 4px;">⚠️ Potentially Mis-Billed User Detected</h1>
+          <p style="font-size: 13px; color: #7f1d1d; margin: 0;">${timestamp}</p>
+        </div>
+
+        <p style="font-size: 14px; color: #374151; margin-bottom: 20px;">
+          A user has been marked as <strong>cancelled</strong> in the database while still retaining an active PayFast token.
+          This may indicate they could continue to be billed by PayFast. Please review immediately.
+        </p>
+
+        <table style="width: 100%; border-collapse: collapse; font-size: 14px; margin-bottom: 24px;">
+          <tr style="border-bottom: 1px solid #eee;">
+            <td style="padding: 10px 8px; color: #6b7280; width: 140px; font-weight: 600;">Name</td>
+            <td style="padding: 10px 8px; color: #111;">${details.userName}</td>
+          </tr>
+          <tr style="border-bottom: 1px solid #eee;">
+            <td style="padding: 10px 8px; color: #6b7280; font-weight: 600;">Email</td>
+            <td style="padding: 10px 8px; color: #111;">${details.userEmail}</td>
+          </tr>
+          <tr>
+            <td style="padding: 10px 8px; color: #6b7280; font-weight: 600; vertical-align: top;">PayFast Token</td>
+            <td style="padding: 10px 8px;">
+              <code style="display: block; background: #f4f4f5; border-radius: 4px; padding: 10px 12px; font-size: 13px; color: #b91c1c; white-space: pre-wrap; word-break: break-word;">${details.payfastToken}</code>
+            </td>
+          </tr>
+        </table>
+
+        <a href="${adminUrl}" style="display: inline-block; background: #18181b; color: #ffffff; padding: 10px 28px; border-radius: 8px; text-decoration: none; font-size: 14px; font-weight: 600;">
+          View PayFast Audit
+        </a>
+
+        <p style="font-size: 12px; color: #aaa; margin-top: 40px; border-top: 1px solid #eee; padding-top: 20px;">
+          ScribeAI — Superuser Alert · This email was sent because you are a superuser.
+        </p>
+      </div>
+    `;
+
+    await client.emails.send({
+      from: sender,
+      to: superuserEmails,
+      subject: `⚠️ Mis-Billed User Alert: ${details.userEmail}`,
+      html,
+    });
+    console.log(`[email] Mis-billed user alert sent to ${superuserEmails.length} superuser(s) for user ${details.userEmail}`);
+  } catch (err) {
+    console.error("[email] Failed to send mis-billed user alert:", err);
+  }
+}
+
 function getBaseUrl(): string {
   // APP_EMAIL_BASE_URL: explicit override for email links only (use this to point
   // to the web app URL when APP_BASE_URL is the iOS/mobile app domain)

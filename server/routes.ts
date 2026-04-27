@@ -107,7 +107,7 @@ function parseMarkdownBold(text: string, TextRun: any): any[] {
 }
 import { generatePayfastSubscriptionUrl, validatePayfastSignature, cancelPayfastSubscription } from "./payfast";
 import { getUncachableStripeClient } from "./stripeClient";
-import { sendPasswordResetEmail, sendVerificationEmail, sendMeetingCompletedEmail, sendLlmFailureAlert, sendPaymentFailedEmail } from "./email";
+import { sendPasswordResetEmail, sendVerificationEmail, sendMeetingCompletedEmail, sendLlmFailureAlert, sendPaymentFailedEmail, sendMisBilledUserAlert } from "./email";
 import { requireAuth, requireAdmin, requireVerified, requireSubscription, requireSuperuser, sanitizeUser, getEffectiveSubscriptionStatus, hasFullAccess, SUPERUSER_EMAIL, SUPERUSER_PASSWORD } from "./auth";
 import { passwordSchema } from "@shared/passwordValidation";
 import type { User, Tenant } from "@shared/schema";
@@ -689,6 +689,26 @@ export async function registerRoutes(
       subscriptionStatus: "cancelled",
       cancelledAt: new Date(),
     });
+
+    // Alert superusers: user is now cancelled but still holds a payfastToken,
+    // which means PayFast may continue billing them on the next cycle.
+    try {
+      const superusers = await storage.getSuperusers();
+      if (superusers.length > 0) {
+        const userName = [user.firstName, user.lastName].filter(Boolean).join(" ") || user.email;
+        await sendMisBilledUserAlert(
+          superusers.map(u => u.email),
+          {
+            userName,
+            userEmail: user.email,
+            payfastToken: user.payfastToken!,
+          }
+        );
+      }
+    } catch (alertErr) {
+      console.error("[alert] Failed to send mis-billed user alert:", alertErr);
+    }
+
     res.json({ message: "Subscription cancelled. You'll retain access until the end of your billing period." });
   });
 
