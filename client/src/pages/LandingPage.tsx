@@ -56,7 +56,7 @@ function FAQItem({ question, answer }: { question: string; answer: string }) {
 }
 
 const FEATURE_FALLBACKS: Record<string, string | null> = {
-  feature_record_anywhere: null,
+  feature_record_anywhere: "https://cdn.prod.website-files.com/670a67727905d0e6bd612d79/69a032b28b63023b38615aad_subscriptions-mockup.avif",
   feature_upload_audio: uploadIconImage as string,
   feature_ai_transcription: "https://cdn.prod.website-files.com/670a67727905d0e6bd612d79/6847ec356628c2a227d91171_649d1e05c93495e5f993b68c762e2973_sealand.avif",
   feature_smart_summaries: "https://cdn.prod.website-files.com/670a67727905d0e6bd612d79/6847f81ccf587c065ecf0f99_viro.avif",

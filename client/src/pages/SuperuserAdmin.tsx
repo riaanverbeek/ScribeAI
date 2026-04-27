@@ -1857,8 +1857,9 @@ function SiteImageCard({ slot, onUploaded }: { slot: SiteImage; onUploaded: () =
       }
       toast({ title: "Image updated", description: `${slot.label} has been replaced.` });
       onUploaded();
-    } catch (err: any) {
-      toast({ title: "Upload failed", description: err.message || "Something went wrong", variant: "destructive" });
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : "Something went wrong";
+      toast({ title: "Upload failed", description: message, variant: "destructive" });
     } finally {
       setUploading(false);
       if (fileInputRef.current) fileInputRef.current.value = "";
