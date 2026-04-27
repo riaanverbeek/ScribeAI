@@ -616,10 +616,17 @@ export async function registerRoutes(
       return res.status(400).json({ message: "No active subscription to cancel" });
     }
 
+    // Important: only mark the user as cancelled in our DB AFTER PayFast confirms
+    // the cancellation. Otherwise the user would believe they cancelled while
+    // PayFast keeps billing them on the next cycle.
     const result = await cancelPayfastSubscription(user.payfastToken);
     if (!result.ok) {
+      console.error(
+        `[payfast] /api/payfast/cancel: refusing to mark user ${user.id} cancelled — PayFast rejected: ${result.error}`,
+      );
       return res.status(502).json({
-        message: "Couldn't cancel your subscription with PayFast. Your subscription is still active — please try again, or contact support if the problem persists.",
+        message:
+          "Couldn't cancel your subscription with PayFast. Your subscription is still active — please try again, or contact support if the problem persists.",
         detail: result.error,
       });
     }

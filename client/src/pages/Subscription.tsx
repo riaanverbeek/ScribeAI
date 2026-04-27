@@ -26,19 +26,33 @@ export default function Subscription() {
     },
   });
 
-  const cancelMutation = useMutation({
+  const cancelMutation = useMutation<{ message: string }, Error>({
     mutationFn: async () => {
+      // We use fetch directly (instead of apiRequest) so we can read the JSON
+      // body on a 5xx response and surface the server's clear cancellation
+      // failure message — apiRequest stringifies non-2xx bodies into the
+      // Error.message which is brittle to parse.
       const endpoint = provider === "stripe" ? "/api/stripe/cancel" : "/api/payfast/cancel";
-      const res = await apiRequest("POST", endpoint);
-      return res.json();
+      const res = await fetch(endpoint, { method: "POST", credentials: "include" });
+      const data = (await res.json().catch(() => ({}))) as { message?: string };
+      if (!res.ok) {
+        throw new Error(
+          data.message || "Couldn't cancel — please try again or contact support.",
+        );
+      }
+      return { message: data.message ?? "" };
     },
     onSuccess: (data) => {
       toast({ title: "Subscription cancelled", description: data.message });
       queryClient.invalidateQueries({ queryKey: ["/api/subscription/status"] });
       queryClient.invalidateQueries({ queryKey: ["/api/auth/me"] });
     },
-    onError: () => {
-      toast({ title: "Failed to cancel", variant: "destructive" });
+    onError: (error) => {
+      toast({
+        title: "Couldn't cancel subscription",
+        description: error.message,
+        variant: "destructive",
+      });
     },
   });
 
