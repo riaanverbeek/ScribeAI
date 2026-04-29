@@ -14,7 +14,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 import { Switch } from "@/components/ui/switch";
 import { Pencil, Trash2, Plus, Users, Briefcase, Calendar, Shield, ShieldCheck, Tag, ArrowLeft, Eye, ChevronRight, Loader2, Building2, Globe, Palette, ArrowUpDown, Languages, MessageSquare, RotateCcw, Save, ChevronDown, ChevronUp, Cpu, CheckCircle, XCircle, AlertTriangle, RefreshCw, Images, Upload } from "lucide-react";
-import { format } from "date-fns";
+import { format, formatDistanceToNow } from "date-fns";
 import type { SafeUser, Client, Meeting, Role, Transcript, ActionItem, Topic, MeetingSummary, Tenant, AudioLanguageOption, PromptSetting, SystemSetting, SiteImage } from "@shared/schema";
 
 type SuperuserUser = SafeUser & { isSuperuser: boolean };
@@ -1971,6 +1971,11 @@ function SiteImageCard({ slot, onUploaded }: { slot: SiteImage; onUploaded: () =
             </Button>
           </div>
         )}
+        <p className="text-xs text-muted-foreground" data-testid={`text-image-updated-${slot.key}`}>
+          {slot.url && slot.updatedAt
+            ? `Updated ${formatDistanceToNow(new Date(slot.updatedAt), { addSuffix: true })}`
+            : "Using default image"}
+        </p>
       </CardContent>
       <input
         ref={fileInputRef}
