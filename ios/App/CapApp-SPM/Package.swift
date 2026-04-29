@@ -12,7 +12,6 @@ let package = Package(
     ],
     dependencies: [
         .package(url: "https://github.com/ionic-team/capacitor-swift-pm.git", exact: "8.2.0"),
-        .package(name: "CapacitorFilesystem", path: "../../../node_modules/@capacitor/filesystem"),
         .package(name: "CapacitorVoiceRecorder", path: "../../../node_modules/capacitor-voice-recorder")
     ],
     targets: [
@@ -21,7 +20,6 @@ let package = Package(
             dependencies: [
                 .product(name: "Capacitor", package: "capacitor-swift-pm"),
                 .product(name: "Cordova", package: "capacitor-swift-pm"),
-                .product(name: "CapacitorFilesystem", package: "CapacitorFilesystem"),
                 .product(name: "CapacitorVoiceRecorder", package: "CapacitorVoiceRecorder")
             ]
         )
