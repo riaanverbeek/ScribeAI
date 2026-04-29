@@ -1841,6 +1841,7 @@ function SiteImageCard({ slot, onUploaded }: { slot: SiteImage; onUploaded: () =
   const [showUrlInput, setShowUrlInput] = useState(false);
   const [urlValue, setUrlValue] = useState("");
   const [urlSaving, setUrlSaving] = useState(false);
+  const [urlPreviewError, setUrlPreviewError] = useState(false);
 
   const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -1926,7 +1927,7 @@ function SiteImageCard({ slot, onUploaded }: { slot: SiteImage; onUploaded: () =
           <div className="flex items-center gap-2">
             <button
               className="text-xs text-blue-600 hover:underline"
-              onClick={() => { setShowUrlInput((v) => !v); setUrlValue(""); }}
+              onClick={() => { setShowUrlInput((v) => !v); setUrlValue(""); setUrlPreviewError(false); }}
               data-testid={`button-use-url-${slot.key}`}
             >
               Use URL
@@ -1948,27 +1949,50 @@ function SiteImageCard({ slot, onUploaded }: { slot: SiteImage; onUploaded: () =
           </div>
         </div>
         {showUrlInput && (
-          <div className="flex items-center gap-2" data-testid={`url-input-row-${slot.key}`}>
-            <Input
-              className="text-xs h-8"
-              placeholder="https://example.com/image.jpg"
-              value={urlValue}
-              onChange={(e) => setUrlValue(e.target.value)}
-              onKeyDown={(e) => { if (e.key === "Enter") handleUrlSubmit(); if (e.key === "Escape") { setShowUrlInput(false); setUrlValue(""); } }}
-              disabled={urlSaving}
-              data-testid={`input-url-${slot.key}`}
-            />
-            <Button
-              size="sm"
-              variant="default"
-              className="text-xs h-8 shrink-0 gap-1"
-              onClick={handleUrlSubmit}
-              disabled={urlSaving || !urlValue.trim()}
-              data-testid={`button-save-url-${slot.key}`}
-            >
-              {urlSaving ? <Loader2 className="w-3 h-3 animate-spin" /> : <Save className="w-3 h-3" />}
-              Save
-            </Button>
+          <div className="space-y-2">
+            <div className="flex items-center gap-2" data-testid={`url-input-row-${slot.key}`}>
+              <Input
+                className="text-xs h-8"
+                placeholder="https://example.com/image.jpg"
+                value={urlValue}
+                onChange={(e) => { setUrlValue(e.target.value); setUrlPreviewError(false); }}
+                onKeyDown={(e) => { if (e.key === "Enter") handleUrlSubmit(); if (e.key === "Escape") { setShowUrlInput(false); setUrlValue(""); setUrlPreviewError(false); } }}
+                disabled={urlSaving}
+                data-testid={`input-url-${slot.key}`}
+              />
+              <Button
+                size="sm"
+                variant="default"
+                className="text-xs h-8 shrink-0 gap-1"
+                onClick={handleUrlSubmit}
+                disabled={urlSaving || !urlValue.trim()}
+                data-testid={`button-save-url-${slot.key}`}
+              >
+                {urlSaving ? <Loader2 className="w-3 h-3 animate-spin" /> : <Save className="w-3 h-3" />}
+                Save
+              </Button>
+            </div>
+            {(urlValue.trim().startsWith("http://") || urlValue.trim().startsWith("https://")) && (
+              <div className="flex items-center gap-2" data-testid={`url-preview-container-${slot.key}`}>
+                {urlPreviewError ? (
+                  <div className="w-16 h-12 rounded border bg-muted flex items-center justify-center text-muted-foreground" data-testid={`url-preview-error-${slot.key}`}>
+                    <XCircle className="w-5 h-5 text-destructive" />
+                  </div>
+                ) : (
+                  <img
+                    key={urlValue.trim()}
+                    src={urlValue.trim()}
+                    alt="Preview"
+                    className="w-16 h-12 rounded border object-cover bg-muted"
+                    onError={() => setUrlPreviewError(true)}
+                    data-testid={`url-preview-img-${slot.key}`}
+                  />
+                )}
+                <span className="text-xs text-muted-foreground">
+                  {urlPreviewError ? "Could not load image" : "Preview"}
+                </span>
+              </div>
+            )}
           </div>
         )}
         <p className="text-xs text-muted-foreground" data-testid={`text-image-updated-${slot.key}`}>
