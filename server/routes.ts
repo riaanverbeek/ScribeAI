@@ -1371,6 +1371,20 @@ export async function registerRoutes(
     try {
       const { key } = req.params;
       const { url } = z.object({ url: z.string().url("Must be a valid URL") }).parse(req.body);
+
+      try {
+        const headRes = await fetch(url, { method: "HEAD", signal: AbortSignal.timeout(5000) });
+        if (!headRes.ok) {
+          return res.status(422).json({ message: "The URL could not be reached. Please check the link and try again." });
+        }
+        const contentType = headRes.headers.get("content-type") || "";
+        if (!contentType.startsWith("image/")) {
+          return res.status(422).json({ message: "The URL does not point to a valid image. Make sure it links directly to an image file (e.g. .jpg, .png, .webp)." });
+        }
+      } catch {
+        return res.status(422).json({ message: "The URL could not be reached. Please check the link and try again." });
+      }
+
       const updated = await storage.setSiteImageUrl(key, url);
       res.json(updated);
     } catch (err) {

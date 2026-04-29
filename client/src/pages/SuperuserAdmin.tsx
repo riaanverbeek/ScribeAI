@@ -1884,7 +1884,20 @@ function SiteImageCard({ slot, onUploaded }: { slot: SiteImage; onUploaded: () =
       setUrlValue("");
       onUploaded();
     } catch (err: unknown) {
-      const message = err instanceof Error ? err.message : "Something went wrong";
+      let message = "Something went wrong";
+      if (err instanceof Error) {
+        const jsonMatch = err.message.match(/^\d+:\s*(\{.*\})$/s);
+        if (jsonMatch) {
+          try {
+            const parsed = JSON.parse(jsonMatch[1]);
+            message = parsed.message || message;
+          } catch {
+            message = err.message;
+          }
+        } else {
+          message = err.message;
+        }
+      }
       toast({ title: "Failed to save URL", description: message, variant: "destructive" });
     } finally {
       setUrlSaving(false);
