@@ -54,7 +54,7 @@ cat > "$PLUGIN_DIR/ios/Plugin/VoiceRecorderBridged.swift" <<'SWIFT'
 import Capacitor
 
 extension VoiceRecorder: CAPBridgedPlugin {
-    public var identifier: String { "VoiceRecorderPlugin" }
+    public var identifier: String { "VoiceRecorder" }
     public var jsName: String { "VoiceRecorder" }
     public var pluginMethods: [CAPPluginMethod] {
         [
