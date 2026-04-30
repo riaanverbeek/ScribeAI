@@ -6,7 +6,7 @@ workflows:
     integrations:
       app_store_connect: Apple Dev Account
     environment:
-      xcode: latest-stable
+      xcode: "16.3"
       ios_signing:
         distribution_type: app_store
         bundle_identifier: com.fant.app
