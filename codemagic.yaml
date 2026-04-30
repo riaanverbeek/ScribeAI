@@ -27,6 +27,18 @@ workflows:
           cd $CM_BUILD_DIR/ios/App
           LATEST_BUILD_NUMBER=$(app-store-connect get-latest-testflight-build-number "$APP_STORE_APPLE_ID")
           agvtool new-version -all $(($LATEST_BUILD_NUMBER + 1))
+      - name: Debug SPM paths
+        script: |
+          echo "=== Working directory ==="
+          pwd
+          echo "=== Package.swift contents ==="
+          cat $CM_BUILD_DIR/ios/App/CapApp-SPM/Package.swift
+          echo "=== Does VoiceRecorder Package.swift exist? ==="
+          ls -la $CM_BUILD_DIR/node_modules/capacitor-voice-recorder/Package.swift
+          echo "=== Does Filesystem Package.swift exist? ==="
+          ls -la $CM_BUILD_DIR/node_modules/@capacitor/filesystem/Package.swift
+          echo "=== Resolved path test ==="
+          ls -la $CM_BUILD_DIR/ios/App/CapApp-SPM/../../../node_modules/capacitor-voice-recorder/
       - name: Build IPA
         script: |
           xcode-project build-ipa \
