@@ -30,12 +30,30 @@ workflows:
           agvtool new-version -all $(($LATEST_BUILD_NUMBER + 1))
       - name: Build IPA
         script: |
-          xcode-project build-ipa \
-            --project "$CM_BUILD_DIR/$XCODE_PROJECT" \
-            --scheme "$XCODE_SCHEME" \
-            --config Release
+          cd $CM_BUILD_DIR
+          xcodebuild \
+            -project ios/App/App.xcodeproj \
+            -scheme App \
+            -configuration Release \
+            -archivePath build/ios/xcarchive/App.xcarchive \
+            archive \
+            CODE_SIGN_STYLE=Manual \
+            DEVELOPMENT_TEAM=TFC54G8539 \
+            CODE_SIGN_IDENTITY="Apple Distribution" \
+            PROVISIONING_PROFILE_SPECIFIER="ScribeAI App Store v2" \
+            -allowProvisioningUpdates \
+            -clonedSourcePackagesDirPath $CM_BUILD_DIR/SourcePackages \
+            | xcpretty
+
+          xcodebuild \
+            -exportArchive \
+            -archivePath build/ios/xcarchive/App.xcarchive \
+            -exportOptionsPlist /Users/builder/export_options.plist \
+            -exportPath build/ios/ipa \
+            | xcpretty
     artifacts:
       - build/ios/ipa/*.ipa
+      - build/ios/xcarchive/*.xcarchive
       - /tmp/xcodebuild_logs/*.log
     publishing:
       app_store_connect:
