@@ -233,7 +233,8 @@ export default function MeetingDetail() {
       return { message: "Audio uploaded and processing started" };
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["/api/meetings", id] });
+      queryClient.invalidateQueries({ queryKey: ["/api/meetings/:id", id] });
+      queryClient.invalidateQueries({ queryKey: ["/api/meetings"] });
       setReuploadFile(null);
       toast({ title: "Audio Uploaded", description: "Audio uploaded and processing started." });
     },
@@ -252,7 +253,7 @@ export default function MeetingDetail() {
       return res.json();
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["/api/meetings", id] });
+      queryClient.invalidateQueries({ queryKey: ["/api/meetings/:id", id] });
       setNewTaskContent("");
       setNewTaskAssignee("");
       setShowAddTask(false);
@@ -268,7 +269,7 @@ export default function MeetingDetail() {
       await apiRequest("DELETE", `/api/action-items/${taskId}`);
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["/api/meetings", id] });
+      queryClient.invalidateQueries({ queryKey: ["/api/meetings/:id", id] });
       toast({ title: "Task removed" });
     },
     onError: () => {
