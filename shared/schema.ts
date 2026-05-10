@@ -104,6 +104,7 @@ export const meetings = pgTable("meetings", {
   status: text("status", { enum: ["uploading", "processing", "completed", "failed"] }).notNull().default("uploading"),
   tenantId: integer("tenant_id").references(() => tenants.id, { onDelete: "cascade" }),
   createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
 });
 
 export const transcripts = pgTable("transcripts", {

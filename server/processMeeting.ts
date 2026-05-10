@@ -4,6 +4,7 @@ import { downloadBufferFromObjectStorage } from "./objectStorageHelper";
 import { sendMeetingCompletedEmail } from "./email";
 import { PROMPT_DEFAULTS, substituteVars } from "./promptDefaults";
 import { transcribeWithSoniox } from "./soniox";
+import { acquireProcessingLock, releaseProcessingLock } from "./processingLock";
 import OpenAI from "openai";
 import Anthropic from "@anthropic-ai/sdk";
 import fs from "fs";
@@ -175,6 +176,18 @@ function formatSummaryToMarkdown(summary: any): string {
 export type ReprocessMode = "summary_only" | "both" | "transcript_only";
 
 export async function processMeetingCore(meetingId: number, mode?: ReprocessMode): Promise<void> {
+  if (!acquireProcessingLock(meetingId)) {
+    console.log(`[processMeeting] Meeting ${meetingId} is already being processed — skipping duplicate call`);
+    return;
+  }
+  try {
+    await _processMeetingCoreImpl(meetingId, mode);
+  } finally {
+    releaseProcessingLock(meetingId);
+  }
+}
+
+async function _processMeetingCoreImpl(meetingId: number, mode?: ReprocessMode): Promise<void> {
   const meeting = await storage.getMeeting(meetingId);
   if (!meeting) {
     throw new Error(`Meeting ${meetingId} not found`);

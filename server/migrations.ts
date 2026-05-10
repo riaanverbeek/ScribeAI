@@ -2,6 +2,7 @@ import { db } from "./db";
 import { sql } from "drizzle-orm";
 import { storage } from "./storage";
 import { processMeetingCore } from "./processMeeting";
+import { isProcessingLocked } from "./processingLock";
 import { PROMPT_DEFAULTS } from "./promptDefaults";
 import { SYSTEM_SETTING_DEFAULTS } from "./llmRegistry";
 
@@ -52,11 +53,21 @@ export async function cleanupStaleUploads() {
   }
 }
 
+export async function migrateMeetingsUpdatedAt() {
+  try {
+    await db.execute(sql`ALTER TABLE meetings ADD COLUMN IF NOT EXISTS updated_at TIMESTAMP DEFAULT NOW()`);
+    await db.execute(sql`UPDATE meetings SET updated_at = created_at WHERE updated_at IS NULL`);
+    console.log("[migrations] meetings.updated_at column ensured");
+  } catch (err) {
+    console.error("[migrations] Error migrating meetings.updated_at:", err);
+  }
+}
+
 export async function retryStaleProcessing() {
   try {
     const cutoff = new Date(Date.now() - 5 * 60 * 1000).toISOString();
     const claimResult = await db.execute(
-      sql.raw(`UPDATE meetings SET status = 'retry_pending' WHERE status = 'processing' AND created_at < '${cutoff}' RETURNING id, title, audio_url`)
+      sql.raw(`UPDATE meetings SET status = 'retry_pending' WHERE status = 'processing' AND COALESCE(updated_at, created_at) < '${cutoff}' RETURNING id, title, audio_url`)
     );
     const rows = (claimResult as any).rows ?? claimResult;
     if (!rows || rows.length === 0) return;
@@ -72,6 +83,12 @@ export async function retryStaleProcessing() {
       if (!hasAudio && !transcript) {
         await db.execute(sql.raw(`UPDATE meetings SET status = 'failed' WHERE id = ${meetingId}`));
         console.log(`[retry] Meeting "${title}" (${meetingId}) has no audio or transcript — marked as failed`);
+        continue;
+      }
+
+      if (isProcessingLocked(meetingId)) {
+        console.log(`[retry] Meeting "${title}" (${meetingId}) is already being processed — skipping retry`);
+        await db.execute(sql.raw(`UPDATE meetings SET status = 'processing' WHERE id = ${meetingId}`));
         continue;
       }
 

@@ -530,7 +530,7 @@ export class DatabaseStorage implements IStorage {
 
     async updateMeetingStatus(id: number, status: "uploading" | "processing" | "completed" | "failed"): Promise<Meeting> {
         const [meeting] = await db.update(meetings)
-            .set({ status })
+            .set({ status, updatedAt: new Date() })
             .where(eq(meetings.id, id))
             .returning();
         return meeting;
@@ -538,7 +538,7 @@ export class DatabaseStorage implements IStorage {
 
     async updateMeetingAudioUrl(id: number, audioUrl: string): Promise<Meeting> {
         const [meeting] = await db.update(meetings)
-            .set({ audioUrl, status: "processing" })
+            .set({ audioUrl, status: "processing", updatedAt: new Date() })
             .where(eq(meetings.id, id))
             .returning();
         return meeting;

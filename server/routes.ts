@@ -18,6 +18,7 @@ import mammoth from "mammoth";
 import { uploadBufferToObjectStorage, downloadBufferFromObjectStorage, streamObjectToResponse, objectStorageService } from "./objectStorageHelper";
 import { registerObjectStorageRoutes } from "./replit_integrations/object_storage";
 import { processMeetingCore, type ReprocessMode } from "./processMeeting";
+import { isProcessingLocked } from "./processingLock";
 
 function cleanAiOutput(text: string): string {
   const lines = text.split('\n');
@@ -2152,6 +2153,10 @@ export async function registerRoutes(
           return res.status(404).json({ message: "Session not found" });
       }
 
+      if (isProcessingLocked(id)) {
+          return res.status(409).json({ message: "This session is already being processed" });
+      }
+
       const existingTranscript = await storage.getTranscript(id);
       const hasTranscript = !!existingTranscript;
 
@@ -2394,6 +2399,10 @@ export async function registerRoutes(
 
       if (!meeting || meeting.userId !== user.id) {
           return res.status(404).json({ message: "Session not found" });
+      }
+
+      if (isProcessingLocked(id)) {
+          return res.status(409).json({ message: "This session is already being processed" });
       }
 
       const transcript = await storage.getTranscript(id);

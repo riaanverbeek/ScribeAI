@@ -73,7 +73,11 @@ export function useMeetings() {
   });
 }
 
+const FAILED_POLL_WINDOW_MS = 2 * 60 * 1000; // 2 minutes
+
 export function useMeeting(id: number | null) {
+  const [loadedAt] = useState(() => Date.now());
+
   return useQuery({
     queryKey: [api.meetings.get.path, id],
     enabled: !!id,
@@ -85,10 +89,12 @@ export function useMeeting(id: number | null) {
       if (!res.ok) throw new Error("Failed to fetch session details");
       return api.meetings.get.responses[200].parse(await res.json());
     },
-    // Poll for status updates if processing
     refetchInterval: (query) => {
       const data = query.state.data as MeetingDetail | undefined;
-      return data?.status === 'processing' || data?.status === 'uploading' ? 2000 : false;
+      if (data?.status === 'processing' || data?.status === 'uploading') return 2000;
+      // If failed with no audio URL (recoverable by retry daemon), poll for 2 minutes after page load
+      if (data?.status === 'failed' && !data?.audioUrl && Date.now() - loadedAt < FAILED_POLL_WINDOW_MS) return 10000;
+      return false;
     }
   });
 }
