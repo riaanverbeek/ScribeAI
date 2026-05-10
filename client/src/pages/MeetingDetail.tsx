@@ -204,11 +204,27 @@ export default function MeetingDetail() {
     mutationFn: async ({ meetingId, file }: { meetingId: number; file: File }) => {
       const formData = new FormData();
       formData.append("audio", file);
-      const res = await fetch(`/api/meetings/${meetingId}/audio`, {
-        method: "POST",
-        credentials: "include",
-        body: formData,
-      });
+
+      const controller = new AbortController();
+      const timeout = setTimeout(() => controller.abort(), 180_000);
+
+      let res: Response;
+      try {
+        res = await fetch(`/api/meetings/${meetingId}/audio`, {
+          method: "POST",
+          credentials: "include",
+          body: formData,
+          signal: controller.signal,
+        });
+      } catch (err: any) {
+        clearTimeout(timeout);
+        if (err?.name === "AbortError") {
+          throw new Error("Upload timed out. Please check your connection and try again.");
+        }
+        throw new Error("Could not reach the server. Please check your connection and try again.");
+      }
+      clearTimeout(timeout);
+
       if (!res.ok) {
         const err = await res.json().catch(() => ({ message: "Upload failed" }));
         throw new Error(err.message || "Upload failed");
@@ -222,7 +238,11 @@ export default function MeetingDetail() {
       toast({ title: "Audio Uploaded", description: "Audio uploaded and processing started." });
     },
     onError: (error: any) => {
-      toast({ title: "Upload Failed", description: error.message, variant: "destructive" });
+      const msg: string = error?.message ?? "";
+      const friendlyMsg = msg.toLowerCase().includes("load failed") || msg.toLowerCase().includes("failed to fetch")
+        ? "Could not read the file. Please try again or use a different audio file."
+        : msg || "Upload failed";
+      toast({ title: "Upload Failed", description: friendlyMsg, variant: "destructive" });
     },
   });
 
@@ -595,26 +615,39 @@ export default function MeetingDetail() {
                 </div>
               </div>
               <div className="space-y-3">
-                <div className="flex items-center gap-3">
-                  <label
-                    htmlFor="reupload-audio"
-                    className="flex-1 flex items-center justify-center gap-2 border-2 border-dashed border-amber-300 dark:border-amber-700 rounded-lg p-4 cursor-pointer hover:bg-amber-100/50 dark:hover:bg-amber-900/30 transition-colors"
-                    data-testid="label-reupload-audio"
-                  >
-                    <UploadCloud className="w-5 h-5 text-amber-600 dark:text-amber-400" />
-                    <span className="text-sm font-medium">
-                      {reuploadFile ? reuploadFile.name : "Choose audio file"}
-                    </span>
-                    <input
-                      id="reupload-audio"
-                      type="file"
-                      accept="audio/*"
-                      className="hidden"
-                      onChange={(e) => setReuploadFile(e.target.files?.[0] || null)}
-                      data-testid="input-reupload-audio"
-                    />
-                  </label>
-                </div>
+                {reuploadMutation.isPending ? (
+                  <div className="flex items-center justify-center gap-3 rounded-lg border border-amber-300 dark:border-amber-700 bg-amber-100/50 dark:bg-amber-900/20 p-4">
+                    <Loader2 className="w-5 h-5 text-amber-600 dark:text-amber-400 animate-spin shrink-0" />
+                    <div className="min-w-0">
+                      <p className="text-sm font-medium text-amber-800 dark:text-amber-300">Uploading…</p>
+                      <p className="text-xs text-amber-600 dark:text-amber-500 truncate">{reuploadFile?.name}</p>
+                    </div>
+                  </div>
+                ) : (
+                  <div className="flex items-center gap-3">
+                    <label
+                      htmlFor="reupload-audio"
+                      className="flex-1 flex items-center justify-center gap-2 border-2 border-dashed border-amber-300 dark:border-amber-700 rounded-lg p-4 cursor-pointer hover:bg-amber-100/50 dark:hover:bg-amber-900/30 transition-colors"
+                      data-testid="label-reupload-audio"
+                    >
+                      <UploadCloud className="w-5 h-5 text-amber-600 dark:text-amber-400" />
+                      <span className="text-sm font-medium truncate max-w-[200px]">
+                        {reuploadFile ? reuploadFile.name : "Choose audio file"}
+                      </span>
+                      <input
+                        id="reupload-audio"
+                        type="file"
+                        accept="audio/*,.webm,.mp4,.m4a,.wav,.ogg,.mp3,.aac,.flac,.opus"
+                        className="hidden"
+                        onChange={(e) => {
+                          reuploadMutation.reset();
+                          setReuploadFile(e.target.files?.[0] || null);
+                        }}
+                        data-testid="input-reupload-audio"
+                      />
+                    </label>
+                  </div>
+                )}
                 <div className="flex items-center gap-2">
                   <Button
                     onClick={() => {
@@ -631,7 +664,7 @@ export default function MeetingDetail() {
                     ) : (
                       <UploadCloud className="w-4 h-4 mr-1.5" />
                     )}
-                    Upload & Process
+                    {reuploadMutation.isPending ? "Uploading…" : "Upload & Process"}
                   </Button>
                 </div>
               </div>
