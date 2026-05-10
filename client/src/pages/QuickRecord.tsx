@@ -36,8 +36,9 @@ type Phase = "ready" | "continue" | "recording" | "paused" | "saving";
 
 function getFileExtensionFromMime(mimeType: string): string {
   if (mimeType.includes("webm")) return ".webm";
-  if (mimeType.includes("mp4")) return ".mp4";
+  if (mimeType.includes("mp4") || mimeType.includes("m4a")) return ".m4a";
   if (mimeType.includes("ogg")) return ".ogg";
+  if (mimeType.includes("aac")) return ".aac";
   return ".webm";
 }
 

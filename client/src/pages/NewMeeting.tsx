@@ -929,7 +929,7 @@ export default function NewMeeting() {
                               onClick={async () => {
                                 const recovered = await recorder.recoverRecording();
                                 if (recovered) {
-                                  const ext = recovered.mimeType.includes("webm") ? ".webm" : recovered.mimeType.includes("mp4") ? ".mp4" : ".webm";
+                                  const ext = recovered.mimeType.includes("webm") ? ".webm" : recovered.mimeType.includes("mp4") || recovered.mimeType.includes("m4a") ? ".m4a" : recovered.mimeType.includes("aac") ? ".aac" : recovered.mimeType.includes("ogg") ? ".ogg" : ".webm";
                                   const recoveredFile = new File([recovered.blob], `recovered${ext}`, { type: recovered.mimeType });
                                   setFile(recoveredFile);
                                   toast({ title: "Recording Recovered", description: "Your interrupted recording has been restored." });
