@@ -62,6 +62,8 @@ type MeetingDetail = z.infer<typeof api.meetings.get.responses[200]>;
 // Hooks
 // ============================================
 
+const ACTIVE_STATUSES = new Set(["processing", "uploading"]);
+
 export function useMeetings() {
   return useQuery({
     queryKey: [api.meetings.list.path],
@@ -69,6 +71,11 @@ export function useMeetings() {
       const res = await fetch(api.meetings.list.path, { credentials: "include" });
       if (!res.ok) throw new Error("Failed to fetch sessions");
       return api.meetings.list.responses[200].parse(await res.json());
+    },
+    refetchInterval: (query) => {
+      const data = query.state.data as Meeting[] | undefined;
+      if (data?.some((m) => ACTIVE_STATUSES.has(m.status))) return 15_000;
+      return false;
     },
   });
 }
