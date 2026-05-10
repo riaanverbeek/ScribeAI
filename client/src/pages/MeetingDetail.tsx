@@ -195,6 +195,13 @@ export default function MeetingDetail() {
   const [newTaskAssignee, setNewTaskAssignee] = useState("");
   const [deleteTaskId, setDeleteTaskId] = useState<number | null>(null);
   const [reuploadFile, setReuploadFile] = useState<File | null>(null);
+  const [alreadyProcessing, setAlreadyProcessing] = useState(false);
+
+  useEffect(() => {
+    if (meeting && meeting.status !== "processing") {
+      setAlreadyProcessing(false);
+    }
+  }, [meeting?.status]);
 
   const isStuckUploading = meeting && meeting.status === "uploading" && !meeting.audioUrl;
   const isFailedNoAudio = meeting && meeting.status === "failed" && !meeting.audioUrl;
@@ -395,7 +402,13 @@ export default function MeetingDetail() {
       toast({ title, description: "The page will update automatically when complete." });
     },
     onError: (err: any) => {
-      toast({ title: "Regeneration failed", description: err.message, variant: "destructive" });
+      if (err.message?.startsWith("409")) {
+        setAlreadyProcessing(true);
+        queryClient.invalidateQueries({ queryKey: ["/api/meetings/:id", id] });
+        toast({ title: "Already processing", description: "This session is already being processed — check back shortly.", variant: "default" });
+      } else {
+        toast({ title: "Regeneration failed", description: err.message, variant: "destructive" });
+      }
     },
   });
 
@@ -410,7 +423,13 @@ export default function MeetingDetail() {
       toast({ title: "Processing restarted", description: "The session is being processed again." });
     },
     onError: (err: any) => {
-      toast({ title: "Retry failed", description: err.message, variant: "destructive" });
+      if (err.message?.startsWith("409")) {
+        setAlreadyProcessing(true);
+        queryClient.invalidateQueries({ queryKey: ["/api/meetings/:id", id] });
+        toast({ title: "Already processing", description: "This session is already being processed — check back shortly.", variant: "default" });
+      } else {
+        toast({ title: "Retry failed", description: err.message, variant: "destructive" });
+      }
     },
   });
 
@@ -1291,7 +1310,7 @@ export default function MeetingDetail() {
                       </div>
                     </motion.div>
                   ) : (
-                    <EmptyState type="summary" status={meeting.status} onRetry={() => retryProcessMutation.mutate(meeting.id)} isRetrying={retryProcessMutation.isPending} />
+                    <EmptyState type="summary" status={meeting.status} onRetry={() => retryProcessMutation.mutate(meeting.id)} isRetrying={retryProcessMutation.isPending} isAlreadyProcessing={alreadyProcessing} />
                   )}
                 </TabsContent>
 
@@ -1318,7 +1337,7 @@ export default function MeetingDetail() {
                       </div>
                     </motion.div>
                   ) : (
-                    <EmptyState type="transcript" status={meeting.status} onRetry={() => retryProcessMutation.mutate(meeting.id)} isRetrying={retryProcessMutation.isPending} />
+                    <EmptyState type="transcript" status={meeting.status} onRetry={() => retryProcessMutation.mutate(meeting.id)} isRetrying={retryProcessMutation.isPending} isAlreadyProcessing={alreadyProcessing} />
                   )}
                 </TabsContent>
 
@@ -1428,7 +1447,7 @@ export default function MeetingDetail() {
                         </motion.div>
                       ))
                     ) : (
-                      !showAddTask && <EmptyState type="action items" status={meeting.status} onRetry={() => retryProcessMutation.mutate(meeting.id)} isRetrying={retryProcessMutation.isPending} />
+                      !showAddTask && <EmptyState type="action items" status={meeting.status} onRetry={() => retryProcessMutation.mutate(meeting.id)} isRetrying={retryProcessMutation.isPending} isAlreadyProcessing={alreadyProcessing} />
                     )}
                   </div>
                 </TabsContent>
@@ -1467,7 +1486,7 @@ export default function MeetingDetail() {
                       </div>
                     </div>
                   ) : (
-                    <EmptyState type="topics" status={meeting.status} onRetry={() => retryProcessMutation.mutate(meeting.id)} isRetrying={retryProcessMutation.isPending} />
+                    <EmptyState type="topics" status={meeting.status} onRetry={() => retryProcessMutation.mutate(meeting.id)} isRetrying={retryProcessMutation.isPending} isAlreadyProcessing={alreadyProcessing} />
                   )}
                 </TabsContent>
               </div>
@@ -1556,12 +1575,14 @@ export default function MeetingDetail() {
               onClick={handleConfirmReprocess}
               disabled={
                 reprocessMutation.isPending ||
+                meeting.status === "processing" ||
+                alreadyProcessing ||
                 (selectedReprocessMode === "summary_only" && !meeting.transcript) ||
                 ((selectedReprocessMode === "both" || selectedReprocessMode === "transcript_only") && !meeting.audioUrl)
               }
               data-testid="button-confirm-reprocess"
             >
-              {reprocessMutation.isPending ? <><Loader2 className="w-4 h-4 mr-1.5 animate-spin" /> Starting...</> : "Regenerate"}
+              {(meeting.status === "processing" || alreadyProcessing) ? <><Loader2 className="w-4 h-4 mr-1.5 animate-spin" /> Already processing...</> : reprocessMutation.isPending ? <><Loader2 className="w-4 h-4 mr-1.5 animate-spin" /> Starting...</> : "Regenerate"}
             </Button>
           </DialogFooter>
         </DialogContent>
@@ -1595,8 +1616,9 @@ export default function MeetingDetail() {
   );
 }
 
-function EmptyState({ type, status, onRetry, isRetrying }: { type: string, status: string | undefined, onRetry?: () => void, isRetrying?: boolean }) {
+function EmptyState({ type, status, onRetry, isRetrying, isAlreadyProcessing }: { type: string, status: string | undefined, onRetry?: () => void, isRetrying?: boolean, isAlreadyProcessing?: boolean }) {
   if (status === 'processing' || status === 'uploading') {
+    const retryDisabled = status === 'processing' || isRetrying || isAlreadyProcessing;
     return (
       <div className="flex flex-col items-center justify-center py-20 text-center">
         <div className="w-12 h-12 bg-amber-50 dark:bg-amber-950 rounded-full flex items-center justify-center mb-4">
@@ -1612,11 +1634,11 @@ function EmptyState({ type, status, onRetry, isRetrying }: { type: string, statu
             size="sm"
             className="mt-4"
             onClick={onRetry}
-            disabled={isRetrying}
+            disabled={retryDisabled}
             data-testid="button-retry-processing"
           >
-            {isRetrying ? <Loader2 className="w-4 h-4 mr-1.5 animate-spin" /> : <RefreshCw className="w-4 h-4 mr-1.5" />}
-            Stuck? Retry Processing
+            {(isRetrying || isAlreadyProcessing) ? <Loader2 className="w-4 h-4 mr-1.5 animate-spin" /> : <RefreshCw className="w-4 h-4 mr-1.5" />}
+            {isAlreadyProcessing ? "Already processing..." : "Processing in progress..."}
           </Button>
         )}
       </div>
